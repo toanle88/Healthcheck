@@ -1,0 +1,30 @@
+{
+  "name": "Go Azure DevOps Playground",
+  "image": "mcr.microsoft.com/devcontainers/go:1-1.22-bookworm",
+"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "hashicorp.terraform",
+        "ms-azuretools.vscode-azureterraform",
+        "ms-vscode.azurecli",
+        "ms-azuretools.vscode-docker",
+        "github.copilot"
+      ],
+      "settings": {
+        "go.useLanguageServer": true,
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    }
+  },
+  "forwardPorts": [8080, 5173, 5432],
+  "remoteUser": "vscode",
+  "postCreateCommand": "bash .devcontainer/verify.sh"
+}
