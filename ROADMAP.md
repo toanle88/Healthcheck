@@ -4,10 +4,10 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 
 ## Phase 0 — Setup (Day 0)
 **Goal:** Clean repo, tooling ready
-- [ ] `git init`, create repo structure from PROJECT.md
-- [ ] Install: Go 1.26, Docker, Terraform ≥1.7, Azure CLI, golangci-lint, Trivy
-- [ ] `az login` and create dev subscription/resource group
-- [ ] Create GitHub repo, enable Actions, add OIDC federated credential for Azure
+- [x] `git init`, create repo structure from PROJECT.md
+- [x] Install: Go 1.26, Docker, Terraform ≥1.7, Azure CLI, golangci-lint, Trivy
+- [x] `az login` and create dev subscription/resource group
+- [x] Create GitHub repo, enable Actions, add OIDC federated credential for Azure
 
 **Deliverable:** Empty repo pushes successfully
 
@@ -17,10 +17,10 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 **Goal:** Working app locally, no cloud yet
 
 ### Day 1 — API skeleton
-- [ ] `go mod init github.com/you/healthcheck`
-- [ ] `cmd/api/main.go`: Gin server, `/health`, `/api/status`, `/api/history`
-- [ ] `internal/store/postgres.go`: pgx pool with context timeout
-- [ ] `docker-compose.yml`: postgres:16 only
+- [x] `go mod init github.com/toanle88/healthcheck`
+- [x] `cmd/api/main.go`: Gin server, `/health`, `/api/status`, `/api/history`
+- [x] `internal/store/postgres.go`: pgx pool with context timeout
+- [x] `docker-compose.yml`: postgres:18 only
 - [ ] Test: `go run ./cmd/api` → curl localhost:8080/health
 
 ### Day 2 — Worker

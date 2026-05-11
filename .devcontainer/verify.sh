@@ -12,7 +12,6 @@ check_cmd() {
 }
 
 check_cmd go
-check_cmd az
 check_cmd gh
 check_cmd node
 

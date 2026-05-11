@@ -7,9 +7,11 @@ healthcheck
 *.tfstate
 *.tfstate.backup
 .terraform.lock.hcl
+tfplan
 
 # Environment & Secrets
 .env
+.env.azure
 .envrc
 
 # Go

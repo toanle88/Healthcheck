@@ -26,6 +26,30 @@ Browser → Azure Front Door + Azure Static Web Apps (React/Vite)
 All runtime secrets are retrieved from Azure Key Vault using Managed Identity.
 
 ## 🛠️ Tech Stack
+## 🔐 Environment Files
+
+This project uses two separate env files to avoid leaking secrets:
+
+**`.env`** — app config (safe to share as example)
+```
+PORT=8080
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/healthcheck?sslmode=disable
+```
+
+**`.env.azure`** — Azure credentials for Terraform (NEVER commit)
+```bash
+export ARM_SUBSCRIPTION_ID="your-id"
+export ARM_TENANT_ID="your-id"
+export ARM_CLIENT_ID="your-id"
+export ARM_CLIENT_SECRET="your-secret"
+```
+
+Usage:
+```bash
+source .env          # for go run
+source .env.azure    # for terraform
+```
+
 
 - **Backend API**: Go 1.26, Gin (or net/http), pgx/v5
 - **Worker**: Go, robfig/cron
@@ -67,29 +91,42 @@ All runtime secrets are retrieved from Azure Key Vault using Managed Identity.
 └── PROJECT.md
 ```
 
-## 🚀 Quick Start (Local)
+## 🚀 Quick Start (Local - Day 1)
 
 ```bash
 git clone <your-repo-url>
 cd healthcheck-dashboard
-docker-compose up --build
+
+# 1. Start Postgres only
+docker-compose up -d
+
+# 2. Load app config
+cp .env.example .env
+# edit .env if needed, then:
+source .env
+
+# 3. Run API
+go mod tidy
+go run ./cmd/api
 ```
 
 - API: http://localhost:8080/health
-- Web: http://localhost:5173
+- DB: postgres://postgres:postgres@localhost:5432/healthcheck
 
-`docker-compose.yml` runs Postgres + api + worker locally with no cloud dependencies.
+`docker-compose.yml` runs Postgres only for Day 1-3. API and worker run locally with `go run`.
 
 ## ☁️ Quick Start (Azure)
 
 1. **Prereqs**: Azure CLI, Terraform ≥1.7, Go 1.26
+> **Dev Container tip:** If `terraform` is not found, rebuild with the updated `.devcontainer/devcontainer.json` that installs Terraform via apt (the Node feature breaks on Bookworm).
+
 
 2. **Create Service Principal**:
    ```bash
    az ad sp create-for-rbac --name "healthcheck-sp"      --role Contributor      --scopes /subscriptions/YOUR-SUBSCRIPTION-ID
    ```
 
-3. **Create .env file** in project root:
+3. **Create `.env.azure`** (never commit):
    ```bash
    export ARM_SUBSCRIPTION_ID="your-id"
    export ARM_TENANT_ID="your-id"
@@ -99,7 +136,7 @@ docker-compose up --build
 
 4. **Load env and run Terraform**:
    ```bash
-   source .env
+   source .env.azure
    cd infra/envs/dev
    terraform init
    terraform fmt
@@ -110,7 +147,7 @@ docker-compose up --build
 
 5. **Push to main**: CI builds images, pushes to ACR, updates Container Apps
 
-> Do not commit `.env`. Add it to `.gitignore`.
+> Do not commit `.env` or `.env.azure`. Add both to `.gitignore`.
 
 ## 🔄 CI/CD Flow
 
@@ -164,7 +201,7 @@ Stretch goals: blue-green deploys, auto-scale to zero, multi-region with Front D
 Estimated cost if left running: $5-12/month in dev.
 
 ```bash
-source .env
+source .env.azure
 cd infra/envs/dev
 terraform destroy -auto-approve
 ```
