@@ -1,6 +1,5 @@
 # Binaries
 bin/
-out/
 healthcheck
 
 # Terraform
@@ -8,6 +7,10 @@ healthcheck
 *.tfstate
 *.tfstate.backup
 .terraform.lock.hcl
+
+# Environment & Secrets
+.env
+.envrc
 
 # Go
 vendor/

@@ -1,0 +1,182 @@
+# Healthcheck Dashboard — DevOps Playground (Azure + Go)
+
+A tiny, production-like app built specifically to learn **CI/CD, Terraform, Docker, monitoring, and security on Azure using Go**. The app pings 3 public APIs every minute and shows green/red status, so you spend 90% of your time on infra, not features.
+
+See `PROJECT.md` for full specs and `ROADMAP.md` for the 14-day plan.
+
+## 🎯 Learning Goals
+
+- **Go**: idiomatic HTTP servers, context cancellation, structured logging
+- **Docker**: multi-stage builds with distroless, ~12MB images, non-root user
+- **Terraform**: AzureRM for VNet, Container Apps, PostgreSQL Flexible Server, Key Vault, Managed Identity, ACR
+- **CI/CD**: GitHub Actions with Azure Service Principal
+- **Observability**: OpenTelemetry Go SDK → Azure Monitor / Application Insights
+- **Security**: Key Vault, RBAC least privilege, Trivy scanning, Defender for Cloud
+
+## 🏗️ Architecture (Azure)
+
+```
+Browser → Azure Front Door + Azure Static Web Apps (React/Vite)
+                         ↓
+                  Azure Container Apps → Go API
+                         ↓
+                  Azure Container Apps Job → Go Worker → Azure Database for PostgreSQL Flexible Server
+```
+
+All runtime secrets are retrieved from Azure Key Vault using Managed Identity.
+
+## 🛠️ Tech Stack
+
+- **Backend API**: Go 1.26, Gin (or net/http), pgx/v5
+- **Worker**: Go, robfig/cron
+- **Frontend**: React + Vite
+- **Database**: Azure Database for PostgreSQL Flexible Server
+- **Containers**: Azure Container Registry, Azure Container Apps
+- **Infra**: Terraform ≥1.7
+- **CI/CD**: GitHub Actions
+- **Monitoring**: Application Insights, Log Analytics, Azure Monitor
+- **Security**: Azure Key Vault, Microsoft Defender for Cloud, Trivy
+
+## 📁 Repository Structure
+
+```
+.
+├── cmd/
+│   ├── api/          # HTTP server
+│   └── worker/       # Cron worker
+├── internal/
+│   ├── config/       # env + Key Vault loading
+│   ├── handler/      # HTTP handlers
+│   ├── store/        # postgres queries
+│   └── monitor/      # otel setup
+├── web/              # React frontend
+├── infra/
+│   ├── modules/
+│   │   ├── network/
+│   │   ├── containerapp/
+│   │   ├── postgres/
+│   │   └── keyvault/
+│   └── envs/dev/
+├── .github/workflows/
+│   ├── ci.yml
+│   └── cd.yml
+├── Dockerfile.api
+├── Dockerfile.worker
+├── docker-compose.yml
+├── go.mod
+└── PROJECT.md
+```
+
+## 🚀 Quick Start (Local)
+
+```bash
+git clone <your-repo-url>
+cd healthcheck-dashboard
+docker-compose up --build
+```
+
+- API: http://localhost:8080/health
+- Web: http://localhost:5173
+
+`docker-compose.yml` runs Postgres + api + worker locally with no cloud dependencies.
+
+## ☁️ Quick Start (Azure)
+
+1. **Prereqs**: Azure CLI, Terraform ≥1.7, Go 1.26
+
+2. **Create Service Principal**:
+   ```bash
+   az ad sp create-for-rbac --name "healthcheck-sp"      --role Contributor      --scopes /subscriptions/YOUR-SUBSCRIPTION-ID
+   ```
+
+3. **Create .env file** in project root:
+   ```bash
+   export ARM_SUBSCRIPTION_ID="your-id"
+   export ARM_TENANT_ID="your-id"
+   export ARM_CLIENT_ID="your-id"
+   export ARM_CLIENT_SECRET="your-secret"
+   ```
+
+4. **Load env and run Terraform**:
+   ```bash
+   source .env
+   cd infra/envs/dev
+   terraform init
+   terraform fmt
+   terraform plan -out tfplan
+   terraform apply "tfplan"
+   terraform destroy -auto-approve
+   ```
+
+5. **Push to main**: CI builds images, pushes to ACR, updates Container Apps
+
+> Do not commit `.env`. Add it to `.gitignore`.
+
+## 🔄 CI/CD Flow
+
+**ci.yml (PR)**:
+- go vet, go test -race, golangci-lint
+- trivy fs --severity HIGH,CRITICAL
+- terraform fmt -check && terraform validate
+
+**cd.yml (main)**:
+1. azure/login@v2 with Service Principal secrets
+2. docker build and push to ACR with $GITHUB_SHA
+3. terraform apply -auto-approve
+4. az containerapp update
+5. smoke test /health
+
+## 📊 Observability
+
+- Logs: `log/slog` with JSON handler → stdout → Log Analytics
+- Traces: OpenTelemetry Go SDK → Application Insights
+- Metrics: runtime metrics + custom `api_ping_duration_seconds`
+- Alerts: P95 latency > 500ms, error rate >1%, worker job failed
+
+## 🛡️ Security Checklist
+
+- [ ] Dockerfile uses distroless, USER nonroot
+- [ ] Trivy scan passes in CI
+- [ ] No secrets in repo, use Managed Identity + Key Vault for runtime
+- [ ] PostgreSQL: private endpoint only, SSL enforced
+- [ ] Container App has only "Key Vault Secrets User" role
+- [ ] Defender for Cloud enabled on ACR and Container Apps
+- [ ] WAF enabled on Front Door
+
+## 📅 14-Day Roadmap
+
+This project is designed as a 2-week playground. See `ROADMAP.md` for daily tasks.
+
+**Week 1 – Local Go + Docker**
+- Days 1-3: API skeleton, worker, React frontend
+- Days 4-5: Hardened Dockerfiles, slog JSON, OpenTelemetry
+
+**Week 2 – Azure + Terraform + CI/CD**
+- Days 6-8: Terraform for network, ACR, Key Vault, Postgres, Container Apps
+- Days 9-11: GitHub Actions CI/CD with Service Principal
+- Days 12-13: Application Insights, alerts, Defender for Cloud, WAF
+- Day 14: Chaos testing and rollback
+
+Stretch goals: blue-green deploys, auto-scale to zero, multi-region with Front Door.
+
+## 🧹 Cleanup
+
+Estimated cost if left running: $5-12/month in dev.
+
+```bash
+source .env
+cd infra/envs/dev
+terraform destroy -auto-approve
+```
+
+## 🤖 Using with Meta AI
+
+When asking for help, upload:
+1. The file you're editing (e.g., `internal/config/config.go`)
+2. `PROJECT.md`
+3. One related example
+
+Example: "Based on Dockerfile.api, generate Dockerfile.worker for ./cmd/worker with same distroless hardening."
+
+---
+Built to learn DevOps with Go on Azure, by doing, not watching.
