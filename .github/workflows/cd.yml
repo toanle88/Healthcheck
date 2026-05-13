@@ -4,6 +4,11 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      confirm_deploy:
+        description: 'Type "yes" to confirm deployment'
+        required: true
+        default: 'no'
 
 permissions:
   id-token: write
@@ -64,6 +69,8 @@ jobs:
   deploy:
     name: "🚀 Deploy: Terraform & Containers"
     needs: build-and-push
+    # Only run if triggered manually AND confirmed
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.confirm_deploy == 'yes'
     runs-on: ubuntu-latest
     defaults:
       run:
