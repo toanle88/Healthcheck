@@ -131,6 +131,6 @@ jobs:
       - name: "⚡ Update Worker Job"
         run: |
           az containerapp job update \
-            --name job-healthcheck-worker-dev \
+            --name caj-healthcheck-worker-dev \
             --resource-group rg-healthcheck-dev \
             --image ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/worker:${{ needs.build.outputs.image_tag }}
