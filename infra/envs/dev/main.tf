@@ -103,7 +103,7 @@ resource "azurerm_key_vault_secret" "db_password" {
   name         = "database-password"
   value        = random_password.db_password.result
   key_vault_id = module.keyvault.id
-  
+
   # Ensure the role assignment is created before trying to write the secret
   depends_on = [module.keyvault]
 }
