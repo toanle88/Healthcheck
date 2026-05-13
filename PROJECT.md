@@ -21,13 +21,14 @@ Browser → Azure Front Door + Azure Static Web Apps (React/Vite)
 All secrets retrieved from Azure Key Vault using Managed Identity.
 
 ## 📦 Tech Stack
-- **Backend API**: Go 1.26, Gin (or net/http), pgx/v5
-- **Worker**: Go, robfig/cron
-- **Frontend**: React + Vite (static)
-- **Database**: Azure Database for PostgreSQL Flexible Server
-- **Containers**: Azure Container Registry (ACR), Azure Container Apps
-- **Infra**: Terraform ≥1.7 (azurerm provider)
+- **Backend API**: Go 1.26, Gin, pgx/v5, slog
+- **Worker**: Go 1.26, robfig/cron, shared postgres store
+- **Frontend**: React 19 + Vite + TypeScript + Tailwind CSS 4
+- **Database**: PostgreSQL 18
+- **Testing**: Vitest, Playwright, Go Testing
+- **Infra**: Terraform ≥1.7
 - **CI/CD**: GitHub Actions
+- **Containerization**: Docker Compose (Dev), Distroless (Prod)
 - **Monitoring**: Application Insights, Log Analytics, Azure Monitor
 - **Security**: Azure Key Vault, Microsoft Defender for Cloud, Trivy
 
@@ -66,7 +67,7 @@ All secrets retrieved from Azure Key Vault using Managed Identity.
 ## 🚀 Quick Start (Local)
 ```bash
 git clone <repo>
-cd healthcheck-dashboard
+cd healthcheck
 docker-compose up --build
 # API: http://localhost:8080/health
 # Web: http://localhost:5173

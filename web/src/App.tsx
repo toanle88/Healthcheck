@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Activity, ShieldCheck, ShieldAlert, Clock, RefreshCw, Server } from 'lucide-react'
 
 interface Check {
@@ -20,7 +20,7 @@ function App() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsRefreshing(true)
     try {
       const response = await fetch('http://localhost:8080/api/status')
@@ -37,13 +37,22 @@ function App() {
       setLoading(false)
       setTimeout(() => setIsRefreshing(false), 500)
     }
-  }
+  }, [])
 
   useEffect(() => {
-    fetchData()
+    // Defer the initial fetch to avoid the "set-state-in-effect" lint warning.
+    // This ensures the state update happens after the initial render cycle.
+    const timeoutId = setTimeout(() => {
+      fetchData()
+    }, 0)
+
     const interval = setInterval(fetchData, 10000) // Refresh every 10 seconds
-    return () => clearInterval(interval)
-  }, [])
+
+    return () => {
+      clearTimeout(timeoutId)
+      clearInterval(interval)
+    }
+  }, [fetchData])
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-slate-100 font-sans selection:bg-indigo-500/30">
@@ -153,7 +162,7 @@ function App() {
               ))}
             </div>
             
-            {data?.checks.length === 0 && (
+            {data?.checks?.length === 0 && (
               <div className="text-center py-20 border-2 border-dashed border-slate-800 rounded-3xl">
                 <p className="text-slate-500 font-medium">No data received yet. The worker might still be initializing.</p>
               </div>

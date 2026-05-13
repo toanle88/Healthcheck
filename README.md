@@ -51,15 +51,14 @@ source .env.azure    # for terraform
 ```
 
 
-- **Backend API**: Go 1.26, Gin (or net/http), pgx/v5
-- **Worker**: Go, robfig/cron
-- **Frontend**: React + Vite
-- **Database**: Azure Database for PostgreSQL Flexible Server
-- **Containers**: Azure Container Registry, Azure Container Apps
+- **Backend API**: Go 1.26, Gin, pgx/v5 (Structured logging with `slog`)
+- **Worker**: Go 1.26, robfig/cron, shared Postgres store
+- **Frontend**: React 19 + Vite + TypeScript + Tailwind CSS 4
+- **Database**: PostgreSQL 18 (Local) / Azure Database for PostgreSQL Flexible Server (Cloud)
+- **Testing**: Vitest (FE Unit), Playwright (E2E), Go Testing (BE Unit/Integration)
+- **Containers**: Docker Compose (Local), Azure Container Apps (Cloud)
 - **Infra**: Terraform ≥1.7
-- **CI/CD**: GitHub Actions
-- **Monitoring**: Application Insights, Log Analytics, Azure Monitor
-- **Security**: Azure Key Vault, Microsoft Defender for Cloud, Trivy
+- **CI/CD**: GitHub Actions with Azure OIDC
 
 ## 📁 Repository Structure
 
@@ -91,29 +90,38 @@ source .env.azure    # for terraform
 └── PROJECT.md
 ```
 
-## 🚀 Quick Start (Local - Day 1)
+## 🚀 Quick Start (Local Development)
+
+### 1. Launch the Full Stack
+This project is fully containerized. You can start the API, Worker, Database, and Frontend with a single command:
 
 ```bash
-git clone <your-repo-url>
-cd healthcheck-dashboard
-
-# 1. Start Postgres only
-docker-compose up -d
-
-# 2. Load app config
-cp .env.example .env
-# edit .env if needed, then:
-source .env
-
-# 3. Run API
-go mod tidy
-go run ./cmd/api
+docker-compose up --build
 ```
 
-- API: http://localhost:8080/health
-- DB: postgres://postgres:postgres@localhost:5432/healthcheck
+- **Dashboard**: [http://localhost:5173](http://localhost:5173)
+- **API Health**: [http://localhost:8080/health](http://localhost:8080/health)
+- **API Status**: [http://localhost:8080/api/status](http://localhost:8080/api/status)
 
-`docker-compose.yml` runs Postgres only for Day 1-3. API and worker run locally with `go run`.
+### 2. Verify your Environment
+Run the validation script to ensure linting and tests are passing:
+
+```powershell
+# Windows
+./check.ps1
+
+# Linux/macOS
+chmod +x check.sh
+./check.sh
+```
+
+### 3. Manual Frontend Development
+If you want to run the frontend outside of Docker with Hot Module Replacement (HMR):
+```bash
+cd web
+pnpm install
+pnpm dev
+```
 
 ## ☁️ Quick Start (Azure)
 

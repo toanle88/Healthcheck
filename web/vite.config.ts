@@ -8,4 +8,11 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  // @ts-expect-error - Vitest types might not be present in standard Vite config
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/setupTests.ts'],
+    exclude: ['**/node_modules/**', '**/e2e/**'],
+  },
 })
