@@ -17,21 +17,21 @@ resource "azurerm_private_dns_zone_virtual_network_link" "main" {
 
 # 3. POSTGRES FLEXIBLE SERVER
 resource "azurerm_postgresql_flexible_server" "main" {
-  name                          = "psql-healthcheck-${var.environment}"
-  resource_group_name           = var.resource_group_name
-  location                      = var.location
-  version                       = "16"
-  delegated_subnet_id           = var.subnet_id
-  private_dns_zone_id           = azurerm_private_dns_zone.postgres.id
-  
+  name                = "psql-healthcheck-${var.environment}"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  version             = "16"
+  delegated_subnet_id = var.subnet_id
+  private_dns_zone_id = azurerm_private_dns_zone.postgres.id
+
   # SECURITY: This ensures the database is NOT reachable from the internet.
-  public_network_access_enabled = false 
-  
+  public_network_access_enabled = false
+
   administrator_login    = "psqladmin"
   administrator_password = var.admin_password
 
   # SKU: B1ms is the "Burstable" tier, perfect for dev/learning at ~$0.017/hour.
-  sku_name   = "B_Standard_B1ms" 
+  sku_name   = "B_Standard_B1ms"
   storage_mb = 32768
 
   depends_on = [azurerm_private_dns_zone_virtual_network_link.main]

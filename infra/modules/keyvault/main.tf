@@ -8,14 +8,14 @@ resource "azurerm_key_vault" "main" {
   resource_group_name         = var.resource_group_name
   enabled_for_disk_encryption = true
   tenant_id                   = data.azurerm_client_config.current.tenant_id
-  
+
   # Soft delete allows you to recover a deleted vault. 7 days is a safe minimum for dev.
-  soft_delete_retention_days  = 7
-  purge_protection_enabled    = false
-  sku_name                    = "standard"
+  soft_delete_retention_days = 7
+  purge_protection_enabled   = false
+  sku_name                   = "standard"
 
   # Modern standard (v4.0+): Use this instead of enable_rbac_authorization
-  rbac_authorization_enabled = true 
+  rbac_authorization_enabled = true
 }
 
 # IMPORTANT: Even if you are an "Owner" of the subscription, you cannot read/write

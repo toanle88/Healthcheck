@@ -11,10 +11,10 @@ resource "azurerm_role_assignment" "allow_github" {
 }
 
 resource "azurerm_federated_identity_credential" "github" {
-  name      = "fed-github-actions-${var.environment}"
-  audience  = ["api://AzureADTokenExchange"]
-  issuer    = "https://token.actions.githubusercontent.com"
-  
+  name     = "fed-github-actions-${var.environment}"
+  audience = ["api://AzureADTokenExchange"]
+  issuer   = "https://token.actions.githubusercontent.com"
+
   user_assigned_identity_id = azurerm_user_assigned_identity.github_actions.id
   subject                   = "repo:${var.github_org_or_user}/${var.github_repo_name}:ref:refs/heads/main"
 }

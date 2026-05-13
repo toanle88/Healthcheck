@@ -13,9 +13,9 @@ resource "azurerm_container_app_environment" "main" {
   location                   = var.location
   resource_group_name        = var.resource_group_name
   log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
-  
+
   # Link to our VNet Subnet from Day 6
-  infrastructure_subnet_id   = var.subnet_id
+  infrastructure_subnet_id = var.subnet_id
 }
 
 # 3. MANAGED IDENTITY (The "Security Passport" for the Apps)
@@ -74,7 +74,7 @@ resource "azurerm_container_app" "api" {
       image  = var.api_image
       cpu    = 0.25
       memory = "0.5Gi"
-      
+
       env {
         name  = "PORT"
         value = "8080"
@@ -155,7 +155,7 @@ resource "azurerm_container_app" "web" {
       image  = var.web_image
       cpu    = 0.25
       memory = "0.5Gi"
-      
+
       env {
         name  = "VITE_API_URL"
         value = "https://${azurerm_container_app.api.ingress[0].fqdn}"
