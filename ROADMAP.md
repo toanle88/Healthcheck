@@ -24,9 +24,9 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 - [ ] Test: `go run ./cmd/api` → curl localhost:8080/health
 
 ### Day 2 — Worker
-- [ ] `cmd/worker/main.go`: cron every 60s, pings 3 APIs (httpbin, github, azure status)
-- [ ] Store results in Postgres table `checks(id, target, status, latency_ms, checked_at)`
-- [ ] Add `internal/config` to load from env
+- [x] `cmd/worker/main.go`: cron every 60s, pings 3 APIs (httpbin, github, azure status)
+- [x] Store results in Postgres table `checks(id, target, status, latency_ms, checked_at)`
+- [x] Add `internal/config` to load from env
 
 ### Day 3 — Frontend
 - [ ] `web/`: Vite + React, fetch `/api/status`, show green/red cards

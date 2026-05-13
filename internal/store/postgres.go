@@ -74,3 +74,16 @@ func (s *Store) InitSchema(ctx context.Context) error {
 	`)
 	return err // Return nil if table created/exists, or error if SQL failed
 }
+
+// InsertCheck saves a new health check result into the database.
+// This is used by the worker to record the status of various targets.
+func (s *Store) InsertCheck(ctx context.Context, target, status string, latencyMs int) error {
+	// We use $1, $2, $3 as placeholders for parameters to prevent SQL injection.
+	// pgx handles the mapping of Go types to Postgres types.
+	_, err := s.DB.Exec(ctx, `
+		INSERT INTO checks (target, status, latency_ms)
+		VALUES ($1, $2, $3)
+	`, target, status, latencyMs)
+	
+	return err
+}

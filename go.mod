@@ -5,6 +5,7 @@ go 1.26
 require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/jackc/pgx/v5 v5.6.0
+	github.com/robfig/cron/v3 v3.0.1
 )
 
 require (
