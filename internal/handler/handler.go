@@ -1,19 +1,26 @@
 package handler
 
 import (
-    "net/http"
-    "time"
+	"context"
+	"net/http"
+	"time"
 
-    "github.com/gin-gonic/gin"
-    "github.com/toanle88/healthcheck/internal/store"
+	"github.com/gin-gonic/gin"
+	"github.com/toanle88/healthcheck/internal/store"
 )
 
-type Handler struct {
-    store *store.Store
+// Storer defines the methods our database layer must implement.
+// This allows us to "mock" the database during unit tests.
+type Storer interface {
+	GetLatestChecks(ctx context.Context) ([]store.Check, error)
 }
 
-func New(s *store.Store) *Handler {
-    return &Handler{store: s}
+type Handler struct {
+	store Storer
+}
+
+func New(s Storer) *Handler {
+	return &Handler{store: s}
 }
 
 // GET /health
