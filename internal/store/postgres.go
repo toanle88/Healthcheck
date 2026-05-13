@@ -87,3 +87,54 @@ func (s *Store) InsertCheck(ctx context.Context, target, status string, latencyM
 	
 	return err
 }
+
+// Check represents a single health check record in the database.
+type Check struct {
+	Target    string    `json:"target"`
+	Status    string    `json:"status"`
+	LatencyMs int       `json:"latency_ms"`
+	CheckedAt time.Time `json:"checked_at"`
+}
+
+// GetLatestChecks retrieves the most recent check result for each unique target.
+// It uses Postgres' DISTINCT ON feature to efficiently group by target.
+func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
+	// DISTINCT ON (target) ensures we only get one row per target.
+	// We order by target first (required by DISTINCT ON) and then by checked_at DESC
+	// to make sure we get the newest one.
+	rows, err := s.DB.Query(ctx, `
+		SELECT DISTINCT ON (target) target, status, latency_ms, checked_at 
+		FROM checks 
+		ORDER BY target, checked_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var checks []Check
+	for rows.Next() {
+		var ck Check
+		if err := rows.Scan(&ck.Target, &ck.Status, &ck.LatencyMs, &ck.CheckedAt); err != nil {
+			return nil, err
+		}
+		checks = append(checks, ck)
+	}
+	return checks, nil
+}
+
+// CleanupOldChecks deletes records older than the specified duration.
+// This prevents the database from growing indefinitely.
+func (s *Store) CleanupOldChecks(ctx context.Context, olderThan time.Duration) (int64, error) {
+	// Calculate the cutoff time
+	cutoff := time.Now().Add(-olderThan)
+
+	// Exec the DELETE statement
+	result, err := s.DB.Exec(ctx, "DELETE FROM checks WHERE checked_at < $1", cutoff)
+	if err != nil {
+		return 0, err
+	}
+
+	// RowsAffected() tells us how many rows were cleaned up
+	return result.RowsAffected(), nil
+}

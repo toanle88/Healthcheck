@@ -72,7 +72,27 @@ func main() {
 	})
 
 	if err != nil {
-		slog.Error("failed to schedule cron job", "err", err)
+		slog.Error("failed to schedule ping job", "err", err)
+		os.Exit(1)
+	}
+
+	// --- NEW: CLEANUP JOB ---
+	// Add a job to clean up old data every hour. 
+	// We keep data for 24 hours.
+	_, err = c.AddFunc("@hourly", func() {
+		slog.Info("running database cleanup")
+		
+		// 24h retention period
+		count, err := st.CleanupOldChecks(context.Background(), 24*time.Hour)
+		if err != nil {
+			slog.Error("cleanup failed", "err", err)
+		} else {
+			slog.Info("cleanup finished", "rows_deleted", count)
+		}
+	})
+
+	if err != nil {
+		slog.Error("failed to schedule cleanup job", "err", err)
 		os.Exit(1)
 	}
 

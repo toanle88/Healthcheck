@@ -27,29 +27,16 @@ func (h *Handler) Health(c *gin.Context) {
 
 // GET /api/status
 func (h *Handler) Status(c *gin.Context) {
-    ctx := c.Request.Context()
-    rows, err := h.store.DB.Query(ctx, `
-        SELECT target, status, latency_ms, checked_at 
-        FROM checks ORDER BY checked_at DESC LIMIT 10`)
-    if err != nil {
-        c.JSON(500, gin.H{"error": err.Error()})
-        return
-    }
-    defer rows.Close()
+	ctx := c.Request.Context()
 
-    type Check struct {
-        Target    string    `json:"target"`
-        Status    string    `json:"status"`
-        LatencyMs int       `json:"latency_ms"`
-        CheckedAt time.Time `json:"checked_at"`
-    }
-    var checks []Check
-    for rows.Next() {
-        var ck Check
-        rows.Scan(&ck.Target, &ck.Status, &ck.LatencyMs, &ck.CheckedAt)
-        checks = append(checks, ck)
-    }
-    c.JSON(200, gin.H{"checks": checks, "count": len(checks)})
+	// Call the new store method which handles the grouping and latest logic
+	checks, err := h.store.GetLatestChecks(ctx)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"checks": checks, "count": len(checks)})
 }
 
 // GET /api/history
