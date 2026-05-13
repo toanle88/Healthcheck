@@ -30,17 +30,6 @@ resource "azurerm_resource_group" "dev" {
   location = var.location
 }
 
-# 3. IDENTITY MODULE (OIDC)
-module "identity" {
-  source              = "../../modules/identity"
-  location            = azurerm_resource_group.dev.location
-  resource_group_name = azurerm_resource_group.dev.name
-  resource_group_id   = azurerm_resource_group.dev.id
-  environment         = var.environment
-  github_org_or_user  = var.github_org_or_user
-  github_repo_name    = var.github_repo_name
-}
-
 # 4. NETWORK MODULE (Day 6)
 module "network" {
   source              = "../../modules/network"
