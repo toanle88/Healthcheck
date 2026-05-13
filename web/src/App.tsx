@@ -20,10 +20,14 @@ function App() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
   const [isRefreshing, setIsRefreshing] = useState(false)
 
+  // Use the environment variable if present, otherwise fall back to the placeholder for Azure injection.
+  // Locally, this will use the value from your .env file or localhost.
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'VITE_API_URL_PLACEHOLDER';
+
   const fetchData = useCallback(async () => {
     setIsRefreshing(true)
     try {
-      const response = await fetch('http://localhost:8080/api/status')
+      const response = await fetch(`${API_BASE_URL}/api/status`)
       if (!response.ok) {
         throw new Error('Failed to fetch status')
       }
@@ -171,10 +175,18 @@ function App() {
         )}
       </main>
       
-      <footer className="mt-auto border-t border-slate-800 py-8 text-center">
-        <p className="text-sm text-slate-500 font-medium">
-          Monitoring {data?.count || 0} endpoints across global infrastructure
-        </p>
+      <footer className="mt-auto border-t border-slate-800 py-8 px-6">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-slate-500 font-medium">
+            Monitoring {data?.count || 0} endpoints across global infrastructure
+          </p>
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-600">Version</span>
+            <span className="px-2 py-0.5 bg-slate-800 text-slate-400 rounded text-[10px] font-mono border border-slate-700/50">
+              {import.meta.env.VITE_APP_VERSION || 'VITE_APP_VERSION_PLACEHOLDER'}
+            </span>
+          </div>
+        </div>
       </footer>
     </div>
   )

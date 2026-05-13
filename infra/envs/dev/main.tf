@@ -22,6 +22,7 @@ variable "location" { default = "East Asia" }
 variable "environment" { default = "dev" }
 variable "api_image" { default = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" }
 variable "worker_image" { default = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" }
+variable "web_image" { default = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" }
 
 # 2. Resource Group
 resource "azurerm_resource_group" "dev" {
@@ -93,6 +94,8 @@ module "containerapp" {
   keyvault_id         = module.keyvault.id
   api_image           = var.api_image
   worker_image        = var.worker_image
+  web_image           = var.web_image
+  app_version         = var.api_image # We'll just use the tag part of the image
 }
 
 # Store the DB password in Key Vault for later use by the App
@@ -110,3 +113,4 @@ output "AZURE_CLIENT_ID" { value = module.identity.client_id }
 output "AZURE_TENANT_ID" { value = module.identity.tenant_id }
 output "ACR_LOGIN_SERVER" { value = module.acr.login_server }
 output "API_URL" { value = module.containerapp.api_url }
+output "WEB_URL" { value = module.containerapp.web_url }

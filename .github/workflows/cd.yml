@@ -41,6 +41,7 @@ jobs:
           file: ./Dockerfile.api
           push: true
           tags: crhealthcheckdev.azurecr.io/api:${{ steps.vars.outputs.sha_short }}
+          build-args: APP_VERSION=${{ steps.vars.outputs.sha_short }}
 
       - name: "🐝 Build & Push Worker Image"
         uses: docker/build-push-action@v5
@@ -49,6 +50,15 @@ jobs:
           file: ./Dockerfile.worker
           push: true
           tags: crhealthcheckdev.azurecr.io/worker:${{ steps.vars.outputs.sha_short }}
+          build-args: APP_VERSION=${{ steps.vars.outputs.sha_short }}
+
+      - name: "🌐 Build & Push Web Image"
+        uses: docker/build-push-action@v5
+        with:
+          context: ./web
+          file: ./Dockerfile.web
+          push: true
+          tags: crhealthcheckdev.azurecr.io/web:${{ steps.vars.outputs.sha_short }}
 
   # --- 🚀 CLOUD DEPLOYMENT ---
   deploy:
@@ -79,4 +89,5 @@ jobs:
         run: |
           terraform apply -auto-approve \
             -var="api_image=crhealthcheckdev.azurecr.io/api:${{ needs.build-and-push.outputs.image_tag }}" \
-            -var="worker_image=crhealthcheckdev.azurecr.io/worker:${{ needs.build-and-push.outputs.image_tag }}"
+            -var="worker_image=crhealthcheckdev.azurecr.io/worker:${{ needs.build-and-push.outputs.image_tag }}" \
+            -var="web_image=crhealthcheckdev.azurecr.io/web:${{ needs.build-and-push.outputs.image_tag }}"

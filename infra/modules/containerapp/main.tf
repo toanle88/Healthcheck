@@ -122,6 +122,57 @@ resource "azurerm_container_app_job" "worker" {
   }
 }
 
+# 7. THE FRONTEND (Publicly Accessible)
+resource "azurerm_container_app" "web" {
+  name                         = "ca-healthcheck-web-${var.environment}"
+  container_app_environment_id = azurerm_container_app_environment.main.id
+  resource_group_name          = var.resource_group_name
+  revision_mode                = "Single"
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.apps.id]
+  }
+
+  registry {
+    server   = var.acr_login_server
+    identity = azurerm_user_assigned_identity.apps.id
+  }
+
+  ingress {
+    allow_insecure_connections = false
+    external_enabled           = true
+    target_port                = 80
+    traffic_weight {
+      percentage      = 100
+      latest_revision = true
+    }
+  }
+
+  template {
+    container {
+      name   = "web"
+      image  = var.web_image
+      cpu    = 0.25
+      memory = "0.5Gi"
+      
+      env {
+        name  = "VITE_API_URL"
+        value = "https://${azurerm_container_app.api.ingress[0].fqdn}"
+      }
+
+      env {
+        name  = "VITE_APP_VERSION"
+        value = var.app_version
+      }
+    }
+  }
+}
+
 output "api_url" {
   value = azurerm_container_app.api.ingress[0].fqdn
+}
+
+output "web_url" {
+  value = azurerm_container_app.web.ingress[0].fqdn
 }

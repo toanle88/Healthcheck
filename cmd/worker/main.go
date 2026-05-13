@@ -19,11 +19,14 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+var Version = "dev"
+
 func main() {
 	// --- 1. SETUP LOGGING ---
 	// Using the same JSON structured logging as the API.
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
+	slog.Info("starting healthcheck worker", "version", Version)
 
 	// --- 2. LOAD CONFIG ---
 	cfg := config.Load()

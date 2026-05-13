@@ -43,12 +43,12 @@ services:
   web:
     build:
       context: ./web
-      dockerfile: ../Dockerfile.web # We'll create this one for local dev
+      dockerfile: Dockerfile.web
     ports:
-      - "5173:5173"
-    volumes:
-      - ./web:/app
-      - /app/node_modules
+      - "5173:80" # Map host 5173 to Nginx port 80
+    environment:
+      - VITE_API_URL=http://localhost:8080
+      - VITE_APP_VERSION=local-dev
     depends_on:
       - api
 

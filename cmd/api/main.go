@@ -17,18 +17,20 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
+var Version = "dev"
+
 func main() {
-	// --- 1. SETUP STRUCTURED JSON LOGGING ---
-	// Create a JSON logger that writes to stdout. Makes logs easy to parse in cloud platforms.
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger) // Set it as the global logger so slog.Info/Error works everywhere
+	// Initialize context that listens for the interrupt signal from the OS.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Initialize structured logging (JSON)
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	slog.Info("starting healthcheck api", "version", Version)
 
 	// --- 2. LOAD CONFIG ---
 	// Load config from env vars, .env file, etc. Likely contains Port, DatabaseURL, etc.
 	cfg := config.Load()
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	// --- 4. INITIALIZE OPENTELEMETRY ---
 	// serviceName should be unique for each microservice
