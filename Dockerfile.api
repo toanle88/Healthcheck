@@ -1,12 +1,47 @@
+# Build stage
 FROM golang:1.26-alpine AS builder
-WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o api ./cmd/api
 
-FROM alpine:latest
 WORKDIR /app
+
+# Download dependencies with cache mount
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+# Copy source code
+COPY . .
+
+# Build the API binary with cache mounts
+# -ldflags="-w -s" removes debug info to shrink the binary
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-w -s" \
+    -o api ./cmd/api
+
+# Build a tiny healthcheck helper
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-w -s" \
+    -o healthcheck ./cmd/healthcheck
+
+# Run stage (Distroless)
+# Using 'static' because our Go binary is statically linked (CGO_ENABLED=0)
+FROM gcr.io/distroless/static-debian12:nonroot
+
+WORKDIR /app
+
+# Copy the binaries from the builder stage
 COPY --from=builder /app/api .
+COPY --from=builder /app/healthcheck .
+
+# Standard ports
 EXPOSE 8080
-CMD ["./api"]
+
+# Healthcheck instruction (runs every 30s)
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD ["/app/healthcheck"]
+
+# Run the API
+ENTRYPOINT ["/app/api"]

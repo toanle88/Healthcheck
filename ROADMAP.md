@@ -39,10 +39,10 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 **Goal:** Production-grade containers
 
 ### Day 4
-- [ ] Write `Dockerfile.api` and `Dockerfile.worker` (multi-stage, distroless, nonroot)
-- [ ] Image size < 20MB
-- [ ] Add HEALTHCHECK in Dockerfile
-- [ ] Run Trivy locally: `trivy image healthcheck-api`
+- [x] Write `Dockerfile.api` and `Dockerfile.worker` (multi-stage, distroless, nonroot)
+- [x] Image size < 20MB
+- [x] Add HEALTHCHECK in Dockerfile
+- [x] Run Trivy locally: `trivy image healthcheck-api`
 
 ### Day 5
 - [ ] Add structured logging with `log/slog` JSON

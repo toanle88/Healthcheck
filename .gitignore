@@ -1,6 +1,8 @@
 # Binaries
 bin/
-healthcheck
+/healthcheck
+/api
+/worker
 
 # Terraform
 .terraform/
