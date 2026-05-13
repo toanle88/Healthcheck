@@ -34,6 +34,10 @@ resource "azurerm_postgresql_flexible_server" "main" {
   sku_name   = "B_Standard_B1ms"
   storage_mb = 32768
 
+  lifecycle {
+    ignore_changes = [zone]
+  }
+
   depends_on = [azurerm_private_dns_zone_virtual_network_link.main]
 }
 
