@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/toanle88/healthcheck/internal/config"
 	"github.com/toanle88/healthcheck/internal/handler"
 	"github.com/toanle88/healthcheck/internal/monitor"
@@ -33,7 +32,7 @@ func main() {
 
 	// --- 4. INITIALIZE OPENTELEMETRY ---
 	// serviceName should be unique for each microservice
-	shutdown, err := monitor.InitOTel(ctx, "healthcheck-api")
+	metricsHandler, shutdown, err := monitor.InitOTel(ctx, "healthcheck-api")
 	if err != nil {
 		slog.Error("otel init failed", "err", err)
 	} else {
@@ -99,7 +98,9 @@ func main() {
 	r.GET("/api/history", h.History)   // Historical status data
 
 	// Metrics endpoint for Prometheus/Azure Monitor scraping
-	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	if metricsHandler != nil {
+		r.GET("/metrics", gin.WrapH(metricsHandler))
+	}
 
 	// --- 8. CONFIGURE HTTP SERVER ---
 	srv := &http.Server{

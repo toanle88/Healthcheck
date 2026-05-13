@@ -103,6 +103,17 @@ docker-compose up --build
 - **API Health**: [http://localhost:8080/health](http://localhost:8080/health)
 - **API Status**: [http://localhost:8080/api/status](http://localhost:8080/api/status)
 
+### 📊 Observability Dashboards
+This project includes a full-stack observability suite:
+
+- **Traces (Jaeger)**: [http://localhost:16686](http://localhost:16686)
+  - View the "journey" of every request and background ping.
+- **Metrics (Prometheus)**: [http://localhost:9090](http://localhost:9090)
+  - **API Metrics**: [http://localhost:8080/metrics](http://localhost:8080/metrics)
+  - **Worker Metrics**: [http://localhost:8081/metrics](http://localhost:8081/metrics)
+  - Try querying: `healthcheck_status_total` or `healthcheck_latency_seconds_bucket`.
+  - **P95 Latency Query**: `histogram_quantile(0.95, sum(rate(healthcheck_latency_seconds_bucket[5m])) by (le, target))`
+
 ### 2. Verify your Environment
 Run the validation script to ensure linting and tests are passing:
 

@@ -34,6 +34,8 @@ services:
       dockerfile: Dockerfile.worker
     environment:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/healthcheck?sslmode=disable
+    ports:
+      - "8081:8081" # Prometheus metrics for the worker
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,6 +49,23 @@ services:
     volumes:
       - ./web:/app
       - /app/node_modules
+    depends_on:
+      - api
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    ports:
+      - "16686:16686" # Jaeger UI
+      - "4318:4318"   # OTLP HTTP receiver
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
     depends_on:
       - api
 

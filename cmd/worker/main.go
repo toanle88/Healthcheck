@@ -15,6 +15,7 @@ import (
 	"github.com/toanle88/healthcheck/internal/store"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -31,11 +32,20 @@ func main() {
 	defer stop()
 
 	// --- 4. INITIALIZE OPENTELEMETRY ---
-	shutdown, err := monitor.InitOTel(ctx, "healthcheck-worker")
+	metricsHandler, shutdown, err := monitor.InitOTel(ctx, "healthcheck-worker")
 	if err != nil {
 		slog.Error("otel init failed", "err", err)
 	} else {
 		defer shutdown(context.Background())
+		
+		// Start a small HTTP server for Prometheus metrics in the background
+		go func() {
+			http.Handle("/metrics", metricsHandler)
+			slog.Info("worker metrics server starting", "port", 8081)
+			if err := http.ListenAndServe(":8081", nil); err != nil {
+				slog.Error("metrics server failed", "err", err)
+			}
+		}()
 	}
 
 	// --- 4. CONNECT TO DATABASE ---
@@ -82,6 +92,15 @@ func main() {
 				attribute.String("health.status", status),
 				attribute.Int64("health.latency_ms", latency.Milliseconds()),
 			)
+
+			// Record metrics in Prometheus
+			monitor.CheckCounter.Add(batchCtx, 1, metric.WithAttributes(
+				attribute.String("target", url),
+				attribute.String("status", status),
+			))
+			monitor.LatencyHistogram.Record(batchCtx, latency.Seconds(), metric.WithAttributes(
+				attribute.String("target", url),
+			))
 
 			// Record the result in the database
 			if err := st.InsertCheck(context.Background(), url, status, int(latency.Milliseconds())); err != nil {
