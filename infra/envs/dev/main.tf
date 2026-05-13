@@ -82,6 +82,7 @@ module "containerapp" {
   acr_id              = data.azurerm_container_registry.main.id
   acr_login_server    = data.azurerm_container_registry.main.login_server
   keyvault_id         = module.keyvault.id
+  keyvault_uri        = module.keyvault.vault_uri
   api_image           = var.api_image
   worker_image        = var.worker_image
   web_image           = var.web_image

@@ -70,7 +70,7 @@ resource "azurerm_container_app" "api" {
 
   secret {
     name                = "db-password"
-    key_vault_secret_id = "${var.keyvault_id}/secrets/database-password"
+    key_vault_secret_id = "${var.keyvault_uri}secrets/database-password"
     identity            = azurerm_user_assigned_identity.apps.id
   }
 
@@ -126,7 +126,7 @@ resource "azurerm_container_app_job" "worker" {
 
   secret {
     name                = "db-password"
-    key_vault_secret_id = "${var.keyvault_id}/secrets/database-password"
+    key_vault_secret_id = "${var.keyvault_uri}secrets/database-password"
     identity            = azurerm_user_assigned_identity.apps.id
   }
 
