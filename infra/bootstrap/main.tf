@@ -18,12 +18,20 @@ resource "azurerm_user_assigned_identity" "github_actions" {
   resource_group_name = azurerm_resource_group.bootstrap.name
 }
 
-# 2. THE PERMISSIONS (Contributor on the subscription so it can create other RGs)
+# 2. THE PERMISSIONS
 data "azurerm_subscription" "primary" {}
 
-resource "azurerm_role_assignment" "allow_github" {
+# Role 1: Contributor (To build resources)
+resource "azurerm_role_assignment" "allow_github_contributor" {
   scope                = data.azurerm_subscription.primary.id
   role_definition_name = "Contributor"
+  principal_id         = azurerm_user_assigned_identity.github_actions.principal_id
+}
+
+# Role 2: User Access Administrator (To handle Role Assignments like ACR Pull)
+resource "azurerm_role_assignment" "allow_github_uaa" {
+  scope                = data.azurerm_subscription.primary.id
+  role_definition_name = "User Access Administrator"
   principal_id         = azurerm_user_assigned_identity.github_actions.principal_id
 }
 
@@ -46,7 +54,22 @@ resource "azurerm_federated_identity_credential" "manual" {
   subject                   = "repo:${var.github_org}/${var.github_repo}:event:workflow_dispatch"
 }
 
-# 4. THE STORAGE (For Terraform Remote State)
+# 4. THE REGISTRY (Permanent Warehouse for Docker Images)
+resource "random_string" "acr_suffix" {
+  length  = 4
+  special = false
+  upper   = false
+}
+
+resource "azurerm_container_registry" "main" {
+  name                = "crhealthcheck${random_string.acr_suffix.result}"
+  resource_group_name = azurerm_resource_group.bootstrap.name
+  location            = azurerm_resource_group.bootstrap.location
+  sku                 = "Basic"
+  admin_enabled       = true
+}
+
+# 5. THE STORAGE (For Terraform Remote State)
 resource "random_string" "storage_suffix" {
   length  = 6
   special = false
@@ -65,6 +88,10 @@ resource "azurerm_storage_container" "tfstate" {
   name                  = "tfstate"
   storage_account_name  = azurerm_storage_account.tfstate.name
   container_access_type = "private"
+}
+
+output "AZURE_ACR_NAME" {
+  value = azurerm_container_registry.main.name
 }
 
 output "AZURE_STORAGE_ACCOUNT" {

@@ -39,12 +39,12 @@ module "network" {
   environment         = var.environment
 }
 
-# 5. ACR MODULE (Day 6)
-module "acr" {
-  source              = "../../modules/acr"
-  location            = azurerm_resource_group.dev.location
-  resource_group_name = azurerm_resource_group.dev.name
-  environment         = var.environment
+variable "acr_name" { type = string }
+
+# 5. THE REGISTRY (Linked from Bootstrap)
+data "azurerm_container_registry" "main" {
+  name                = var.acr_name
+  resource_group_name = "rg-healthcheck-bootstrap"
 }
 
 # 6. POSTGRES MODULE (Day 7)
@@ -79,8 +79,8 @@ module "containerapp" {
   resource_group_name = azurerm_resource_group.dev.name
   environment         = var.environment
   subnet_id           = module.network.apps_subnet_id
-  acr_id              = module.acr.id
-  acr_login_server    = module.acr.login_server
+  acr_id              = data.azurerm_container_registry.main.id
+  acr_login_server    = data.azurerm_container_registry.main.login_server
   keyvault_id         = module.keyvault.id
   api_image           = var.api_image
   worker_image        = var.worker_image
@@ -99,6 +99,6 @@ resource "azurerm_key_vault_secret" "db_password" {
 }
 
 # OUTPUTS for GitHub Actions
-output "ACR_LOGIN_SERVER" { value = module.acr.login_server }
+output "ACR_LOGIN_SERVER" { value = data.azurerm_container_registry.main.login_server }
 output "API_URL" { value = module.containerapp.api_url }
 output "WEB_URL" { value = module.containerapp.web_url }
