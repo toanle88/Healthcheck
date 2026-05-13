@@ -1,7 +1,9 @@
-name: "🚀 CD: Build & Fast Deploy"
+name: "🏁 Full Stack Pipeline"
 
 on:
   push:
+    branches: [ main ]
+  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
@@ -10,9 +12,45 @@ permissions:
   contents: read
 
 jobs:
-  # --- 📦 ARTIFACT CREATION (The Factory) ---
-  build-and-push:
-    name: "📦 Build & Push: Docker Images"
+  # ==========================================
+  # STAGE 1: THE AUDIT (CI)
+  # ==========================================
+  audit:
+    name: "🛡️ Audit: Quality & Security"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "📂 Checkout Code"
+        uses: actions/checkout@v4
+
+      - name: "🐹 Setup Go Environment"
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: "📏 Verify Code Formatting"
+        run: if [ "$(gofmt -l . | wc -l)" -gt 0 ]; then exit 1; fi
+
+      - name: "🔍 Static Analysis (Vet)"
+        run: go vet ./...
+
+      - name: "⚡ Run Unit Tests"
+        run: go test -v -race ./...
+
+      - name: "🔒 Security Scan (Trivy)"
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+
+  # ==========================================
+  # STAGE 2: THE FACTORY (Build & Push)
+  # ==========================================
+  build:
+    name: "📦 Build: Docker Images"
+    needs: audit # <--- ONLY RUN IF AUDIT PASSES!
+    if: github.event_name != 'pull_request' # Don't build/push on PRs, only on push/manual
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.vars.outputs.sha_short }}
@@ -56,14 +94,16 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./web
-          file: ./Dockerfile.web
+          file: ./web/Dockerfile.web
           push: true
           tags: crhealthcheckdev.azurecr.io/web:${{ steps.vars.outputs.sha_short }}
 
-  # --- 🚀 FAST DEPLOYMENT (The Speedster) ---
+  # ==========================================
+  # STAGE 3: THE DEPLOYER (Fast Update)
+  # ==========================================
   deploy:
-    name: "🚀 Fast Deploy: CLI Update"
-    needs: build-and-push
+    name: "🚀 Deploy: Fast CLI Update"
+    needs: build # <--- ONLY RUN IF BUILD PASSES!
     runs-on: ubuntu-latest
     steps:
       - name: "🔑 Login to Azure (OIDC)"
@@ -78,19 +118,19 @@ jobs:
           az containerapp update \
             --name ca-healthcheck-api-dev \
             --resource-group rg-healthcheck-dev \
-            --image crhealthcheckdev.azurecr.io/api:${{ needs.build-and-push.outputs.image_tag }}
+            --image crhealthcheckdev.azurecr.io/api:${{ needs.build.outputs.image_tag }}
 
       - name: "⚡ Update Web Container"
         run: |
           az containerapp update \
             --name ca-healthcheck-web-dev \
             --resource-group rg-healthcheck-dev \
-            --image crhealthcheckdev.azurecr.io/web:${{ needs.build-and-push.outputs.image_tag }} \
-            --set-env-vars VITE_APP_VERSION=${{ needs.build-and-push.outputs.image_tag }}
+            --image crhealthcheckdev.azurecr.io/web:${{ needs.build.outputs.image_tag }} \
+            --set-env-vars VITE_APP_VERSION=${{ needs.build.outputs.image_tag }}
 
       - name: "⚡ Update Worker Job"
         run: |
           az containerapp job update \
             --name job-healthcheck-worker-dev \
             --resource-group rg-healthcheck-dev \
-            --image crhealthcheckdev.azurecr.io/worker:${{ needs.build-and-push.outputs.image_tag }}
+            --image crhealthcheckdev.azurecr.io/worker:${{ needs.build.outputs.image_tag }}
