@@ -50,8 +50,7 @@ data "azurerm_container_registry" "main" {
 # 6. POSTGRES MODULE (Day 7)
 resource "random_password" "db_password" {
   length           = 16
-  special          = true
-  override_special = "!#$%&*()-_=+[]{}<>:?"
+  special          = false # Remove complex symbols to avoid URL encoding issues
 }
 
 module "postgres" {
