@@ -9,6 +9,7 @@ terraform {
       version = "~> 3.0"
     }
   }
+  backend "azurerm" {}
 }
 
 provider "azurerm" {
@@ -98,8 +99,6 @@ resource "azurerm_key_vault_secret" "db_password" {
 }
 
 # OUTPUTS for GitHub Actions
-output "AZURE_CLIENT_ID" { value = module.identity.client_id }
-output "AZURE_TENANT_ID" { value = module.identity.tenant_id }
 output "ACR_LOGIN_SERVER" { value = module.acr.login_server }
 output "API_URL" { value = module.containerapp.api_url }
 output "WEB_URL" { value = module.containerapp.web_url }

@@ -35,7 +35,12 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: "📦 Initialize Workspace"
-        run: terraform init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=rg-healthcheck-bootstrap" \
+            -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.AZURE_STORAGE_CONTAINER }}" \
+            -backend-config="key=dev.terraform.tfstate"
 
       - name: "🧨 DESTROY ALL RESOURCES"
         run: terraform destroy -auto-approve
