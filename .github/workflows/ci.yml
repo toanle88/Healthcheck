@@ -3,6 +3,7 @@ name: CI - Quality & Security
 on:
   pull_request:
     branches: [ main ]
+  workflow_dispatch: # Allows manual run from GitHub UI
 
 permissions:
   id-token: write # Required for requesting the JWT (OIDC)
