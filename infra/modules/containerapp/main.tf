@@ -83,12 +83,12 @@ resource "azurerm_container_app" "api" {
   }
 }
 
-# 6. THE WORKER (Internal Only)
-resource "azurerm_container_app" "worker" {
-  name                         = "ca-healthcheck-worker-${var.environment}"
+# 6. THE WORKER (Scheduled Job)
+resource "azurerm_container_app_job" "worker" {
+  name                         = "caj-healthcheck-worker-${var.environment}"
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = var.resource_group_name
-  revision_mode                = "Single"
+  location                     = var.location
 
   identity {
     type         = "UserAssigned"
@@ -100,12 +100,24 @@ resource "azurerm_container_app" "worker" {
     identity = azurerm_user_assigned_identity.apps.id
   }
 
+  schedule_trigger_config {
+    cron_expression = "*/1 * * * *" # Every minute
+  }
+
+  replica_timeout_in_seconds = 60
+  replica_retry_limit        = 1
+
   template {
     container {
       name   = "worker"
       image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" # Placeholder
       cpu    = 0.25
       memory = "0.5Gi"
+
+      env {
+        name  = "WORKER_MODE"
+        value = "job"
+      }
     }
   }
 }

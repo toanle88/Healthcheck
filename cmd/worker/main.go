@@ -57,8 +57,51 @@ func main() {
 	}
 	defer st.Close()
 
-	// --- 5. INITIALIZE CRON SCHEDULER ---
-	// cron.New() creates a new scheduler.
+	// --- 5. DETERMINE EXECUTION MODE ---
+	// "job" = run once and exit (Azure Jobs)
+	// "service" = run forever with internal cron (Local / Traditional)
+	mode := os.Getenv("WORKER_MODE")
+	if mode == "job" {
+		slog.Info("running in JOB mode (one-time execution)")
+		
+		targets := []string{
+			"http://httpbin.org/get",
+			"https://github.com",
+			"https://azure.microsoft.com/en-us/status/",
+		}
+
+		slog.Info("executing health pings", "count", len(targets))
+		for _, url := range targets {
+			pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			status, latency := pingTarget(pingCtx, url)
+			cancel()
+			
+			// Record metrics
+			monitor.CheckCounter.Add(ctx, 1, metric.WithAttributes(
+				attribute.String("target", url),
+				attribute.String("status", status),
+			))
+			monitor.LatencyHistogram.Record(ctx, latency.Seconds(), metric.WithAttributes(
+				attribute.String("target", url),
+			))
+
+			// Save to DB
+			if err := st.InsertCheck(ctx, url, status, int(latency.Milliseconds())); err != nil {
+				slog.Error("failed to save check", "target", url, "err", err)
+			}
+		}
+		
+		// Run Cleanup too
+		slog.Info("executing database cleanup")
+		count, _ := st.CleanupOldChecks(ctx, 24*time.Hour)
+		slog.Info("cleanup finished", "rows_deleted", count)
+		
+		slog.Info("job completed successfully")
+		return
+	}
+
+	// --- 6. SERVICE MODE (CRON) ---
+	slog.Info("running in SERVICE mode (background cron)")
 	c := cron.New()
 
 	// List of targets to monitor as defined in PROJECT.md
