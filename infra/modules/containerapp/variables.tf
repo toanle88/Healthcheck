@@ -5,3 +5,5 @@ variable "subnet_id" { type = string }
 variable "acr_id" { type = string }
 variable "acr_login_server" { type = string }
 variable "keyvault_id" { type = string }
+variable "api_image" { type = string }
+variable "worker_image" { type = string }

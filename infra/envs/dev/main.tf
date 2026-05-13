@@ -20,6 +20,8 @@ variable "github_org_or_user" { default = "toanle88" }
 variable "github_repo_name" { default = "healthcheck" }
 variable "location" { default = "East Asia" }
 variable "environment" { default = "dev" }
+variable "api_image" { default = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" }
+variable "worker_image" { default = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" }
 
 # 2. Resource Group
 resource "azurerm_resource_group" "dev" {
@@ -89,6 +91,8 @@ module "containerapp" {
   acr_id              = module.acr.id
   acr_login_server    = module.acr.login_server
   keyvault_id         = module.keyvault.id
+  api_image           = var.api_image
+  worker_image        = var.worker_image
 }
 
 # Store the DB password in Key Vault for later use by the App

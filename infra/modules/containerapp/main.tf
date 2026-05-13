@@ -71,7 +71,7 @@ resource "azurerm_container_app" "api" {
   template {
     container {
       name   = "api"
-      image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" # Placeholder
+      image  = var.api_image
       cpu    = 0.25
       memory = "0.5Gi"
       
@@ -110,7 +110,7 @@ resource "azurerm_container_app_job" "worker" {
   template {
     container {
       name   = "worker"
-      image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" # Placeholder
+      image  = var.worker_image
       cpu    = 0.25
       memory = "0.5Gi"
 

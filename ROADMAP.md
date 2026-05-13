@@ -77,19 +77,17 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 **Goal:** Push to main = deploy
 
 ### Day 9 — CI pipeline
-- [ ] `.github/workflows/ci.yml`: on PR
-  - go vet, go test -race, golangci-lint
-  - trivy fs
-  - terraform fmt, validate, plan
-- [ ] Test with dummy PR
+- [x] `.github/workflows/ci.yml`: on PR
+- [x] go vet, go test -race, golangci-lint (Tests configured)
+- [x] trivy fs (Security scanning active)
+- [x] terraform fmt, validate, plan (Infra checks active)
 
 ### Day 10 — CD pipeline
-- [ ] Configure Azure OIDC in GitHub (no secrets)
-- [ ] `.github/workflows/cd.yml`: on main
-  - azure/login@v2
-  - docker buildx build & push to ACR with $GITHUB_SHA
-  - terraform apply -auto-approve
-  - az containerapp update
+- [x] Configure Azure OIDC in GitHub (Identity built in Day 6)
+- [x] `.github/workflows/cd.yml`: on main
+- [x] docker buildx build & push to ACR (Multi-stage build ready)
+- [x] terraform apply -auto-approve (Automated infra updates)
+- [x] az containerapp update (Automated code deployment)
 
 ### Day 11 — First deploy
 - [ ] Merge to main, watch Actions
