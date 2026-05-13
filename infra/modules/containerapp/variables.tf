@@ -9,3 +9,6 @@ variable "api_image" { type = string }
 variable "worker_image" { type = string }
 variable "web_image" { type = string }
 variable "app_version" { type = string }
+variable "db_host" { type = string }
+variable "db_name" { type = string }
+variable "db_user" { type = string }

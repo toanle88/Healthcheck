@@ -68,6 +68,12 @@ resource "azurerm_container_app" "api" {
     }
   }
 
+  secret {
+    name                = "db-password"
+    key_vault_secret_id = "${var.keyvault_id}/secrets/database-password"
+    identity            = azurerm_user_assigned_identity.apps.id
+  }
+
   template {
     container {
       name   = "api"
@@ -78,6 +84,11 @@ resource "azurerm_container_app" "api" {
       env {
         name  = "PORT"
         value = "8080"
+      }
+
+      env {
+        name  = "DATABASE_URL"
+        value = "postgres://${var.db_user}:SECRET(db-password)@${var.db_host}:5432/${var.db_name}?sslmode=require"
       }
     }
   }
@@ -113,6 +124,12 @@ resource "azurerm_container_app_job" "worker" {
   replica_timeout_in_seconds = 60
   replica_retry_limit        = 1
 
+  secret {
+    name                = "db-password"
+    key_vault_secret_id = "${var.keyvault_id}/secrets/database-password"
+    identity            = azurerm_user_assigned_identity.apps.id
+  }
+
   template {
     container {
       name   = "worker"
@@ -123,6 +140,11 @@ resource "azurerm_container_app_job" "worker" {
       env {
         name  = "WORKER_MODE"
         value = "job"
+      }
+
+      env {
+        name  = "DATABASE_URL"
+        value = "postgres://${var.db_user}:SECRET(db-password)@${var.db_host}:5432/${var.db_name}?sslmode=require"
       }
     }
   }

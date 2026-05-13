@@ -86,6 +86,9 @@ module "containerapp" {
   worker_image        = var.worker_image
   web_image           = var.web_image
   app_version         = var.api_image # We'll just use the tag part of the image
+  db_host             = module.postgres.host
+  db_name             = "healthcheck"
+  db_user             = "psqladmin"
 }
 
 # Store the DB password in Key Vault for later use by the App
