@@ -17,7 +17,7 @@ provider "azurerm" {
 
 # 1. Variables
 variable "github_org_or_user" { default = "toanle88" }
-variable "github_repo_name" { default = "healthcheck" }
+variable "github_repo_name" { default = "Healthcheck" }
 variable "location" { default = "East Asia" }
 variable "environment" { default = "dev" }
 variable "api_image" { default = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" }

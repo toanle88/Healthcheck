@@ -1,10 +1,10 @@
-name: "🚨 Danger Zone: Wipe All Resources"
+name: "🏗️ Infrastructure: Core Setup & Maintenance"
 
 on:
   workflow_dispatch:
     inputs:
-      confirm_destroy:
-        description: 'Type "DELETE" to confirm destruction of all Azure resources'
+      confirm_apply:
+        description: 'Type "yes" to apply infrastructure changes'
         required: true
         default: 'no'
 
@@ -13,9 +13,9 @@ permissions:
   contents: read
 
 jobs:
-  destroy:
-    name: "🧨 Terraform Destroy"
-    if: github.event.inputs.confirm_destroy == 'DELETE'
+  terraform:
+    name: "🏗️ Terraform Apply"
+    if: github.event.inputs.confirm_apply == 'yes'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -37,5 +37,5 @@ jobs:
       - name: "📦 Initialize Workspace"
         run: terraform init
 
-      - name: "🧨 DESTROY ALL RESOURCES"
-        run: terraform destroy -auto-approve
+      - name: "🏗️ Apply Infrastructure Changes"
+        run: terraform apply -auto-approve

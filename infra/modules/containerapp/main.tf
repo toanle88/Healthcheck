@@ -81,6 +81,12 @@ resource "azurerm_container_app" "api" {
       }
     }
   }
+
+  lifecycle {
+    ignore_changes = [
+      template[0].container[0].image
+    ]
+  }
 }
 
 # 6. THE WORKER (Scheduled Job)
@@ -119,6 +125,12 @@ resource "azurerm_container_app_job" "worker" {
         value = "job"
       }
     }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      template[0].container[0].image
+    ]
   }
 }
 
@@ -166,6 +178,12 @@ resource "azurerm_container_app" "web" {
         value = var.app_version
       }
     }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      template[0].container[0].image
+    ]
   }
 }
 

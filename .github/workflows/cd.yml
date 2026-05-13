@@ -1,21 +1,16 @@
-name: "🚀 CD: Build & Deploy"
+name: "🚀 CD: Build & Fast Deploy"
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
-    inputs:
-      confirm_deploy:
-        description: 'Type "yes" to confirm deployment'
-        required: true
-        default: 'no'
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  # --- 📦 ARTIFACT CREATION ---
+  # --- 📦 ARTIFACT CREATION (The Factory) ---
   build-and-push:
     name: "📦 Build & Push: Docker Images"
     runs-on: ubuntu-latest
@@ -65,20 +60,12 @@ jobs:
           push: true
           tags: crhealthcheckdev.azurecr.io/web:${{ steps.vars.outputs.sha_short }}
 
-  # --- 🚀 CLOUD DEPLOYMENT ---
+  # --- 🚀 FAST DEPLOYMENT (The Speedster) ---
   deploy:
-    name: "🚀 Deploy: Terraform & Containers"
+    name: "🚀 Fast Deploy: CLI Update"
     needs: build-and-push
-    # Only run if triggered manually AND confirmed
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.confirm_deploy == 'yes'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./infra/envs/dev
     steps:
-      - name: "📂 Checkout Code"
-        uses: actions/checkout@v4
-
       - name: "🔑 Login to Azure (OIDC)"
         uses: azure/login@v2
         with:
@@ -86,15 +73,24 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: "🛠️ Setup Terraform"
-        uses: hashicorp/setup-terraform@v3
-
-      - name: "📦 Initialize Workspace"
-        run: terraform init
-
-      - name: "🏗️ Apply Infrastructure Changes"
+      - name: "⚡ Update API Container"
         run: |
-          terraform apply -auto-approve \
-            -var="api_image=crhealthcheckdev.azurecr.io/api:${{ needs.build-and-push.outputs.image_tag }}" \
-            -var="worker_image=crhealthcheckdev.azurecr.io/worker:${{ needs.build-and-push.outputs.image_tag }}" \
-            -var="web_image=crhealthcheckdev.azurecr.io/web:${{ needs.build-and-push.outputs.image_tag }}"
+          az containerapp update \
+            --name ca-healthcheck-api-dev \
+            --resource-group rg-healthcheck-dev \
+            --image crhealthcheckdev.azurecr.io/api:${{ needs.build-and-push.outputs.image_tag }}
+
+      - name: "⚡ Update Web Container"
+        run: |
+          az containerapp update \
+            --name ca-healthcheck-web-dev \
+            --resource-group rg-healthcheck-dev \
+            --image crhealthcheckdev.azurecr.io/web:${{ needs.build-and-push.outputs.image_tag }} \
+            --set-env-vars VITE_APP_VERSION=${{ needs.build-and-push.outputs.image_tag }}
+
+      - name: "⚡ Update Worker Job"
+        run: |
+          az containerapp job update \
+            --name job-healthcheck-worker-dev \
+            --resource-group rg-healthcheck-dev \
+            --image crhealthcheckdev.azurecr.io/worker:${{ needs.build-and-push.outputs.image_tag }}
