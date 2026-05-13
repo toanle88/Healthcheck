@@ -24,6 +24,42 @@ Browser → Azure Front Door + Azure Static Web Apps (React/Vite)
 ```
 
 All runtime secrets are retrieved from Azure Key Vault using Managed Identity.
+## 🏗️ Architecture
+
+### Infrastructure Diagram
+```mermaid
+graph TD
+    subgraph Azure ["Azure Cloud"]
+        subgraph VNet ["Virtual Network (vnet-healthcheck)"]
+            subgraph AppSubnet ["App Subnet (snet-apps)"]
+                API["API (Container App)"]
+                Worker["Worker (Container Job)"]
+            end
+            subgraph DBSubnet ["DB Subnet (snet-db)"]
+                DB[("PostgreSQL Flexible Server")]
+            end
+        end
+        ACR["Container Registry (ACR)"]
+        KV["Key Vault (Secrets)"]
+    end
+
+    GitHub["GitHub Actions"] -- OIDC --> Azure
+    GitHub -- Push Image --> ACR
+    API -- Query --> DB
+    Worker -- Insert --> DB
+    API -- Get Secrets --> KV
+```
+
+### Infrastructure as Code (Terraform)
+We use a modular Terraform structure for maximum maintainability:
+
+| Module | Purpose |
+| :--- | :--- |
+| `modules/identity` | OIDC/Federated Credentials for passwordless GitHub login. |
+| `modules/network` | VNet and Subnets (App & DB) for network isolation. |
+| `modules/acr` | Private Docker registry for our hardened images. |
+
+---
 
 ## 🛠️ Tech Stack
 ## 🔐 Environment Files

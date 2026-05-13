@@ -1,92 +1,56 @@
-# ----------------------------------------------------------------------------------
-# 1. VARIABLES
-# Change these to match your specific GitHub environment.
-# ----------------------------------------------------------------------------------
-variable "github_org_or_user" {
-  description = "Your GitHub username or organization name"
-  type        = string
-  default     = "toanle88" 
-}
-
-variable "github_repo_name" {
-  description = "The name of your GitHub repository"
-  type        = string
-  default     = "healthcheck"
-}
-
-# ----------------------------------------------------------------------------------
-# 2. PROVIDER CONFIGURATION
-# Tells Terraform to use the Azure Resource Manager (ARM)
-# ----------------------------------------------------------------------------------
 terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.0" # Ensures you use the modern provider version
+      version = "~> 4.0"
     }
   }
 }
 
 provider "azurerm" {
-  features {} # Required block for the Azure provider
+  features {}
 }
 
-# ----------------------------------------------------------------------------------
-# 3. RESOURCES
-# ----------------------------------------------------------------------------------
+# 1. Variables (Kept from your original code)
+variable "github_org_or_user" { default = "toanle88" }
+variable "github_repo_name" { default = "healthcheck" }
+variable "location" { default = "East Asia" }
+variable "environment" { default = "dev" }
 
-# Create a Resource Group (The logical container for all your learning resources)
+# 2. Resource Group (The container for everything)
 resource "azurerm_resource_group" "dev" {
-  name     = "rg-healthcheck-dev"
-  location = "East Asia"
+  name     = "rg-healthcheck-${var.environment}"
+  location = var.location
 }
 
-# Create a User Assigned Managed Identity (The "Service Account" for GitHub)
-resource "azurerm_user_assigned_identity" "github_actions" {
-  name                = "id-github-actions"
+# 3. IDENTITY MODULE (Refactored OIDC)
+module "identity" {
+  source              = "../../modules/identity"
   location            = azurerm_resource_group.dev.location
   resource_group_name = azurerm_resource_group.dev.name
+  resource_group_id   = azurerm_resource_group.dev.id
+  environment         = var.environment
+  github_org_or_user  = var.github_org_or_user
+  github_repo_name    = var.github_repo_name
 }
 
-# Grant "Contributor" permissions to the Identity over the Resource Group
-resource "azurerm_role_assignment" "allow_github" {
-  scope                = azurerm_resource_group.dev.id
-  role_definition_name = "Contributor"
-  principal_id         = azurerm_user_assigned_identity.github_actions.principal_id
+# 4. NETWORK MODULE (Day 6)
+module "network" {
+  source              = "../../modules/network"
+  location            = azurerm_resource_group.dev.location
+  resource_group_name = azurerm_resource_group.dev.name
+  environment         = var.environment
 }
 
-# FEDERATED CREDENTIAL (The Security Bridge)
-# This is what allows GitHub to exchange its OIDC token for an Azure access token.
-resource "azurerm_federated_identity_credential" "github" {
-  name      = "fed-github-actions"
-  audience  = ["api://AzureADTokenExchange"]
-  issuer    = "https://token.actions.githubusercontent.com"
-  
-  # Use this attribute name to resolve the warning and avoid the "Unexpected attribute" error
-  user_assigned_identity_id = azurerm_user_assigned_identity.github_actions.id
-  
-  subject   = "repo:${var.github_org_or_user}/${var.github_repo_name}:ref:refs/heads/main"
+# 5. ACR MODULE (Day 6)
+module "acr" {
+  source              = "../../modules/acr"
+  location            = azurerm_resource_group.dev.location
+  resource_group_name = azurerm_resource_group.dev.name
+  environment         = var.environment
 }
 
-# ----------------------------------------------------------------------------------
-# 4. OUTPUTS
-# These values will be printed in your terminal after 'terraform apply'
-# Use these as "Secrets" in your GitHub Repository settings.
-# ----------------------------------------------------------------------------------
-output "AZURE_CLIENT_ID" {
-  description = "The Client ID of the Managed Identity"
-  value       = azurerm_user_assigned_identity.github_actions.client_id
-}
-
-output "AZURE_TENANT_ID" {
-  description = "The Tenant ID of your Azure Active Directory"
-  value       = azurerm_user_assigned_identity.github_actions.tenant_id
-}
-
-# We use a data source to fetch your current subscription ID automatically
-data "azurerm_subscription" "current" {}
-
-output "AZURE_SUBSCRIPTION_ID" {
-  description = "The Subscription ID where resources are deployed"
-  value       = data.azurerm_subscription.current.subscription_id
-}
+# OUTPUTS for GitHub Actions
+output "AZURE_CLIENT_ID" { value = module.identity.client_id }
+output "AZURE_TENANT_ID" { value = module.identity.tenant_id }
+output "ACR_LOGIN_SERVER" { value = module.acr.login_server }
