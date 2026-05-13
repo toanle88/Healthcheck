@@ -51,6 +51,20 @@ func main() {
 	r := gin.New() // gin.New() is barebones, no default middleware like gin.Default()
 	r.Use(gin.Recovery()) // Recover from panics and return 500 instead of crashing
 
+	// Basic CORS middleware to allow our React app (on port 5173) to talk to the API
+	r.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		
+		c.Next()
+	})
+
 	// Custom request logging middleware
 	r.Use(func(c *gin.Context) {
 		start := time.Now()  // Start timer

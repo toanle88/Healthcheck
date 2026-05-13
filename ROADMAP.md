@@ -29,9 +29,9 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 - [x] Add `internal/config` to load from env
 
 ### Day 3 — Frontend
-- [ ] `web/`: Vite + React, fetch `/api/status`, show green/red cards
-- [ ] Update docker-compose to include api + worker + web
-- [ ] Deliverable: `docker-compose up` shows dashboard
+- [x] `web/`: Vite + React, fetch `/api/status`, show green/red cards
+- [x] Update docker-compose to include api + worker + web
+- [x] Deliverable: `docker-compose up` shows dashboard
 
 ---
 
