@@ -56,14 +56,14 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 **Goal:** Infra as Code for Azure
 
 ### Day 6 — Network + ACR
-- [ ] `infra/modules/network`: VNet, 2 subnets (private, containerapps)
-- [ ] `infra/modules/acr`: Azure Container Registry with admin disabled
-- [ ] `terraform apply` in dev
+- [x] `infra/modules/network`: VNet, 2 subnets (private, containerapps)
+- [x] `infra/modules/acr`: Azure Container Registry with admin disabled
+- [x] `terraform apply` in dev (Modular refactor complete)
 
 ### Day 7 — Data + Secrets
-- [ ] `infra/modules/postgres`: PostgreSQL Flexible Server, private endpoint, SSL enforced
-- [ ] `infra/modules/keyvault`: Key Vault with RBAC, store DB connection string
-- [ ] Enable Managed Identity for future Container Apps
+- [x] `infra/modules/postgres`: PostgreSQL Flexible Server, private endpoint, SSL enforced
+- [x] `infra/modules/keyvault`: Key Vault with RBAC, store DB connection string
+- [x] Enable Managed Identity for future Container Apps (Root module prepared)
 
 ### Day 8 — Container Apps
 - [ ] `infra/modules/containerapp`: Container Apps Environment, API app, Worker Job

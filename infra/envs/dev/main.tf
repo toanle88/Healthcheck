@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -48,6 +52,41 @@ module "acr" {
   location            = azurerm_resource_group.dev.location
   resource_group_name = azurerm_resource_group.dev.name
   environment         = var.environment
+}
+
+# 6. POSTGRES MODULE (Day 7)
+resource "random_password" "db_password" {
+  length           = 16
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+module "postgres" {
+  source              = "../../modules/postgres"
+  location            = azurerm_resource_group.dev.location
+  resource_group_name = azurerm_resource_group.dev.name
+  environment         = var.environment
+  vnet_id             = module.network.vnet_id
+  subnet_id           = module.network.db_subnet_id
+  admin_password      = random_password.db_password.result
+}
+
+# 7. KEY VAULT MODULE (Day 7)
+module "keyvault" {
+  source              = "../../modules/keyvault"
+  location            = azurerm_resource_group.dev.location
+  resource_group_name = azurerm_resource_group.dev.name
+  environment         = var.environment
+}
+
+# Store the DB password in Key Vault for later use by the App
+resource "azurerm_key_vault_secret" "db_password" {
+  name         = "database-password"
+  value        = random_password.db_password.result
+  key_vault_id = module.keyvault.id
+  
+  # Ensure the role assignment is created before trying to write the secret
+  depends_on = [module.keyvault]
 }
 
 # OUTPUTS for GitHub Actions
