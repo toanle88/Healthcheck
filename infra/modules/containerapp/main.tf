@@ -1,0 +1,115 @@
+# 1. LOG ANALYTICS (The Brain for Logs)
+resource "azurerm_log_analytics_workspace" "main" {
+  name                = "log-healthcheck-${var.environment}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  sku                 = "PerGB2018"
+  retention_in_days   = 30
+}
+
+# 2. CONTAINER APPS ENVIRONMENT (The Cluster)
+resource "azurerm_container_app_environment" "main" {
+  name                       = "cae-healthcheck-${var.environment}"
+  location                   = var.location
+  resource_group_name        = var.resource_group_name
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
+  
+  # Link to our VNet Subnet from Day 6
+  infrastructure_subnet_id   = var.subnet_id
+}
+
+# 3. MANAGED IDENTITY (The "Security Passport" for the Apps)
+resource "azurerm_user_assigned_identity" "apps" {
+  name                = "id-healthcheck-apps-${var.environment}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+}
+
+# 4. PERMISSIONS (The "Weld")
+
+# Allow the Apps to pull images from ACR
+resource "azurerm_role_assignment" "acr_pull" {
+  scope                = var.acr_id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_user_assigned_identity.apps.principal_id
+}
+
+# Allow the Apps to read secrets from Key Vault
+resource "azurerm_role_assignment" "kv_secrets" {
+  scope                = var.keyvault_id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azurerm_user_assigned_identity.apps.principal_id
+}
+
+# 5. THE API (Publicly Accessible)
+resource "azurerm_container_app" "api" {
+  name                         = "ca-healthcheck-api-${var.environment}"
+  container_app_environment_id = azurerm_container_app_environment.main.id
+  resource_group_name          = var.resource_group_name
+  revision_mode                = "Single"
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.apps.id]
+  }
+
+  registry {
+    server   = var.acr_login_server
+    identity = azurerm_user_assigned_identity.apps.id
+  }
+
+  ingress {
+    allow_insecure_connections = false
+    external_enabled           = true
+    target_port                = 8080
+    traffic_weight {
+      percentage      = 100
+      latest_revision = true
+    }
+  }
+
+  template {
+    container {
+      name   = "api"
+      image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" # Placeholder
+      cpu    = 0.25
+      memory = "0.5Gi"
+      
+      env {
+        name  = "PORT"
+        value = "8080"
+      }
+    }
+  }
+}
+
+# 6. THE WORKER (Internal Only)
+resource "azurerm_container_app" "worker" {
+  name                         = "ca-healthcheck-worker-${var.environment}"
+  container_app_environment_id = azurerm_container_app_environment.main.id
+  resource_group_name          = var.resource_group_name
+  revision_mode                = "Single"
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.apps.id]
+  }
+
+  registry {
+    server   = var.acr_login_server
+    identity = azurerm_user_assigned_identity.apps.id
+  }
+
+  template {
+    container {
+      name   = "worker"
+      image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" # Placeholder
+      cpu    = 0.25
+      memory = "0.5Gi"
+    }
+  }
+}
+
+output "api_url" {
+  value = azurerm_container_app.api.ingress[0].fqdn
+}

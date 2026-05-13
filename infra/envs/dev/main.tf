@@ -15,19 +15,19 @@ provider "azurerm" {
   features {}
 }
 
-# 1. Variables (Kept from your original code)
+# 1. Variables
 variable "github_org_or_user" { default = "toanle88" }
 variable "github_repo_name" { default = "healthcheck" }
 variable "location" { default = "East Asia" }
 variable "environment" { default = "dev" }
 
-# 2. Resource Group (The container for everything)
+# 2. Resource Group
 resource "azurerm_resource_group" "dev" {
   name     = "rg-healthcheck-${var.environment}"
   location = var.location
 }
 
-# 3. IDENTITY MODULE (Refactored OIDC)
+# 3. IDENTITY MODULE (OIDC)
 module "identity" {
   source              = "../../modules/identity"
   location            = azurerm_resource_group.dev.location
@@ -79,6 +79,18 @@ module "keyvault" {
   environment         = var.environment
 }
 
+# 8. CONTAINER APPS MODULE (Day 8)
+module "containerapp" {
+  source              = "../../modules/containerapp"
+  location            = azurerm_resource_group.dev.location
+  resource_group_name = azurerm_resource_group.dev.name
+  environment         = var.environment
+  subnet_id           = module.network.apps_subnet_id
+  acr_id              = module.acr.id
+  acr_login_server    = module.acr.login_server
+  keyvault_id         = module.keyvault.id
+}
+
 # Store the DB password in Key Vault for later use by the App
 resource "azurerm_key_vault_secret" "db_password" {
   name         = "database-password"
@@ -93,3 +105,4 @@ resource "azurerm_key_vault_secret" "db_password" {
 output "AZURE_CLIENT_ID" { value = module.identity.client_id }
 output "AZURE_TENANT_ID" { value = module.identity.tenant_id }
 output "ACR_LOGIN_SERVER" { value = module.acr.login_server }
+output "API_URL" { value = module.containerapp.api_url }
