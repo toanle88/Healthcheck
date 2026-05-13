@@ -37,7 +37,7 @@ func main() {
 		slog.Error("otel init failed", "err", err)
 	} else {
 		defer shutdown(context.Background())
-		
+
 		// Start a small HTTP server for Prometheus metrics in the background
 		go func() {
 			http.Handle("/metrics", metricsHandler)
@@ -63,7 +63,7 @@ func main() {
 	mode := os.Getenv("WORKER_MODE")
 	if mode == "job" {
 		slog.Info("running in JOB mode (one-time execution)")
-		
+
 		targets := []string{
 			"http://httpbin.org/get",
 			"https://github.com",
@@ -75,7 +75,7 @@ func main() {
 			pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			status, latency := pingTarget(pingCtx, url)
 			cancel()
-			
+
 			// Record metrics
 			monitor.CheckCounter.Add(ctx, 1, metric.WithAttributes(
 				attribute.String("target", url),
@@ -90,12 +90,12 @@ func main() {
 				slog.Error("failed to save check", "target", url, "err", err)
 			}
 		}
-		
+
 		// Run Cleanup too
 		slog.Info("executing database cleanup")
 		count, _ := st.CleanupOldChecks(ctx, 24*time.Hour)
 		slog.Info("cleanup finished", "rows_deleted", count)
-		
+
 		slog.Info("job completed successfully")
 		return
 	}
@@ -128,9 +128,9 @@ func main() {
 			))
 
 			pingCtx, cancel := context.WithTimeout(batchCtx, 10*time.Second)
-			
+
 			status, latency := pingTarget(pingCtx, url)
-			
+
 			childSpan.SetAttributes(
 				attribute.String("health.status", status),
 				attribute.Int64("health.latency_ms", latency.Milliseconds()),
@@ -152,7 +152,7 @@ func main() {
 			} else {
 				slog.Info("check recorded", "target", url, "status", status, "latency_ms", latency.Milliseconds())
 			}
-			
+
 			childSpan.End()
 			cancel()
 		}
@@ -164,11 +164,11 @@ func main() {
 	}
 
 	// --- NEW: CLEANUP JOB ---
-	// Add a job to clean up old data every hour. 
+	// Add a job to clean up old data every hour.
 	// We keep data for 24 hours.
 	_, err = c.AddFunc("@hourly", func() {
 		slog.Info("running database cleanup")
-		
+
 		// 24h retention period
 		count, err := st.CleanupOldChecks(context.Background(), 24*time.Hour)
 		if err != nil {

@@ -45,7 +45,7 @@ func main() {
 	st, err := store.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		slog.Error("db connect failed", "err", err) // Log structured error
-		os.Exit(1) // Can't run without DB, so exit
+		os.Exit(1)                                  // Can't run without DB, so exit
 	}
 	defer st.Close() // Ensure DB connection is closed when main returns
 
@@ -57,9 +57,9 @@ func main() {
 	}
 
 	// --- 6. SETUP GIN ROUTER + MIDDLEWARE ---
-	r := gin.New() // gin.New() is barebones, no default middleware like gin.Default()
+	r := gin.New()        // gin.New() is barebones, no default middleware like gin.Default()
 	r.Use(gin.Recovery()) // Recover from panics and return 500 instead of crashing
-	
+
 	// Add OTel middleware for automatic tracing of all HTTP requests
 	r.Use(otelgin.Middleware("healthcheck-api"))
 
@@ -68,24 +68,24 @@ func main() {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		
+
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
 		}
-		
+
 		c.Next()
 	})
 
 	// Custom request logging middleware
 	r.Use(func(c *gin.Context) {
-		start := time.Now()  // Start timer
-		c.Next()             // Process the actual request
+		start := time.Now() // Start timer
+		c.Next()            // Process the actual request
 		// After request finishes, log method, path, status code, and duration
-		slog.Info("request", 
-			"method", c.Request.Method, 
-			"path", c.Request.URL.Path, 
-			"status", c.Writer.Status(), 
+		slog.Info("request",
+			"method", c.Request.Method,
+			"path", c.Request.URL.Path,
+			"status", c.Writer.Status(),
 			"dur_ms", time.Since(start).Milliseconds(),
 		)
 	})
@@ -93,9 +93,9 @@ func main() {
 	// --- 7. INITIALIZE HANDLERS AND DEFINE ROUTES ---
 	h := handler.New(st) // Pass store to handlers so they can query DB
 
-	r.GET("/health", h.Health)         // Basic health check endpoint, usually for k8s liveness
-	r.GET("/api/status", h.Status)     // Current status of services you're monitoring
-	r.GET("/api/history", h.History)   // Historical status data
+	r.GET("/health", h.Health)       // Basic health check endpoint, usually for k8s liveness
+	r.GET("/api/status", h.Status)   // Current status of services you're monitoring
+	r.GET("/api/history", h.History) // Historical status data
 
 	// Metrics endpoint for Prometheus/Azure Monitor scraping
 	if metricsHandler != nil {

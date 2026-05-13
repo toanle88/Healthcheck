@@ -1,38 +1,40 @@
-name: CD - Build & Deploy
+name: "🚀 CD: Build & Deploy"
 
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: # Allows manual run from GitHub UI
+  workflow_dispatch:
 
 permissions:
-  id-token: write # Required for requesting the JWT (OIDC)
-  contents: read  # Required for actions/checkout
+  id-token: write
+  contents: read
 
 jobs:
-  # --- 1. BUILD & PUSH IMAGES ---
+  # --- 📦 ARTIFACT CREATION ---
   build-and-push:
+    name: "📦 Build & Push: Docker Images"
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.vars.outputs.sha_short }}
     steps:
-      - uses: actions/checkout@v4
+      - name: "📂 Checkout Code"
+        uses: actions/checkout@v4
 
-      - name: Set outputs
+      - name: "🆔 Generate Version Tag"
         id: vars
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Azure Login (OIDC)
+      - name: "🔑 Login to Azure (OIDC)"
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Login to ACR
-        run: az acr login --name crhealthcheckdev # Use your ACR name from Day 6
+      - name: "🔓 Login to Container Registry"
+        run: az acr login --name crhealthcheckdev
 
-      - name: Build and push API
+      - name: "🐳 Build & Push API Image"
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -40,7 +42,7 @@ jobs:
           push: true
           tags: crhealthcheckdev.azurecr.io/api:${{ steps.vars.outputs.sha_short }}
 
-      - name: Build and push Worker
+      - name: "🐝 Build & Push Worker Image"
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -48,30 +50,32 @@ jobs:
           push: true
           tags: crhealthcheckdev.azurecr.io/worker:${{ steps.vars.outputs.sha_short }}
 
-  # --- 2. DEPLOY INFRA & CODE ---
+  # --- 🚀 CLOUD DEPLOYMENT ---
   deploy:
+    name: "🚀 Deploy: Terraform & Containers"
     needs: build-and-push
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./infra/envs/dev
     steps:
-      - uses: actions/checkout@v4
+      - name: "📂 Checkout Code"
+        uses: actions/checkout@v4
 
-      - name: Azure Login (OIDC)
+      - name: "🔑 Login to Azure (OIDC)"
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Setup Terraform
+      - name: "🛠️ Setup Terraform"
         uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Init
+      - name: "📦 Initialize Workspace"
         run: terraform init
 
-      - name: Terraform Apply
+      - name: "🏗️ Apply Infrastructure Changes"
         run: |
           terraform apply -auto-approve \
             -var="api_image=crhealthcheckdev.azurecr.io/api:${{ needs.build-and-push.outputs.image_tag }}" \

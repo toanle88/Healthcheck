@@ -25,11 +25,11 @@ func New(s Storer) *Handler {
 
 // GET /health
 func (h *Handler) Health(c *gin.Context) {
-    c.JSON(http.StatusOK, gin.H{
-        "status": "ok",
-        "time":   time.Now().UTC().Format(time.RFC3339),
-        "service": "healthcheck-api",
-    })
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "ok",
+		"time":    time.Now().UTC().Format(time.RFC3339),
+		"service": "healthcheck-api",
+	})
 }
 
 // GET /api/status
@@ -48,5 +48,5 @@ func (h *Handler) Status(c *gin.Context) {
 
 // GET /api/history
 func (h *Handler) History(c *gin.Context) {
-    h.Status(c) // Day 1: same as status
+	h.Status(c) // Day 1: same as status
 }

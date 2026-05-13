@@ -24,9 +24,23 @@ Browser → Azure Front Door + Azure Static Web Apps (React/Vite)
 ```
 
 All runtime secrets are retrieved from Azure Key Vault using Managed Identity.
-## 🏗️ Architecture
+## 🛠️ Development & Quality
 
-### Infrastructure Diagram
+### Code Formatting
+This project strictly enforces Go standards. To fix any formatting issues before pushing to GitHub, run:
+```powershell
+go fmt ./...
+```
+
+### Local Testing
+To run the full suite of unit tests:
+```powershell
+go test -v -race ./...
+```
+
+### CI/CD Pipelines
+*   **🛡️ CI**: Every Pull Request triggers an automated audit of code quality (linting), unit tests, and security scans (Trivy).
+*   **🚀 CD**: Every merge to `main` builds new Docker images, pushes them to Azure Container Registry (ACR), and updates the infrastructure via Terraform.
 ```mermaid
 graph TD
     subgraph Azure ["Azure Cloud"]

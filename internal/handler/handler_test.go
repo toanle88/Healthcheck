@@ -51,7 +51,7 @@ func TestStatus(t *testing.T) {
 	expectedChecks := []store.Check{
 		{Target: "test.com", Status: "up", LatencyMs: 100, CheckedAt: time.Now()},
 	}
-	
+
 	h := New(&mockStore{checks: expectedChecks})
 	r := gin.New()
 	r.GET("/api/status", h.Status)
@@ -66,7 +66,7 @@ func TestStatus(t *testing.T) {
 
 	var resp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &resp)
-	
+
 	// Check if we got our mocked data back
 	checks := resp["checks"].([]interface{})
 	if len(checks) != 1 {

@@ -6,17 +6,17 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
+	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
-	"go.opentelemetry.io/otel/metric"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -38,8 +38,8 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 	}
 
 	// 1. Setup Tracing (OTLP/HTTP exporter for Jaeger)
-	traceExporter, err := otlptracehttp.New(ctx, 
-		otlptracehttp.WithEndpoint("jaeger:4318"), 
+	traceExporter, err := otlptracehttp.New(ctx,
+		otlptracehttp.WithEndpoint("jaeger:4318"),
 		otlptracehttp.WithInsecure(),
 	)
 	if err != nil {
@@ -71,12 +71,12 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 		sdkmetric.WithReader(promExporter),
 	)
 	otel.SetMeterProvider(mp)
-	
+
 	// Create the Meter and instruments
 	Meter = mp.Meter(serviceName)
-	CheckCounter, _ = Meter.Int64Counter("healthcheck_status_total", 
+	CheckCounter, _ = Meter.Int64Counter("healthcheck_status_total",
 		metric.WithDescription("Total number of health checks performed"))
-	LatencyHistogram, _ = Meter.Float64Histogram("healthcheck_latency_seconds", 
+	LatencyHistogram, _ = Meter.Float64Histogram("healthcheck_latency_seconds",
 		metric.WithDescription("Latency of health checks in seconds"))
 
 	// Create a dedicated handler for the prometheus metrics

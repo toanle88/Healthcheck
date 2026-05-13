@@ -28,7 +28,7 @@ func New(ctx context.Context, databaseURL string) (*Store, error) {
 	if err != nil {
 		return nil, err // Return error if URL is malformed
 	}
-	
+
 	// Tune the connection pool. These are conservative defaults for small apps.
 	cfg.MaxConns = 5 // Max 5 connections open at once. Prevents overwhelming DB
 	cfg.MinConns = 1 // Keep at least 1 connection warm so first request isn't slow
@@ -84,7 +84,7 @@ func (s *Store) InsertCheck(ctx context.Context, target, status string, latencyM
 		INSERT INTO checks (target, status, latency_ms)
 		VALUES ($1, $2, $3)
 	`, target, status, latencyMs)
-	
+
 	return err
 }
 

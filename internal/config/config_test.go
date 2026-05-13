@@ -20,7 +20,7 @@ func TestLoad(t *testing.T) {
 	// 2. Test Environment Overrides
 	os.Setenv("PORT", "9999")
 	os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test")
-	
+
 	cfg = Load()
 
 	if cfg.Port != "9999" {

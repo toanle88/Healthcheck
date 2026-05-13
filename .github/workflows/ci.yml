@@ -1,42 +1,46 @@
-name: CI - Quality & Security
+name: "🛡️ CI: Quality & Security Audit"
 
 on:
   pull_request:
     branches: [ main ]
-  workflow_dispatch: # Allows manual run from GitHub UI
+  workflow_dispatch:
 
 permissions:
-  id-token: write # Required for requesting the JWT (OIDC)
-  contents: read  # Required for actions/checkout
+  id-token: write
+  contents: read
 
 jobs:
-  # --- 1. GO QUALITY JOB ---
+  # --- 🧪 GO QUALITY CHECKS ---
   go-quality:
+    name: "🧪 Go: Lint & Test"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: "📂 Checkout Code"
+        uses: actions/checkout@v4
 
-      - name: Set up Go
+      - name: "🐹 Setup Go Environment"
         uses: actions/setup-go@v5
         with:
           go-version: '1.26'
 
-      - name: Go Format Check
+      - name: "📏 Verify Code Formatting"
         run: if [ "$(gofmt -l . | wc -l)" -gt 0 ]; then exit 1; fi
 
-      - name: Go Vet
+      - name: "🔍 Static Analysis (Vet)"
         run: go vet ./...
 
-      - name: Run Tests
+      - name: "⚡ Run Unit Tests"
         run: go test -v -race ./...
 
-  # --- 2. SECURITY JOB ---
+  # --- 🔒 SECURITY SCANNING ---
   security-scan:
+    name: "🔒 Security: Trivy FS Scan"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: "📂 Checkout Code"
+        uses: actions/checkout@v4
       
-      - name: Run Trivy vulnerability scanner
+      - name: "🛡️ Scan for Vulnerabilities"
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
@@ -44,23 +48,25 @@ jobs:
           format: 'table'
           severity: 'CRITICAL,HIGH'
 
-  # --- 3. INFRASTRUCTURE JOB ---
+  # --- 🏗️ INFRASTRUCTURE VALIDATION ---
   terraform-check:
+    name: "🏗️ Infra: Terraform Validate"
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./infra/envs/dev
     steps:
-      - uses: actions/checkout@v4
+      - name: "📂 Checkout Code"
+        uses: actions/checkout@v4
 
-      - name: Setup Terraform
+      - name: "🛠️ Setup Terraform"
         uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Format Check
+      - name: "📝 Lint Infrastructure (fmt)"
         run: terraform fmt -check -recursive ../../
 
-      - name: Terraform Init
-        run: terraform init -backend=false # No backend needed for just validation
+      - name: "📦 Initialize Workspace"
+        run: terraform init -backend=false
 
-      - name: Terraform Validate
+      - name: "✅ Validate Configuration"
         run: terraform validate
