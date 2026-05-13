@@ -87,8 +87,23 @@ resource "azurerm_container_app" "api" {
       }
 
       env {
-        name  = "DATABASE_URL"
-        value = "postgres://${var.db_user}:SECRET(db-password)@${var.db_host}:5432/${var.db_name}?sslmode=require"
+        name  = "DB_HOST"
+        value = var.db_host
+      }
+
+      env {
+        name  = "DB_NAME"
+        value = var.db_name
+      }
+
+      env {
+        name  = "DB_USER"
+        value = var.db_user
+      }
+
+      env {
+        name        = "DB_PASSWORD"
+        secret_name = "db-password"
       }
     }
   }
@@ -143,8 +158,23 @@ resource "azurerm_container_app_job" "worker" {
       }
 
       env {
-        name  = "DATABASE_URL"
-        value = "postgres://${var.db_user}:SECRET(db-password)@${var.db_host}:5432/${var.db_name}?sslmode=require"
+        name  = "DB_HOST"
+        value = var.db_host
+      }
+
+      env {
+        name  = "DB_NAME"
+        value = var.db_name
+      }
+
+      env {
+        name  = "DB_USER"
+        value = var.db_user
+      }
+
+      env {
+        name        = "DB_PASSWORD"
+        secret_name = "db-password"
       }
     }
   }
