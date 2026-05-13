@@ -9,9 +9,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/robfig/cron/v3" // Library for scheduling tasks using cron expressions
+	"github.com/robfig/cron/v3"
 	"github.com/toanle88/healthcheck/internal/config"
+	"github.com/toanle88/healthcheck/internal/monitor"
 	"github.com/toanle88/healthcheck/internal/store"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func main() {
@@ -23,10 +27,16 @@ func main() {
 	// --- 2. LOAD CONFIG ---
 	cfg := config.Load()
 
-	// --- 3. SETUP CONTEXT FOR GRACEFUL SHUTDOWN ---
-	// This context will be canceled when the OS sends a termination signal.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// --- 4. INITIALIZE OPENTELEMETRY ---
+	shutdown, err := monitor.InitOTel(ctx, "healthcheck-worker")
+	if err != nil {
+		slog.Error("otel init failed", "err", err)
+	} else {
+		defer shutdown(context.Background())
+	}
 
 	// --- 4. CONNECT TO DATABASE ---
 	// We need the DB to store our ping results.
@@ -51,23 +61,38 @@ func main() {
 	// Add a job to run every minute
 	// "@every 1m" is a shorthand for "0 * * * * *" (every minute at the 0th second)
 	_, err = c.AddFunc("@every 1m", func() {
+		// Create a span for the entire batch of health checks
+		tracer := otel.Tracer("healthcheck-worker")
+		batchCtx, span := tracer.Start(context.Background(), "RunBatch")
+		defer span.End()
+
 		slog.Info("running health checks", "count", len(targets))
 
 		for _, url := range targets {
-			// We use a background context with a timeout for each individual ping
-			// so one slow target doesn't block the whole worker forever.
-			pingCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			// Create a child span for each individual ping
+			_, childSpan := tracer.Start(batchCtx, "PingTarget", trace.WithAttributes(
+				attribute.String("http.url", url),
+			))
+
+			pingCtx, cancel := context.WithTimeout(batchCtx, 10*time.Second)
 			
 			status, latency := pingTarget(pingCtx, url)
 			
+			childSpan.SetAttributes(
+				attribute.String("health.status", status),
+				attribute.Int64("health.latency_ms", latency.Milliseconds()),
+			)
+
 			// Record the result in the database
 			if err := st.InsertCheck(context.Background(), url, status, int(latency.Milliseconds())); err != nil {
 				slog.Error("failed to save check", "target", url, "err", err)
+				childSpan.RecordError(err)
 			} else {
 				slog.Info("check recorded", "target", url, "status", status, "latency_ms", latency.Milliseconds())
 			}
 			
-			cancel() // Clean up the timeout context
+			childSpan.End()
+			cancel()
 		}
 	})
 

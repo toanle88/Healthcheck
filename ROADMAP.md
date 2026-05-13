@@ -45,10 +45,10 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 - [x] Run Trivy locally: `trivy image healthcheck-api`
 
 ### Day 5
-- [ ] Add structured logging with `log/slog` JSON
-- [ ] Add OpenTelemetry SDK, export to stdout initially
-- [ ] Add `/metrics` endpoint with otel runtime metrics
-- [ ] Deliverable: `docker images` shows hardened images, logs are JSON
+- [x] Add structured logging with `log/slog` JSON
+- [x] Add OpenTelemetry SDK, export to stdout initially
+- [x] Add `/metrics` endpoint with otel runtime metrics
+- [x] Deliverable: `docker images` shows hardened images, logs are JSON
 
 ---
 

@@ -9,10 +9,13 @@ import (
 	"syscall"   // Defines system signals like SIGTERM
 	"time"
 
-	"github.com/gin-gonic/gin" // Popular HTTP web framework
-	"github.com/toanle88/healthcheck/internal/config"  // Your app config loader
-	"github.com/toanle88/healthcheck/internal/handler" // HTTP route handlers
-	"github.com/toanle88/healthcheck/internal/store"   // DB layer
+	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/toanle88/healthcheck/internal/config"
+	"github.com/toanle88/healthcheck/internal/handler"
+	"github.com/toanle88/healthcheck/internal/monitor"
+	"github.com/toanle88/healthcheck/internal/store"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
 func main() {
@@ -25,11 +28,18 @@ func main() {
 	// Load config from env vars, .env file, etc. Likely contains Port, DatabaseURL, etc.
 	cfg := config.Load()
 
-	// --- 3. SETUP GRACEFUL SHUTDOWN CONTEXT ---
-	// Creates a context that gets canceled when we receive SIGINT (Ctrl+C) or SIGTERM (docker stop/k8s)
-	// This is the modern way to handle graceful shutdown since Go 1.16
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop() // Clean up the signal handler when main exits
+	defer stop()
+
+	// --- 4. INITIALIZE OPENTELEMETRY ---
+	// serviceName should be unique for each microservice
+	shutdown, err := monitor.InitOTel(ctx, "healthcheck-api")
+	if err != nil {
+		slog.Error("otel init failed", "err", err)
+	} else {
+		// Ensure OTel provider is shut down cleanly on exit
+		defer shutdown(context.Background())
+	}
 
 	// --- 4. CONNECT TO DATABASE ---
 	// Pass ctx so DB connect can be canceled if shutdown is triggered during startup
@@ -50,6 +60,9 @@ func main() {
 	// --- 6. SETUP GIN ROUTER + MIDDLEWARE ---
 	r := gin.New() // gin.New() is barebones, no default middleware like gin.Default()
 	r.Use(gin.Recovery()) // Recover from panics and return 500 instead of crashing
+	
+	// Add OTel middleware for automatic tracing of all HTTP requests
+	r.Use(otelgin.Middleware("healthcheck-api"))
 
 	// Basic CORS middleware to allow our React app (on port 5173) to talk to the API
 	r.Use(func(c *gin.Context) {
@@ -84,6 +97,9 @@ func main() {
 	r.GET("/health", h.Health)         // Basic health check endpoint, usually for k8s liveness
 	r.GET("/api/status", h.Status)     // Current status of services you're monitoring
 	r.GET("/api/history", h.History)   // Historical status data
+
+	// Metrics endpoint for Prometheus/Azure Monitor scraping
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// --- 8. CONFIGURE HTTP SERVER ---
 	srv := &http.Server{
