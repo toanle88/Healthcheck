@@ -54,4 +54,4 @@ jobs:
           terraform providers
 
       - name: "🏗️ Apply Infrastructure Changes"
-        run: terraform apply -auto-approve -var="acr_name=${{ secrets.AZURE_ACR_NAME }}"
+        run: terraform apply -auto-approve -var="acr_name=${{ secrets.AZURE_ACR_NAME }}" -var="entra_client_id=${{ secrets.ENTRA_CLIENT_ID }}"
