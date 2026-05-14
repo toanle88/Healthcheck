@@ -49,4 +49,4 @@ jobs:
             -backend-config="key=dev.terraform.tfstate"
 
       - name: "🧨 DESTROY ALL RESOURCES"
-        run: terraform destroy -auto-approve -var="acr_name=${{ secrets.AZURE_ACR_NAME }}"
+        run: terraform destroy -auto-approve -var="acr_name=${{ secrets.AZURE_ACR_NAME }}" -var="entra_client_id=${{ secrets.ENTRA_CLIENT_ID }}"
