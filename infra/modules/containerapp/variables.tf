@@ -13,6 +13,16 @@ variable "app_version" { type = string }
 variable "db_host" { type = string }
 variable "db_name" { type = string }
 variable "db_user" { type = string }
-variable "entra_client_id" { type = string; default = "" }
-variable "entra_client_secret" { type = string; default = ""; sensitive = true }
-variable "tenant_id" { type = string; default = "" }
+variable "entra_client_id" {
+  type    = string
+  default = ""
+}
+variable "entra_client_secret" {
+  type      = string
+  default   = ""
+  sensitive = true
+}
+variable "tenant_id" {
+  type    = string
+  default = ""
+}
