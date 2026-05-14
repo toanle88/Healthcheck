@@ -17,16 +17,7 @@ variable "entra_client_id" {
   type    = string
   default = ""
 }
-variable "entra_client_secret" {
-  type      = string
-  default   = ""
-  sensitive = true
-}
 variable "tenant_id" {
   type    = string
   default = ""
-}
-variable "enable_auth" {
-  type    = bool
-  default = false
 }

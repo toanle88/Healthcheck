@@ -3,6 +3,22 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { MockInstance } from 'vitest';
 import App from './App';
 
+// 1. Mock MSAL
+vi.mock("@azure/msal-react", () => ({
+    useMsal: () => ({
+        instance: {
+            acquireTokenSilent: vi.fn().mockResolvedValue({ accessToken: "mock-token" }),
+            loginPopup: vi.fn(),
+            logoutPopup: vi.fn(),
+        },
+        accounts: [{ name: "Test User" }],
+    }),
+    useIsAuthenticated: () => true,
+    AuthenticatedTemplate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    UnauthenticatedTemplate: () => null,
+    MsalProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 // Mock the fetch function globally
 globalThis.fetch = vi.fn() as unknown as typeof fetch & MockInstance;
 
@@ -16,7 +32,7 @@ describe('App Component', () => {
     vi.mocked(fetch).mockReturnValue(new Promise(() => {}));
     
     render(<App />);
-    expect(screen.getByText(/Initializing monitoring hooks/i)).toBeInTheDocument();
+    expect(screen.getByText(/Authenticating and loading data/i)).toBeInTheDocument();
   });
 
   it('renders data when fetch is successful', async () => {
@@ -37,6 +53,7 @@ describe('App Component', () => {
     await waitFor(() => {
       expect(screen.getByText('test.com')).toBeInTheDocument();
       expect(screen.getByText('100ms')).toBeInTheDocument();
+      expect(screen.getByText('Test User')).toBeInTheDocument();
     });
   });
 

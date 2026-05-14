@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Activity, ShieldCheck, ShieldAlert, Clock, RefreshCw, Server, LogOut } from 'lucide-react'
+import { Activity, ShieldCheck, ShieldAlert, Clock, RefreshCw, Server, LogOut, LogIn } from 'lucide-react'
+import { useMsal, AuthenticatedTemplate, UnauthenticatedTemplate } from "@azure/msal-react";
+import { loginRequest } from "./authConfig";
 
 interface Check {
   target: string
@@ -13,23 +15,32 @@ interface ApiResponse {
   count: number
 }
 
-function App() {
+function Dashboard() {
+  const { instance, accounts } = useMsal();
   const [data, setData] = useState<ApiResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // Use the environment variable if present, otherwise fall back to the placeholder for Azure injection.
-  // Locally, this will use the value from your .env file or localhost.
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'VITE_API_URL_PLACEHOLDER';
 
   const fetchData = useCallback(async () => {
     setIsRefreshing(true)
     try {
+      // 1. Acquire Token
+      const tokenResponse = await instance.acquireTokenSilent({
+        ...loginRequest,
+        account: accounts[0]
+      });
+
+      // 2. Call API with Bearer Token
       const response = await fetch(`${API_BASE_URL}/api/status`, {
-        credentials: 'include'
+        headers: {
+          Authorization: `Bearer ${tokenResponse.accessToken}`
+        }
       })
+      
       if (!response.ok) {
         throw new Error('Failed to fetch status')
       }
@@ -43,26 +54,27 @@ function App() {
       setLoading(false)
       setTimeout(() => setIsRefreshing(false), 500)
     }
-  }, [])
+  }, [instance, accounts, API_BASE_URL]);
 
   useEffect(() => {
     // Defer the initial fetch to avoid the "set-state-in-effect" lint warning.
-    // This ensures the state update happens after the initial render cycle.
     const timeoutId = setTimeout(() => {
       fetchData()
     }, 0)
 
-    const interval = setInterval(fetchData, 10000) // Refresh every 10 seconds
-
+    const interval = setInterval(fetchData, 10000)
     return () => {
       clearTimeout(timeoutId)
       clearInterval(interval)
     }
   }, [fetchData])
 
+  const handleLogout = () => {
+    instance.logoutPopup();
+  };
+
   return (
     <div className="min-h-screen bg-[#0f172a] text-slate-100 font-sans selection:bg-indigo-500/30">
-      {/* Header */}
       <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -79,6 +91,10 @@ function App() {
           </div>
           
           <div className="flex items-center gap-4 text-sm font-medium">
+            <div className="hidden md:flex items-center gap-2 text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full" />
+              <span className="truncate max-w-[150px]">{accounts[0]?.name}</span>
+            </div>
             <div className="flex items-center gap-2 text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
               <Clock className="w-4 h-4" />
               <span>{lastUpdated.toLocaleTimeString()}</span>
@@ -91,13 +107,13 @@ function App() {
             >
               <RefreshCw className={`w-5 h-5 text-slate-400 group-hover:text-indigo-400 transition-colors ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
-            <a 
-              href="/.auth/logout"
+            <button 
+              onClick={handleLogout}
               className="p-2 hover:bg-red-500/10 rounded-lg transition-colors group active:scale-95"
               title="Sign Out"
             >
               <LogOut className="w-5 h-5 text-slate-400 group-hover:text-red-400 transition-colors" />
-            </a>
+            </button>
           </div>
         </div>
       </header>
@@ -106,7 +122,7 @@ function App() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32 gap-4">
             <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
-            <p className="text-slate-400 animate-pulse font-medium">Initializing monitoring hooks...</p>
+            <p className="text-slate-400 animate-pulse font-medium">Authenticating and loading data...</p>
           </div>
         ) : error ? (
           <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center max-w-lg mx-auto">
@@ -199,6 +215,51 @@ function App() {
         </div>
       </footer>
     </div>
+  )
+}
+
+function LoginPage() {
+  const { instance } = useMsal();
+
+  const handleLogin = () => {
+    instance.loginPopup(loginRequest).catch(e => {
+        console.error(e);
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-6">
+      <div className="max-w-md w-full bg-slate-900/50 border border-slate-800 p-10 rounded-3xl text-center backdrop-blur-xl shadow-2xl">
+        <div className="w-20 h-20 bg-indigo-500/10 rounded-2xl flex items-center justify-center mx-auto mb-8">
+          <Activity className="w-10 h-10 text-indigo-400" />
+        </div>
+        <h1 className="text-3xl font-bold text-white mb-3">Welcome Back</h1>
+        <p className="text-slate-400 mb-10 leading-relaxed">Please sign in with your enterprise account to access the healthcheck dashboard.</p>
+        
+        <button 
+          onClick={handleLogin}
+          className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-4 rounded-2xl font-bold transition-all active:scale-95 shadow-xl shadow-indigo-500/20 flex items-center justify-center gap-3 group"
+        >
+          <LogIn className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          Sign In with Entra ID
+        </button>
+        
+        <p className="mt-8 text-xs text-slate-500 font-medium uppercase tracking-widest">Enterprise Security Enabled</p>
+      </div>
+    </div>
+  )
+}
+
+function App() {
+  return (
+    <>
+      <AuthenticatedTemplate>
+        <Dashboard />
+      </AuthenticatedTemplate>
+      <UnauthenticatedTemplate>
+        <LoginPage />
+      </UnauthenticatedTemplate>
+    </>
   )
 }
 
