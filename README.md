@@ -109,9 +109,9 @@ source .env.azure    # for terraform
 
 - **Backend API**: Go 1.26, Gin, pgx/v5 (Structured logging with `slog`)
 - **Worker**: Go 1.26, robfig/cron, shared Postgres store
-- **Frontend**: React 19 + Vite + TypeScript + Tailwind CSS 4
+- **Frontend**: React 19 + Vite + TypeScript + Tailwind CSS 4 + React Query (TanStack) + Axios
 - **Database**: PostgreSQL 18 (Local) / Azure Database for PostgreSQL Flexible Server (Cloud)
-- **Testing**: Vitest (FE Unit), Playwright (E2E), Go Testing (BE Unit/Integration)
+- **Testing**: Vitest + MSW (FE Unit/Integration), Playwright (E2E), Go Testing (BE Unit/Integration)
 - **Containers**: Docker Compose (Local), Azure Container Apps (Cloud)
 - **Infra**: Terraform ≥1.7
 - **CI/CD**: GitHub Actions with Azure OIDC
@@ -128,7 +128,7 @@ source .env.azure    # for terraform
 │   ├── handler/      # HTTP handlers
 │   ├── store/        # postgres queries
 │   └── monitor/      # otel setup
-├── web/              # React frontend
+├── web/              # React frontend (Modular architecture: hooks, components, pages, services)
 ├── infra/
 │   ├── modules/
 │   │   ├── network/
@@ -186,8 +186,8 @@ chmod +x check.sh
 If you want to run the frontend outside of Docker with Hot Module Replacement (HMR):
 ```bash
 cd web
-pnpm install
-pnpm dev
+npm install
+npm run dev
 ```
 
 ## ☁️ Quick Start (Azure)

@@ -95,7 +95,7 @@ If you have manually deleted your Resource Group and State, follow these steps t
 ---
 
 ## ✅ Final Review Verification
-- **Frontend**: Dynamically uses `import.meta.env.VITE_ENTRA_CLIENT_ID`.
+- **Frontend**: Dynamically uses `import.meta.env.VITE_ENTRA_CLIENT_ID` and `import.meta.env.VITE_ENTRA_TENANT_ID`.
 - **Backend**: Validates JWTs using the `ENTRA_TENANT_ID` and `ENTRA_CLIENT_ID` passed via Container App environment variables.
 - **Security**: No secrets (except DB password) are stored in the state. OIDC trust remains in the Main Tenant for safe management.
 

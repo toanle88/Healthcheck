@@ -23,9 +23,9 @@ All secrets retrieved from Azure Key Vault using Managed Identity.
 ## 📦 Tech Stack
 - **Backend API**: Go 1.26, Gin, pgx/v5, slog
 - **Worker**: Go 1.26, robfig/cron, shared postgres store
-- **Frontend**: React 19 + Vite + TypeScript + Tailwind CSS 4
+- **Frontend**: React 19 + Vite + TypeScript + Tailwind CSS 4 + React Query + Axios
 - **Database**: PostgreSQL 18
-- **Testing**: Vitest, Playwright, Go Testing
+- **Testing**: Vitest + MSW (Frontend), Playwright (E2E), Go Testing (Backend)
 - **Infra**: Terraform ≥1.7
 - **CI/CD**: GitHub Actions
 - **Containerization**: Docker Compose (Dev), Distroless (Prod)
@@ -45,7 +45,7 @@ All secrets retrieved from Azure Key Vault using Managed Identity.
 │   ├── handler/     # HTTP handlers
 │   ├── store/       # postgres queries
 │   └── monitor/     # otel setup
-├── web/             # React frontend
+├── web/             # React frontend (Hooks, Components, Pages, Services)
 ├── infra/
 │   ├── modules/
 │   │   ├── network/
@@ -189,6 +189,7 @@ Prompt: "Based on our Go Dockerfile, generate Dockerfile.worker for the worker b
 terraform destroy -auto-approve
 ```
 Estimated cost: $5-12/month if left running in dev.
+
 
 ---
 Built to learn DevOps with Go on Azure — by doing, not watching.
