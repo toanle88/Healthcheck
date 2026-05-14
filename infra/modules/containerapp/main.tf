@@ -1,3 +1,11 @@
+terraform {
+  required_providers {
+    azapi = {
+      source = "azure/azapi"
+    }
+  }
+}
+
 # 1. LOG ANALYTICS (The Brain for Logs)
 resource "azurerm_log_analytics_workspace" "main" {
   name                = "log-healthcheck-${var.environment}"
