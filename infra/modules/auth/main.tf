@@ -45,6 +45,13 @@ resource "azuread_service_principal" "dashboard" {
   owners                       = [data.azuread_client_config.current.object_id]
 }
 
+# Automatically grant admin consent for the API scope
+resource "azuread_service_principal_delegated_permission_grant" "dashboard" {
+  service_principal_object_id          = azuread_service_principal.dashboard.object_id
+  resource_service_principal_object_id = azuread_service_principal.dashboard.object_id
+  claim_values                         = ["access_as_user"]
+}
+
 output "client_id" {
   value = azuread_application.dashboard.client_id
 }
