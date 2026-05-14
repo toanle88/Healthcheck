@@ -50,6 +50,13 @@ resource "azurerm_role_assignment" "kv_secrets" {
   principal_id         = azurerm_user_assigned_identity.apps.principal_id
 }
 
+# Azure AD Role Assignments take time to propagate. 
+# We MUST wait before letting the Container Apps try to pull secrets.
+resource "time_sleep" "wait_for_rbac" {
+  depends_on      = [azurerm_role_assignment.kv_secrets]
+  create_duration = "30s"
+}
+
 # 5. THE API (Publicly Accessible)
 resource "azurerm_container_app" "api" {
   name                         = "ca-healthcheck-api-${var.environment}"
@@ -61,6 +68,8 @@ resource "azurerm_container_app" "api" {
     type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.apps.id]
   }
+
+  depends_on = [time_sleep.wait_for_rbac]
 
   registry {
     server   = var.acr_login_server
@@ -156,6 +165,8 @@ resource "azurerm_container_app_job" "worker" {
     identity_ids = [azurerm_user_assigned_identity.apps.id]
   }
 
+  depends_on = [time_sleep.wait_for_rbac]
+
   registry {
     server   = var.acr_login_server
     identity = azurerm_user_assigned_identity.apps.id
@@ -226,6 +237,8 @@ resource "azurerm_container_app" "web" {
     type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.apps.id]
   }
+
+  depends_on = [time_sleep.wait_for_rbac]
 
   registry {
     server   = var.acr_login_server

@@ -116,6 +116,9 @@ module "containerapp" {
   # Entra ID Config for Frontend
   entra_client_id = var.entra_client_id
   tenant_id       = var.ciam_tenant_id
+
+  # Ensure the secret is created in Key Vault BEFORE the apps try to mount it
+  depends_on = [azurerm_key_vault_secret.db_password]
 }
 
 # Store the DB password in Key Vault for later use by the App
