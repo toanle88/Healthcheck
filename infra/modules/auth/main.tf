@@ -14,7 +14,7 @@ resource "azuread_application" "dashboard" {
   owners           = [data.azuread_client_config.current.object_id]
   sign_in_audience = "AzureADMyOrg"
 
-  identifier_uris = ["api://${azuread_application.dashboard.client_id}"]
+  # Removed identifier_uris from here to fix the self-referential block error
 
   single_page_application {
     redirect_uris = [
@@ -37,6 +37,11 @@ resource "azuread_application" "dashboard" {
       value                      = "access_as_user"
     }
   }
+}
+
+resource "azuread_application_identifier_uri" "dashboard" {
+  application_id = azuread_application.dashboard.id
+  identifier_uri = "api://${azuread_application.dashboard.client_id}"
 }
 
 resource "azuread_service_principal" "dashboard" {
