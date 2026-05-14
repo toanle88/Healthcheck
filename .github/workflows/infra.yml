@@ -48,5 +48,10 @@ jobs:
             -backend-config="container_name=${{ secrets.AZURE_STORAGE_CONTAINER }}" \
             -backend-config="key=dev.terraform.tfstate"
 
+      - name: "🔍 Diagnostic: Check Versions"
+        run: |
+          terraform version
+          terraform providers
+
       - name: "🏗️ Apply Infrastructure Changes"
         run: terraform apply -auto-approve -var="acr_name=${{ secrets.AZURE_ACR_NAME }}"
