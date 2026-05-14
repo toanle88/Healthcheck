@@ -3,12 +3,12 @@ package config
 import "os"
 
 type Config struct {
-	Port           string
-	DatabaseURL    string
-	Environment    string
-	LogLevel       string
-	EntraTenantID  string
-	EntraClientID  string
+	Port          string
+	DatabaseURL   string
+	Environment   string
+	LogLevel      string
+	EntraTenantID string
+	EntraClientID string
 }
 
 func Load() Config {
@@ -27,12 +27,12 @@ func Load() Config {
 	}
 
 	return Config{
-		Port:           getEnv("PORT", "8080"),
-		DatabaseURL:    dbURL,
-		Environment:    getEnv("ENV", "development"),
-		LogLevel:       getEnv("LOG_LEVEL", "info"),
-		EntraTenantID:  os.Getenv("ENTRA_TENANT_ID"),
-		EntraClientID:  os.Getenv("ENTRA_CLIENT_ID"),
+		Port:          getEnv("PORT", "8080"),
+		DatabaseURL:   dbURL,
+		Environment:   getEnv("ENV", "development"),
+		LogLevel:      getEnv("LOG_LEVEL", "info"),
+		EntraTenantID: os.Getenv("ENTRA_TENANT_ID"),
+		EntraClientID: os.Getenv("ENTRA_CLIENT_ID"),
 	}
 }
 

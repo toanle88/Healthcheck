@@ -14,7 +14,7 @@ import (
 func AuthMiddleware(tenantID, clientID string) gin.HandlerFunc {
 	// 1. Initialize the JWKS key function for CIAM
 	jwksURL := fmt.Sprintf("https://%s.ciamlogin.com/%s/discovery/v2.0/keys", tenantID, tenantID)
-	
+
 	// Create the keyfunc strategy
 	k, err := keyfunc.NewDefault([]string{jwksURL})
 	if err != nil {
