@@ -42,7 +42,7 @@ jobs:
 
       - name: "📦 Initialize Workspace"
         run: |
-          terraform init \
+          terraform init -upgrade \
             -backend-config="resource_group_name=rg-healthcheck-bootstrap" \
             -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT }}" \
             -backend-config="container_name=${{ secrets.AZURE_STORAGE_CONTAINER }}" \

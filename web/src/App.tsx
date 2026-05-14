@@ -70,7 +70,9 @@ function Dashboard() {
   }, [fetchData])
 
   const handleLogout = () => {
-    instance.logoutPopup();
+    instance.logoutRedirect({
+      postLogoutRedirectUri: window.location.origin,
+    });
   };
 
   return (
@@ -83,10 +85,10 @@ function Dashboard() {
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight">Healthcheck <span className="text-indigo-400">Dashboard</span></h1>
-              <p className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
+              <div className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
                 <div className={`w-1.5 h-1.5 rounded-full ${error ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`} />
                 System {error ? 'Degraded' : 'Operational'}
-              </p>
+              </div>
             </div>
           </div>
           
@@ -222,7 +224,7 @@ function LoginPage() {
   const { instance } = useMsal();
 
   const handleLogin = () => {
-    instance.loginPopup(loginRequest).catch(e => {
+    instance.loginRedirect(loginRequest).catch(e => {
         console.error(e);
     });
   };
@@ -251,6 +253,21 @@ function LoginPage() {
 }
 
 function App() {
+  const { inProgress } = useMsal();
+
+  // If we are in the middle of a login/redirect process, show a clean loading screen
+  // This prevents the login page from appearing inside the popup
+  if (inProgress !== "none") {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-6">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-400 animate-pulse font-medium">Processing secure login...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <AuthenticatedTemplate>

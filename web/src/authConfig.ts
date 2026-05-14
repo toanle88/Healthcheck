@@ -5,8 +5,6 @@ import type { Configuration, PopupRequest } from "@azure/msal-browser";
 const clientId = import.meta.env.VITE_ENTRA_CLIENT_ID || "";
 const tenantId = import.meta.env.VITE_ENTRA_TENANT_ID || "";
 
-console.log("MSAL Config Loading:", { clientId, tenantId });
-
 export const msalConfig: Configuration = {
     auth: {
         clientId: clientId,
@@ -15,7 +13,10 @@ export const msalConfig: Configuration = {
         postLogoutRedirectUri: window.location.origin,
     },
     cache: {
-        cacheLocation: "sessionStorage", // This configures where your cache will be stored
+        cacheLocation: "sessionStorage", // Switched back to sessionStorage for stable redirects
+    },
+    system: {
+        allowRedirectInIframe: true,
     }
 };
 
