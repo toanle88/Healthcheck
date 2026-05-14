@@ -186,8 +186,8 @@ chmod +x check.sh
 If you want to run the frontend outside of Docker with Hot Module Replacement (HMR):
 ```bash
 cd web
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 ## ☁️ Quick Start (Azure)
@@ -232,11 +232,11 @@ npm run dev
 - terraform fmt -check && terraform validate
 
 **cd.yml (main)**:
-1. azure/login@v2 with Service Principal secrets
-2. docker build and push to ACR with $GITHUB_SHA
-3. terraform apply -auto-approve
-4. az containerapp update
-5. smoke test /health
+1. Setup Go & Audit (gofmt, vet, test, trivy)
+2. generate short Git SHA for image tags
+3. azure/login@v2 with Service Principal secrets
+4. docker build and push to ACR
+5. az containerapp update (API & Web) with the new SHA tag
 
 ## 📊 Observability
 

@@ -104,12 +104,11 @@ Same pattern for worker.
 - terraform fmt -check && terraform validate
 
 **cd.yml (main)**
-1. azure/login@v2 with OIDC
-2. docker build -t $ACR/api:$SHA -f Dockerfile.api .
-3. docker push
-4. terraform init && terraform apply -auto-approve
-5. az containerapp update -n api --image $ACR/api:$SHA
-6. curl https://api.../health (smoke test)
+1. Setup Go & Audit (gofmt, vet, test, trivy)
+2. azure/login@v2 with OIDC
+3. docker build & push for API, Worker, and Web with $GITHUB_SHA tags
+4. az containerapp update (API & Web) with the new SHA tag
+5. az containerapp job update (Worker) with the new SHA tag
 
 ## 🛡️ Security Checklist
 - [ ] Dockerfile uses distroless, USER nonroot

@@ -41,7 +41,7 @@ Since CIAM exists in a separate directory, we configure it manually in the Azure
 ### 3. Expose the API (The "Anchor")
 1. Go to **Expose an API**.
 2. Next to **Application ID URI**, click **Add**. 
-3. Enter `api://healthcheck-dev-ciam` (or click "Save" to use the default GUID-based URI).
+3. Leave the default GUID-based URI (`api://<client-id>`) and click **Save**. Do not enter a custom name to ensure MSAL scope matching works out-of-the-box.
 4. Click **Add a scope**:
    - **Scope name**: `access_as_user`
    - **Who can consent?**: Admins and users.
@@ -95,7 +95,7 @@ If you have manually deleted your Resource Group and State, follow these steps t
 ---
 
 ## ✅ Final Review Verification
-- **Frontend**: Dynamically uses `import.meta.env.VITE_ENTRA_CLIENT_ID` and `import.meta.env.VITE_ENTRA_TENANT_ID`.
+- **Frontend**: Dynamically uses the Enterprise `env.js` runtime configuration pattern via the custom `getEnv()` utility instead of static build-time placeholders.
 - **Backend**: Validates JWTs using the `ENTRA_TENANT_ID` and `ENTRA_CLIENT_ID` passed via Container App environment variables.
 - **Security**: No secrets (except DB password) are stored in the state. OIDC trust remains in the Main Tenant for safe management.
 
