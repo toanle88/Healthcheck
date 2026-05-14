@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Activity, ShieldCheck, ShieldAlert, Clock, RefreshCw, Server } from 'lucide-react'
+import { Activity, ShieldCheck, ShieldAlert, Clock, RefreshCw, Server, LogOut } from 'lucide-react'
 
 interface Check {
   target: string
@@ -85,9 +85,17 @@ function App() {
               onClick={fetchData}
               disabled={isRefreshing}
               className="p-2 hover:bg-slate-800 rounded-lg transition-colors group active:scale-95 disabled:opacity-50"
+              title="Refresh Data"
             >
               <RefreshCw className={`w-5 h-5 text-slate-400 group-hover:text-indigo-400 transition-colors ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
+            <a 
+              href="/.auth/logout"
+              className="p-2 hover:bg-red-500/10 rounded-lg transition-colors group active:scale-95"
+              title="Sign Out"
+            >
+              <LogOut className="w-5 h-5 text-slate-400 group-hover:text-red-400 transition-colors" />
+            </a>
           </div>
         </div>
       </header>

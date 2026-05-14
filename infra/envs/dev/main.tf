@@ -4,6 +4,14 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.0"
     }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 2.0"
+    }
+    azapi = {
+      source  = "azure/azapi"
+      version = "~> 1.0"
+    }
     random = {
       source  = "hashicorp/random"
       version = "~> 3.0"
@@ -89,6 +97,19 @@ module "containerapp" {
   db_host             = module.postgres.host
   db_name             = "healthcheck"
   db_user             = "psqladmin"
+
+  # Entra ID Auth Settings
+  entra_client_id     = module.auth.client_id
+  entra_client_secret = module.auth.client_secret
+  tenant_id           = module.auth.tenant_id
+}
+
+# 9. AUTH MODULE (Entra ID)
+module "auth" {
+  source      = "../../modules/auth"
+  environment = var.environment
+  reply_url   = "https://ca-healthcheck-web-${var.environment}.${module.containerapp.default_domain}"
+  keyvault_id = module.keyvault.id
 }
 
 # Store the DB password in Key Vault for later use by the App

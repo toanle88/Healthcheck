@@ -203,6 +203,14 @@ resource "azurerm_container_app" "web" {
     identity = azurerm_user_assigned_identity.apps.id
   }
 
+  dynamic "secret" {
+    for_each = var.entra_client_secret != "" ? [1] : []
+    content {
+      name  = "entra-client-secret"
+      value = var.entra_client_secret
+    }
+  }
+
   ingress {
     allow_insecure_connections = false
     external_enabled           = true
@@ -239,10 +247,43 @@ resource "azurerm_container_app" "web" {
   }
 }
 
+output "default_domain" {
+  value = azurerm_container_app_environment.main.default_domain
+}
+
 output "api_url" {
   value = azurerm_container_app.api.ingress[0].fqdn
 }
 
 output "web_url" {
   value = azurerm_container_app.web.ingress[0].fqdn
+}
+
+resource "azapi_resource" "web_auth" {
+  count     = var.entra_client_id != "" ? 1 : 0
+  type      = "Microsoft.App/containerApps/authConfigs@2024-03-01"
+  name      = "current"
+  parent_id = azurerm_container_app.web.id
+
+  body = jsonencode({
+    properties = {
+      platform = {
+        enabled = true
+      }
+      globalValidation = {
+        unauthenticatedClientAction = "RedirectToLoginPage"
+        redirectToProvider          = "azureActiveDirectory"
+      }
+      identityProviders = {
+        azureActiveDirectory = {
+          enabled = true
+          registration = {
+            clientId                = var.entra_client_id
+            clientSecretSettingName = "entra-client-secret"
+            openIdIssuer           = "https://sts.windows.net/${var.tenant_id}/v2.0"
+          }
+        }
+      }
+    }
+  })
 }
