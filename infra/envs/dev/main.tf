@@ -102,6 +102,7 @@ module "containerapp" {
   entra_client_id     = module.auth.client_id
   entra_client_secret = module.auth.client_secret
   tenant_id           = module.auth.tenant_id
+  enable_auth         = true
 }
 
 # 9. AUTH MODULE (Entra ID)

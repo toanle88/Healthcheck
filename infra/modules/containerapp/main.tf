@@ -212,7 +212,7 @@ resource "azurerm_container_app" "web" {
   }
 
   dynamic "secret" {
-    for_each = var.entra_client_secret != "" ? [1] : []
+    for_each = var.enable_auth ? [1] : []
     content {
       name  = "entra-client-secret"
       value = var.entra_client_secret
@@ -268,7 +268,7 @@ output "web_url" {
 }
 
 resource "azapi_resource" "web_auth" {
-  count     = var.entra_client_id != "" ? 1 : 0
+  count     = var.enable_auth ? 1 : 0
   type      = "Microsoft.App/containerApps/authConfigs@2024-03-01"
   name      = "current"
   parent_id = azurerm_container_app.web.id

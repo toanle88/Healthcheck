@@ -26,3 +26,7 @@ variable "tenant_id" {
   type    = string
   default = ""
 }
+variable "enable_auth" {
+  type    = bool
+  default = false
+}
