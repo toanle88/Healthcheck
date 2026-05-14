@@ -22,7 +22,8 @@ provider "azurerm" {
 }
 
 provider "azuread" {
-  use_oidc = true
+  use_oidc  = true
+  tenant_id = "cea4bf39-5592-4b9c-bed9-0729bbf40cd4" # CIAM Sandbox Tenant ID
 }
 
 # 1. Variables
