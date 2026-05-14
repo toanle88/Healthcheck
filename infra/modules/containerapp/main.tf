@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = ">= 4.72.0"
+    }
+  }
+}
+
 # 1. LOG ANALYTICS (The Brain for Logs)
 resource "azurerm_log_analytics_workspace" "main" {
   name                = "log-healthcheck-${var.environment}"
