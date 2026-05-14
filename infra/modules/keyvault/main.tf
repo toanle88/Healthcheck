@@ -1,9 +1,15 @@
 data "azurerm_client_config" "current" {}
 
+resource "random_string" "kv_suffix" {
+  length  = 8
+  special = false
+  upper   = false
+}
+
 resource "azurerm_key_vault" "main" {
   # Key Vault names must be globally unique and between 3-24 characters.
-  # We take the first 8 characters of the subscription ID to stay under the 24-char limit.
-  name                        = "kv-hc-${var.environment}-${substr(data.azurerm_client_config.current.subscription_id, 0, 8)}"
+  # We use a random suffix to avoid soft-delete naming conflicts across redeployments.
+  name                        = "kv-hc-${var.environment}-${random_string.kv_suffix.result}"
   location                    = var.location
   resource_group_name         = var.resource_group_name
   enabled_for_disk_encryption = true
