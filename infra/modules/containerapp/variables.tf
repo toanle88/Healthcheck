@@ -21,3 +21,9 @@ variable "tenant_id" {
   type    = string
   default = ""
 }
+
+variable "app_insights_connection_string" {
+  type      = string
+  default   = ""
+  sensitive = true
+}

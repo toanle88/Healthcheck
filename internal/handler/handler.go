@@ -50,3 +50,14 @@ func (h *Handler) Status(c *gin.Context) {
 func (h *Handler) History(c *gin.Context) {
 	h.Status(c) // Day 1: same as status
 }
+
+// GET /api/test/error (Chaos Testing)
+func (h *Handler) TestError(c *gin.Context) {
+	c.JSON(http.StatusInternalServerError, gin.H{"error": "Chaos alert triggered: internal server error"})
+}
+
+// GET /api/test/slow (Chaos Testing)
+func (h *Handler) TestSlow(c *gin.Context) {
+	time.Sleep(2 * time.Second)
+	c.JSON(http.StatusOK, gin.H{"message": "Chaos alert triggered: slow response"})
+}

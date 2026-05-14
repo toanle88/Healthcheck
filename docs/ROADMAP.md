@@ -66,10 +66,10 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 - [x] Enable Managed Identity for future Container Apps (Root module prepared)
 
 ### Day 8 — Container Apps
-- [ ] `infra/modules/containerapp`: Container Apps Environment, API app, Worker Job
-- [ ] Wire Managed Identity → Key Vault access
-- [ ] Output URLs
-- [ ] Deliverable: `terraform apply` creates empty infra
+- [x] `infra/modules/containerapp`: Container Apps Environment, API app, Worker Job
+- [x] Wire Managed Identity → Key Vault access
+- [x] Output URLs
+- [x] Deliverable: `terraform apply` creates empty infra
 
 ---
 
@@ -90,9 +90,9 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 - [x] az containerapp update (Automated code deployment)
 
 ### Day 11 — First deploy
-- [ ] Merge to main, watch Actions
-- [ ] Verify API in Azure, check logs in Log Analytics
-- [ ] Deliverable: Live URL works
+- [x] Merge to main, watch Actions
+- [x] Verify API in Azure, check logs in Log Analytics
+- [x] Deliverable: Live URL works
 
 ---
 

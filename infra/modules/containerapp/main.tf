@@ -143,6 +143,11 @@ resource "azurerm_container_app" "api" {
         name  = "ENTRA_CLIENT_ID"
         value = var.entra_client_id
       }
+
+      env {
+        name  = "APPLICATIONINSIGHTS_CONNECTION_STRING"
+        value = var.app_insights_connection_string
+      }
     }
   }
 
@@ -215,6 +220,11 @@ resource "azurerm_container_app_job" "worker" {
       env {
         name        = "DB_PASSWORD"
         secret_name = "db-password"
+      }
+
+      env {
+        name  = "APPLICATIONINSIGHTS_CONNECTION_STRING"
+        value = var.app_insights_connection_string
       }
     }
   }
@@ -306,4 +316,16 @@ output "api_url" {
 
 output "web_url" {
   value = azurerm_container_app.web.ingress[0].fqdn
+}
+
+output "container_app_environment_id" {
+  value = azurerm_container_app_environment.main.id
+}
+
+output "api_app_id" {
+  value = azurerm_container_app.api.id
+}
+
+output "worker_job_id" {
+  value = azurerm_container_app_job.worker.id
 }

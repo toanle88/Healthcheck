@@ -90,6 +90,13 @@ func main() {
 		api.GET("/history", h.History)
 	}
 
+	// --- TEST ROUTES (UNPROTECTED FOR CHAOS TESTING) ---
+	test := r.Group("/api/test")
+	{
+		test.GET("/error", h.TestError)
+		test.GET("/slow", h.TestSlow)
+	}
+
 	if metricsHandler != nil {
 		r.GET("/metrics", gin.WrapH(metricsHandler))
 	}

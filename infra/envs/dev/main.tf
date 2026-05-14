@@ -14,9 +14,9 @@ terraform {
     }
   }
   backend "azurerm" {
-    resource_group_name  = "rg-healthcheck-bootstrap"
-    container_name       = "tfstate"
-    key                  = "dev.terraform.tfstate"
+    resource_group_name = "rg-healthcheck-bootstrap"
+    container_name      = "tfstate"
+    key                 = "dev.terraform.tfstate"
   }
 }
 
@@ -83,7 +83,7 @@ module "keyvault" {
 }
 
 # 9. ENTRA ID CONFIG (Clean Split Pattern)
-variable "entra_client_id" { 
+variable "entra_client_id" {
   type        = string
   description = "The Client ID of the CIAM app registration (managed separately)"
 }
@@ -117,8 +117,23 @@ module "containerapp" {
   entra_client_id = var.entra_client_id
   tenant_id       = var.ciam_tenant_id
 
+  # Monitoring
+  app_insights_connection_string = module.monitor.app_insights_connection_string
+
   # Ensure the secret is created in Key Vault BEFORE the apps try to mount it
   depends_on = [azurerm_key_vault_secret.db_password]
+}
+
+# 9. MONITORING MODULE (Day 12)
+module "monitor" {
+  source                       = "../../modules/monitor"
+  location                     = azurerm_resource_group.dev.location
+  resource_group_name          = azurerm_resource_group.dev.name
+  environment                  = var.environment
+  container_app_environment_id = module.containerapp.container_app_environment_id
+  api_container_app_id         = module.containerapp.api_app_id
+  worker_job_id                = module.containerapp.worker_job_id
+  alert_email                  = "toanl@example.com" # Placeholder
 }
 
 # Store the DB password in Key Vault for later use by the App

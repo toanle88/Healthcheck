@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
-	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -37,11 +38,16 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 		return nil, nil, fmt.Errorf("failed to create resource: %w", err)
 	}
 
-	// 1. Setup Tracing (OTLP/HTTP exporter for Jaeger)
-	traceExporter, err := otlptracehttp.New(ctx,
-		otlptracehttp.WithEndpoint("jaeger:4318"),
-		otlptracehttp.WithInsecure(),
-	)
+	// 1. Setup Tracing
+	traceOpts := []otlptracehttp.Option{}
+	
+	// If running in local docker-compose, use Jaeger
+	if os.Getenv("ENV") == "local" || os.Getenv("ENV") == "" {
+		traceOpts = append(traceOpts, otlptracehttp.WithEndpoint("jaeger:4318"), otlptracehttp.WithInsecure())
+	}
+	// Otherwise, OTel will use standard env vars like OTEL_EXPORTER_OTLP_ENDPOINT
+
+	traceExporter, err := otlptracehttp.New(ctx, traceOpts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create trace exporter: %w", err)
 	}
@@ -53,23 +59,36 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 	otel.SetTracerProvider(tp)
 
 	// 2. Setup Metrics
-	metricExporter, err := stdoutmetric.New()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create metric exporter: %w", err)
-	}
+	var mp *sdkmetric.MeterProvider
+	if os.Getenv("ENV") == "local" || os.Getenv("ENV") == "" {
+		// Prometheus exporter (acts as a Reader for OTel)
+		promExporter, err := otelprom.New(otelprom.WithRegisterer(prometheus.DefaultRegisterer))
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create prometheus exporter: %w", err)
+		}
 
-	// Prometheus exporter (acts as a Reader for OTel)
-	// We link it directly to the DefaultRegisterer so it shows up in /metrics
-	promExporter, err := otelprom.New(otelprom.WithRegisterer(prometheus.DefaultRegisterer))
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create prometheus exporter: %w", err)
-	}
+		mp = sdkmetric.NewMeterProvider(
+			sdkmetric.WithResource(res),
+			sdkmetric.WithReader(promExporter),
+		)
+	} else {
+		// In Azure, we export metrics via OTLP to App Insights
+		metricExporter, err := otlpmetrichttp.New(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create metric exporter: %w", err)
+		}
+		
+		promExporter, err := otelprom.New(otelprom.WithRegisterer(prometheus.DefaultRegisterer))
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create prometheus exporter: %w", err)
+		}
 
-	mp := sdkmetric.NewMeterProvider(
-		sdkmetric.WithResource(res),
-		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter, sdkmetric.WithInterval(1*time.Minute))),
-		sdkmetric.WithReader(promExporter),
-	)
+		mp = sdkmetric.NewMeterProvider(
+			sdkmetric.WithResource(res),
+			sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter, sdkmetric.WithInterval(1*time.Minute))),
+			sdkmetric.WithReader(promExporter),
+		)
+	}
 	otel.SetMeterProvider(mp)
 
 	// Create the Meter and instruments
@@ -80,7 +99,6 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 		metric.WithDescription("Latency of health checks in seconds"))
 
 	// Create a dedicated handler for the prometheus metrics
-	// This avoids the global registry conflict
 	handler := promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{})
 
 	// Return a combined shutdown function
@@ -88,8 +106,10 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 		if err := tp.Shutdown(ctx); err != nil {
 			return err
 		}
-		if err := mp.Shutdown(ctx); err != nil {
-			return err
+		if mp != nil {
+			if err := mp.Shutdown(ctx); err != nil {
+				return err
+			}
 		}
 		return nil
 	}, nil
