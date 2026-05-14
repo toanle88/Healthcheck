@@ -1,4 +1,5 @@
 import React from 'react';
+import { getEnv } from '../../config/env';
 
 interface FooterProps {
   count: number;
@@ -14,7 +15,7 @@ const Footer: React.FC<FooterProps> = ({ count }) => {
         <div className="flex items-center gap-3">
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-600">Version</span>
           <span className="px-2 py-0.5 bg-slate-800 text-slate-400 rounded text-[10px] font-mono border border-slate-700/50">
-            {import.meta.env.VITE_APP_VERSION || 'VITE_APP_VERSION_PLACEHOLDER'}
+            {getEnv('VITE_APP_VERSION') || 'local-dev'}
           </span>
         </div>
       </div>

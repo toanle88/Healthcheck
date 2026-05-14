@@ -17,8 +17,10 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 RUN echo 'server { listen 80; location / { root /usr/share/nginx/html; index index.html; try_files $uri $uri/ /index.html; } }' > /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
-# This magic command finds all JS files and replaces placeholders with actual environment variables from Azure
-# We use simple shell form here to avoid parsing errors in Alpine
-CMD sed -i "s|VITE_API_URL_PLACEHOLDER|$VITE_API_URL|g" /usr/share/nginx/html/assets/*.js || true && \
-    sed -i "s|VITE_APP_VERSION_PLACEHOLDER|$VITE_APP_VERSION|g" /usr/share/nginx/html/assets/*.js || true && \
-    nginx -g 'daemon off;'
+# Copy the entrypoint script
+COPY entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+# Use the entrypoint script to dynamically generate env.js at boot time
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["nginx", "-g", "daemon off;"]

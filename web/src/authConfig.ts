@@ -1,7 +1,8 @@
 import type { Configuration, PopupRequest } from "@azure/msal-browser";
+import { getEnv } from "./config/env";
 
-const clientId = import.meta.env.VITE_ENTRA_CLIENT_ID || "";
-const tenantId = import.meta.env.VITE_ENTRA_TENANT_ID || "";
+const clientId = getEnv("VITE_ENTRA_CLIENT_ID");
+const tenantId = getEnv("VITE_ENTRA_TENANT_ID");
 const tenantDomain = "toanlesandbox.ciamlogin.com";
 
 export const msalConfig: Configuration = {

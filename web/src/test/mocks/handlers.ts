@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
+import { getEnv } from '../../config/env';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+const API_BASE_URL = getEnv('VITE_API_URL');
 
 export const handlers = [
   http.get(`${API_BASE_URL}/api/status`, () => {
