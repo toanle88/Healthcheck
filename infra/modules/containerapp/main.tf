@@ -76,6 +76,14 @@ resource "azurerm_container_app" "api" {
     }
   }
 
+  dynamic "secret" {
+    for_each = var.enable_auth ? [1] : []
+    content {
+      name  = "entra-client-secret"
+      value = var.entra_client_secret
+    }
+  }
+
   secret {
     name                = "db-password"
     key_vault_secret_id = "${var.keyvault_uri}secrets/database-password"
@@ -290,6 +298,40 @@ resource "azapi_resource" "web_auth" {
             clientSecretSettingName = "entra-client-secret"
             openIdIssuer           = "https://sts.windows.net/${var.tenant_id}/v2.0"
           }
+        }
+      }
+    }
+  })
+}
+resource "azapi_resource" "api_auth" {
+  count     = var.enable_auth ? 1 : 0
+  type      = "Microsoft.App/containerApps/authConfigs@2024-03-01"
+  name      = "current"
+  parent_id = azurerm_container_app.api.id
+
+  body = jsonencode({
+    properties = {
+      platform = {
+        enabled = true
+      }
+      globalValidation = {
+        unauthenticatedClientAction = "RedirectToLoginPage"
+        redirectToProvider          = "azureActiveDirectory"
+      }
+      identityProviders = {
+        azureActiveDirectory = {
+          enabled = true
+          registration = {
+            clientId                = var.entra_client_id
+            clientSecretSettingName = "entra-client-secret"
+            openIdIssuer           = "https://sts.windows.net/${var.tenant_id}/v2.0"
+          }
+        }
+      }
+      httpSettings = {
+        cors = {
+          allowedOrigins     = ["https://ca-healthcheck-web-${var.environment}.${azurerm_container_app_environment.main.default_domain}"]
+          supportCredentials = true
         }
       }
     }

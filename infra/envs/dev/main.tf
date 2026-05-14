@@ -118,7 +118,8 @@ module "containerapp" {
 module "auth" {
   source      = "../../modules/auth"
   environment = var.environment
-  reply_url   = "https://ca-healthcheck-web-${var.environment}.${module.containerapp.default_domain}"
+  web_reply_url = "https://ca-healthcheck-web-${var.environment}.${module.containerapp.default_domain}"
+  api_reply_url = "https://ca-healthcheck-api-${var.environment}.${module.containerapp.default_domain}"
   keyvault_id = module.keyvault.id
 }
 

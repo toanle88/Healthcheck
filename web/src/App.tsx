@@ -27,7 +27,9 @@ function App() {
   const fetchData = useCallback(async () => {
     setIsRefreshing(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/api/status`)
+      const response = await fetch(`${API_BASE_URL}/api/status`, {
+        credentials: 'include'
+      })
       if (!response.ok) {
         throw new Error('Failed to fetch status')
       }

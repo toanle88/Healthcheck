@@ -7,7 +7,8 @@ resource "azuread_application" "dashboard" {
 
   web {
     redirect_uris = [
-      "${var.reply_url}/.auth/login/aad/callback"
+      "${var.web_reply_url}/.auth/login/aad/callback",
+      "${var.api_reply_url}/.auth/login/aad/callback"
     ]
     implicit_grant {
       access_token_issuance_enabled = false
