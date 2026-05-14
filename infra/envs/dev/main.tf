@@ -13,7 +13,11 @@ terraform {
       version = "~> 3.0"
     }
   }
-  backend "azurerm" {}
+  backend "azurerm" {
+    resource_group_name  = "rg-healthcheck-bootstrap"
+    container_name       = "tfstate"
+    key                  = "dev.terraform.tfstate"
+  }
 }
 
 provider "azurerm" {

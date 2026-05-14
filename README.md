@@ -9,21 +9,22 @@ See `PROJECT.md` for full specs and `ROADMAP.md` for the 14-day plan.
 - **Go**: idiomatic HTTP servers, context cancellation, structured logging
 - **Docker**: multi-stage builds with distroless, ~12MB images, non-root user
 - **Terraform**: AzureRM for VNet, Container Apps, PostgreSQL Flexible Server, Key Vault, Managed Identity, ACR
-- **CI/CD**: GitHub Actions with Azure Service Principal
+- **CI/CD**: GitHub Actions with Azure OIDC
 - **Observability**: OpenTelemetry Go SDK → Azure Monitor / Application Insights
 - **Security**: Key Vault, RBAC least privilege, Trivy scanning, Defender for Cloud
 
 ## 🏗️ Architecture (Azure)
 
 ```
-Browser → Azure Front Door + Azure Static Web Apps (React/Vite)
-                         ↓
-                  Azure Container Apps → Go API
-                         ↓
-                  Azure Container Apps Job → Go Worker → Azure Database for PostgreSQL Flexible Server
+Browser → Azure Container Apps (Web) → Entra External ID (CIAM)
+                          ↓
+                   Azure Container Apps (API) → Go API
+                          ↓
+                   Azure Container Apps Job → Go Worker → Azure Database for PostgreSQL
 ```
 
-All runtime secrets are retrieved from Azure Key Vault using Managed Identity.
+This project uses a **"Clean Split"** architecture: Core infrastructure is automated via Terraform, while Customer Identity (CIAM) is managed as a curated one-time setup for maximum stability.
+
 ## 🛠️ Development & Quality
 
 ### Code Formatting
@@ -75,23 +76,28 @@ We use a modular Terraform structure for maximum maintainability:
 
 ---
 
-## 🛠️ Tech Stack
-## 🔐 Environment Files
+## 🛠️ Tech Stack & Security
 
-This project uses two separate env files to avoid leaking secrets:
+- **OIDC Authentication**: Passwordless GitHub login to Azure using Workload Identity Federation.
+- **Identity (CIAM)**: Entra External ID for customer-facing authentication.
+- **Backend API**: Go 1.23, Gin, pgx/v5 (Structured logging with `slog`)
+- **Infrastructure**: Terraform ≥1.7 (Modular setup)
 
-**`.env`** — app config (safe to share as example)
-```
-PORT=8080
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/healthcheck?sslmode=disable
-```
+## 🚀 Deployment Guide
 
-**`.env.azure`** — Azure credentials for Terraform (NEVER commit)
+For a full "Clean Split" deployment walkthrough, see the **[DEPLOYMENT GUIDE](./docs/DEPLOYMENT_GUIDE.md)**.
+
+### 🔐 Environment Files
+
+**`.env.azure`** — Azure credentials for local Terraform (NEVER commit)
 ```bash
 export ARM_SUBSCRIPTION_ID="your-id"
-export ARM_TENANT_ID="your-id"
-export ARM_CLIENT_ID="your-id"
-export ARM_CLIENT_SECRET="your-secret"
+export ARM_TENANT_ID="your-main-tenant-id"
+export ARM_CLIENT_ID="your-id-github-actions-bootstrap"
+export ARM_USE_OIDC=true
+
+# CIAM Configuration
+export TF_VAR_entra_client_id="your-ciam-app-id"
 ```
 
 Usage:
