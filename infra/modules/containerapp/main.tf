@@ -75,7 +75,7 @@ resource "azurerm_container_app" "api" {
       percentage      = 100
       latest_revision = true
     }
-    cors_policy {
+    cors {
       allowed_origins   = ["https://ca-healthcheck-web-${var.environment}.${azurerm_container_app_environment.main.default_domain}"]
       allowed_methods   = ["GET", "POST", "OPTIONS"]
       allowed_headers   = ["*"]

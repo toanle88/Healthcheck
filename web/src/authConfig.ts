@@ -1,31 +1,29 @@
 import type { Configuration, PopupRequest } from "@azure/msal-browser";
 
-// These values are injected by Terraform into the container environment
-// For local development, you can set these in your .env file
 const clientId = import.meta.env.VITE_ENTRA_CLIENT_ID || "";
 const tenantId = import.meta.env.VITE_ENTRA_TENANT_ID || "";
+const tenantDomain = "toanlesandbox.ciamlogin.com";
 
 export const msalConfig: Configuration = {
-    auth: {
-        clientId: clientId,
-        authority: `https://login.microsoftonline.com/${tenantId}`,
-        redirectUri: window.location.origin, // Returns to the same page
-        postLogoutRedirectUri: window.location.origin,
-    },
-    cache: {
-        cacheLocation: "sessionStorage", // Switched back to sessionStorage for stable redirects
-    },
-    system: {
-        allowRedirectInIframe: true,
-    }
+  auth: {
+    clientId,
+    authority: `https://${tenantDomain}/${tenantId}`,
+    knownAuthorities: [tenantDomain],
+    redirectUri: window.location.origin,
+    postLogoutRedirectUri: window.location.origin,
+  },
+  cache: {
+    cacheLocation: "sessionStorage",
+  },
+  system: {
+    allowRedirectInIframe: true,
+  }
 };
 
-// Add here scopes for id token to be used at MS Identity Platform endpoints.
 export const loginRequest: PopupRequest = {
-    scopes: ["User.Read", `api://${clientId}/access_as_user`]
+  scopes: ["openid", "profile", "email", "offline_access"]
 };
 
-// Add here scopes for access token to be used at MS Graph API endpoints.
 export const tokenRequest = {
-    scopes: [`api://${clientId}/access_as_user`]
+  scopes: ["api://a91de45f-2874-438b-aaa5-e0ae74985f40/access_as_user"]
 };

@@ -1,7 +1,10 @@
+// Healthcheck Dashboard - CIAM Secured
 import { useEffect, useState, useCallback } from 'react'
 import { Activity, ShieldCheck, ShieldAlert, Clock, RefreshCw, Server, LogOut, LogIn } from 'lucide-react'
 import { useMsal, AuthenticatedTemplate, UnauthenticatedTemplate } from "@azure/msal-react";
-import { loginRequest } from "./authConfig";
+import { loginRequest, tokenRequest } from "./authConfig";
+
+console.log('DEBUG: tokenRequest', tokenRequest);
 
 interface Check {
   target: string
@@ -28,9 +31,9 @@ function Dashboard() {
   const fetchData = useCallback(async () => {
     setIsRefreshing(true)
     try {
-      // 1. Acquire Token
+      // 1. Acquire Token Silently
       const tokenResponse = await instance.acquireTokenSilent({
-        ...loginRequest,
+        ...tokenRequest,
         account: accounts[0]
       });
 
@@ -102,9 +105,24 @@ function Dashboard() {
               <span>{lastUpdated.toLocaleTimeString()}</span>
             </div>
             <button 
-              onClick={fetchData}
-              disabled={isRefreshing}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-colors group active:scale-95 disabled:opacity-50"
+              onClick={async () => {
+                try {
+                  await instance.acquireTokenSilent({
+                    ...tokenRequest,
+                    account: accounts[0]
+                  });
+                  fetchData();
+                } catch {
+                  // Fall back to popup if silent refresh fails
+                  try {
+                    await instance.acquireTokenPopup(tokenRequest);
+                    fetchData();
+                  } catch (popupErr) {
+                    console.error("Popup failed:", popupErr);
+                  }
+                }
+              }}
+              className="p-2 hover:bg-indigo-500/10 rounded-lg transition-colors group active:scale-95"
               title="Refresh Data"
             >
               <RefreshCw className={`w-5 h-5 text-slate-400 group-hover:text-indigo-400 transition-colors ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -132,7 +150,14 @@ function Dashboard() {
             <h2 className="text-xl font-bold text-red-100 mb-2">Connection Error</h2>
             <p className="text-red-400/80 mb-6">{error}</p>
             <button 
-              onClick={fetchData}
+              onClick={async () => {
+                try {
+                  await instance.acquireTokenPopup(tokenRequest);
+                  fetchData();
+                } catch {
+                  console.error("Popup failed");
+                }
+              }}
               className="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-red-500/20"
             >
               Retry Connection

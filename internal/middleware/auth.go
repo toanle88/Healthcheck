@@ -12,8 +12,8 @@ import (
 
 // AuthMiddleware validates the Entra ID JWT token
 func AuthMiddleware(tenantID, clientID string) gin.HandlerFunc {
-	// 1. Initialize the JWKS key function
-	jwksURL := fmt.Sprintf("https://login.microsoftonline.com/%s/discovery/v2.0/keys", tenantID)
+	// 1. Initialize the JWKS key function for CIAM
+	jwksURL := fmt.Sprintf("https://%s.ciamlogin.com/%s/discovery/v2.0/keys", tenantID, tenantID)
 	
 	// Create the keyfunc strategy
 	k, err := keyfunc.NewDefault([]string{jwksURL})
@@ -52,6 +52,12 @@ func AuthMiddleware(tenantID, clientID string) gin.HandlerFunc {
 			return
 		}
 
+		// Verify the tenant ID (tid) to ensure it's from our specific tenant
+		if tid, ok := claims["tid"].(string); !ok || tid != tenantID {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "unauthorized tenant"})
+			return
+		}
+
 		// Validate Audience (aud should be your clientId)
 		aud, _ := claims["aud"].(string)
 		if aud != clientID {
@@ -59,10 +65,10 @@ func AuthMiddleware(tenantID, clientID string) gin.HandlerFunc {
 			return
 		}
 
-		// Validate Issuer (iss)
+		// Validate Issuer (iss for CIAM)
 		iss, _ := claims["iss"].(string)
-		expectedIss := fmt.Sprintf("https://sts.windows.net/%s/", tenantID)
-		if !strings.HasPrefix(iss, expectedIss) && iss != fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tenantID) {
+		expectedIss := fmt.Sprintf("https://%s.ciamlogin.com/%s/v2.0", tenantID, tenantID)
+		if iss != expectedIss {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid issuer"})
 			return
 		}
