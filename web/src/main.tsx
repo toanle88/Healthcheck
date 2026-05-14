@@ -6,23 +6,31 @@ import { PublicClientApplication, EventType, type AuthenticationResult } from "@
 import { MsalProvider } from "@azure/msal-react";
 import { msalConfig } from "./authConfig";
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
 const msalInstance = new PublicClientApplication(msalConfig);
+const queryClient = new QueryClient({
+    defaultOptions: {
+        queries: {
+            refetchOnWindowFocus: false,
+            retry: 1,
+        },
+    },
+});
 
 // Initialize MSAL and then render the app
 msalInstance.initialize().then(() => {
-    // Check for redirect response on page load
+    // ... same logic for redirect response ...
     msalInstance.handleRedirectPromise().then((response) => {
         if (response) {
             msalInstance.setActiveAccount(response.account);
         }
 
-        // Default to using the first account if no account is active on page load
         const accounts = msalInstance.getAllAccounts();
         if (accounts.length > 0 && !msalInstance.getActiveAccount()) {
             msalInstance.setActiveAccount(accounts[0]);
         }
 
-        // Listen for sign-in event and set active account
         msalInstance.addEventCallback((event) => {
             if (event.eventType === EventType.LOGIN_SUCCESS && event.payload) {
                 const payload = event.payload as AuthenticationResult;
@@ -33,7 +41,9 @@ msalInstance.initialize().then(() => {
         ReactDOM.createRoot(document.getElementById('root')!).render(
             <React.StrictMode>
                 <MsalProvider instance={msalInstance}>
-                    <App />
+                    <QueryClientProvider client={queryClient}>
+                        <App />
+                    </QueryClientProvider>
                 </MsalProvider>
             </React.StrictMode>,
         )
