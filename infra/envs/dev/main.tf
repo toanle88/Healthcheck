@@ -21,10 +21,7 @@ provider "azurerm" {
   use_oidc = true
 }
 
-provider "azuread" {
-  use_oidc  = true
-  tenant_id = "cea4bf39-5592-4b9c-bed9-0729bbf40cd4" # CIAM Sandbox Tenant ID
-}
+# No azuread provider needed here - we use a variable for the Client ID
 
 # 1. Variables
 variable "github_org_or_user" { default = "toanle88" }
@@ -81,6 +78,18 @@ module "keyvault" {
   environment         = var.environment
 }
 
+# 9. ENTRA ID CONFIG (Clean Split Pattern)
+variable "entra_client_id" { 
+  type        = string
+  description = "The Client ID of the CIAM app registration (managed separately)"
+}
+
+variable "ciam_tenant_id" {
+  type        = string
+  description = "The Tenant ID of the CIAM Sandbox"
+  default     = "cea4bf39-5592-4b9c-bed9-0729bbf40cd4"
+}
+
 # 8. CONTAINER APPS MODULE (Day 8)
 module "containerapp" {
   source              = "../../modules/containerapp"
@@ -101,16 +110,8 @@ module "containerapp" {
   db_user             = "psqladmin"
 
   # Entra ID Config for Frontend
-  entra_client_id = module.auth.client_id
-  tenant_id       = module.auth.tenant_id
-}
-
-# 9. AUTH MODULE (Entra ID)
-module "auth" {
-  source        = "../../modules/auth"
-  environment   = var.environment
-  web_reply_url = "https://ca-healthcheck-web-${var.environment}.${module.containerapp.default_domain}"
-  api_reply_url = "https://ca-healthcheck-api-${var.environment}.${module.containerapp.default_domain}"
+  entra_client_id = var.entra_client_id
+  tenant_id       = var.ciam_tenant_id
 }
 
 # Store the DB password in Key Vault for later use by the App

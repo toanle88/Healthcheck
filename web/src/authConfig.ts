@@ -25,5 +25,5 @@ export const loginRequest: PopupRequest = {
 };
 
 export const tokenRequest = {
-  scopes: ["api://a91de45f-2874-438b-aaa5-e0ae74985f40/access_as_user"]
+  scopes: [`api://${clientId}/access_as_user`]
 };
