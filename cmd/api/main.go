@@ -65,19 +65,25 @@ func main() {
 	// Add OTel middleware for automatic tracing of all HTTP requests
 	r.Use(otelgin.Middleware("healthcheck-api"))
 
-	// Basic CORS middleware to allow our React app (on port 5173) to talk to the API
-	r.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	// --- 6.1 CONDITIONAL CORS FOR LOCAL DEV ---
+	// In Azure, CORS is handled by the Container App Ingress.
+	// We only need this middleware for local development.
+	if cfg.Environment == "development" || cfg.Environment == "local" {
+		slog.Info("local development mode: enabling CORS middleware")
+		r.Use(func(c *gin.Context) {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+			c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
+			if c.Request.Method == "OPTIONS" {
+				c.AbortWithStatus(204)
+				return
+			}
 
-		c.Next()
-	})
+			c.Next()
+		})
+	}
 
 	// Custom request logging middleware
 	r.Use(func(c *gin.Context) {

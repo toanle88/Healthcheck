@@ -74,6 +74,12 @@ resource "azurerm_container_app" "api" {
       percentage      = 100
       latest_revision = true
     }
+    cors_policy {
+      allowed_origins   = ["https://ca-healthcheck-web-${var.environment}.${azurerm_container_app_environment.main.default_domain}"]
+      allowed_methods   = ["GET", "POST", "OPTIONS"]
+      allowed_headers   = ["*"]
+      allow_credentials = true
+    }
   }
 
   dynamic "secret" {
@@ -100,6 +106,11 @@ resource "azurerm_container_app" "api" {
       env {
         name  = "PORT"
         value = "8080"
+      }
+
+      env {
+        name  = "ENV"
+        value = var.environment
       }
 
       env {
@@ -253,6 +264,11 @@ resource "azurerm_container_app" "web" {
         name  = "VITE_APP_VERSION"
         value = var.app_version
       }
+
+      env {
+        name  = "ENV"
+        value = var.environment
+      }
     }
   }
 
@@ -296,7 +312,7 @@ resource "azapi_resource" "web_auth" {
           registration = {
             clientId                = var.entra_client_id
             clientSecretSettingName = "entra-client-secret"
-            openIdIssuer           = "https://sts.windows.net/${var.tenant_id}/v2.0"
+            openIdIssuer            = "https://sts.windows.net/${var.tenant_id}/v2.0"
           }
         }
       }
@@ -324,14 +340,8 @@ resource "azapi_resource" "api_auth" {
           registration = {
             clientId                = var.entra_client_id
             clientSecretSettingName = "entra-client-secret"
-            openIdIssuer           = "https://sts.windows.net/${var.tenant_id}/v2.0"
+            openIdIssuer            = "https://sts.windows.net/${var.tenant_id}/v2.0"
           }
-        }
-      }
-      httpSettings = {
-        cors = {
-          allowedOrigins     = ["https://ca-healthcheck-web-${var.environment}.${azurerm_container_app_environment.main.default_domain}"]
-          supportCredentials = true
         }
       }
     }

@@ -116,11 +116,11 @@ module "containerapp" {
 
 # 9. AUTH MODULE (Entra ID)
 module "auth" {
-  source      = "../../modules/auth"
-  environment = var.environment
+  source        = "../../modules/auth"
+  environment   = var.environment
   web_reply_url = "https://ca-healthcheck-web-${var.environment}.${module.containerapp.default_domain}"
   api_reply_url = "https://ca-healthcheck-api-${var.environment}.${module.containerapp.default_domain}"
-  keyvault_id = module.keyvault.id
+  keyvault_id   = module.keyvault.id
 }
 
 # Store the DB password in Key Vault for later use by the App
