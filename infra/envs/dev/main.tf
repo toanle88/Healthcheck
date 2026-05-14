@@ -2,11 +2,11 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.0"
+      version = ">= 4.72.0"
     }
     azuread = {
       source  = "hashicorp/azuread"
-      version = "~> 2.0"
+      version = ">= 3.0.0"
     }
     random = {
       source  = "hashicorp/random"
@@ -100,8 +100,8 @@ module "containerapp" {
   db_user             = "psqladmin"
 
   # Entra ID Config for Frontend
-  entra_client_id     = module.auth.client_id
-  tenant_id           = module.auth.tenant_id
+  entra_client_id = module.auth.client_id
+  tenant_id       = module.auth.tenant_id
 }
 
 # 9. AUTH MODULE (Entra ID)
