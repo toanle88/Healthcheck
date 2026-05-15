@@ -203,6 +203,11 @@ resource "azurerm_container_app_job" "worker" {
       }
 
       env {
+        name  = "ENV"
+        value = var.environment
+      }
+
+      env {
         name  = "DB_HOST"
         value = var.db_host
       }

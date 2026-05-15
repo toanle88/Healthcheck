@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -38,14 +39,20 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 		return nil, nil, fmt.Errorf("failed to create resource: %w", err)
 	}
 
+	connString := os.Getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
+	isAzure := connString != "" && os.Getenv("ENV") != "local"
+
 	// 1. Setup Tracing
 	traceOpts := []otlptracehttp.Option{}
-
-	// If running in local docker-compose, use Jaeger
-	if os.Getenv("ENV") == "local" || os.Getenv("ENV") == "" {
+	if isAzure {
+		endpoint, ikey := parseConnectionString(connString)
+		traceOpts = append(traceOpts,
+			otlptracehttp.WithEndpoint(endpoint),
+			otlptracehttp.WithHeaders(map[string]string{"x-otlp-api-key": ikey}),
+		)
+	} else {
 		traceOpts = append(traceOpts, otlptracehttp.WithEndpoint("jaeger:4318"), otlptracehttp.WithInsecure())
 	}
-	// Otherwise, OTel will use standard env vars like OTEL_EXPORTER_OTLP_ENDPOINT
 
 	traceExporter, err := otlptracehttp.New(ctx, traceOpts...)
 	if err != nil {
@@ -60,32 +67,26 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 
 	// 2. Setup Metrics
 	var mp *sdkmetric.MeterProvider
-	if os.Getenv("ENV") == "local" || os.Getenv("ENV") == "" {
-		// Prometheus exporter (acts as a Reader for OTel)
-		promExporter, err := otelprom.New(otelprom.WithRegisterer(prometheus.DefaultRegisterer))
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create prometheus exporter: %w", err)
-		}
+	promExporter, _ := otelprom.New(otelprom.WithRegisterer(prometheus.DefaultRegisterer))
 
-		mp = sdkmetric.NewMeterProvider(
-			sdkmetric.WithResource(res),
-			sdkmetric.WithReader(promExporter),
+	if isAzure {
+		endpoint, ikey := parseConnectionString(connString)
+		metricExporter, err := otlpmetrichttp.New(ctx,
+			otlpmetrichttp.WithEndpoint(endpoint),
+			otlpmetrichttp.WithHeaders(map[string]string{"x-otlp-api-key": ikey}),
 		)
-	} else {
-		// In Azure, we export metrics via OTLP to App Insights
-		metricExporter, err := otlpmetrichttp.New(ctx)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create metric exporter: %w", err)
-		}
-
-		promExporter, err := otelprom.New(otelprom.WithRegisterer(prometheus.DefaultRegisterer))
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create prometheus exporter: %w", err)
 		}
 
 		mp = sdkmetric.NewMeterProvider(
 			sdkmetric.WithResource(res),
 			sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter, sdkmetric.WithInterval(1*time.Minute))),
+			sdkmetric.WithReader(promExporter),
+		)
+	} else {
+		mp = sdkmetric.NewMeterProvider(
+			sdkmetric.WithResource(res),
 			sdkmetric.WithReader(promExporter),
 		)
 	}
@@ -113,4 +114,26 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 		}
 		return nil
 	}, nil
+}
+
+// parseConnectionString extracts the ingestion endpoint and instrumentation key.
+// Azure connection string looks like: InstrumentationKey=...;IngestionEndpoint=https://.../
+func parseConnectionString(connStr string) (string, string) {
+	parts := strings.Split(connStr, ";")
+	var ikey, endpoint string
+	for _, p := range parts {
+		if strings.HasPrefix(p, "InstrumentationKey=") {
+			ikey = strings.TrimPrefix(p, "InstrumentationKey=")
+		}
+		if strings.HasPrefix(p, "IngestionEndpoint=") {
+			endpoint = strings.TrimPrefix(p, "IngestionEndpoint=")
+			endpoint = strings.TrimPrefix(endpoint, "https://")
+			endpoint = strings.TrimSuffix(endpoint, "/")
+		}
+	}
+	// Add the OTLP path suffix if missing (Azure expects /v2.1/otlp)
+	if !strings.Contains(endpoint, "/v2.1/otlp") {
+		endpoint = endpoint + "/v2.1/otlp"
+	}
+	return endpoint, ikey
 }
