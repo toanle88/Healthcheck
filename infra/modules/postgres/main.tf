@@ -49,6 +49,19 @@ resource "azurerm_postgresql_flexible_server_database" "main" {
   collation = "en_US.utf8"
 }
 
+# 5. AZURE AD AUTHENTICATION
+# This allows our Managed Identity to log in without a password.
+resource "azurerm_postgresql_flexible_server_active_directory_administrator" "main" {
+  server_name         = azurerm_postgresql_flexible_server.main.name
+  resource_group_name = var.resource_group_name
+  tenant_id           = data.azurerm_client_config.current.tenant_id
+  object_id           = var.aad_admin_object_id
+  principal_name      = var.aad_admin_name
+  principal_type      = "ServicePrincipal"
+}
+
+data "azurerm_client_config" "current" {}
+
 output "host" {
   value = azurerm_postgresql_flexible_server.main.fqdn
 }

@@ -42,6 +42,17 @@ resource "azurerm_resource_group" "dev" {
   location = var.location
 }
 
+# 3. IDENTITY MODULE (The "Security Passports")
+module "identity" {
+  source              = "../../modules/identity"
+  location            = azurerm_resource_group.dev.location
+  resource_group_name = azurerm_resource_group.dev.name
+  resource_group_id   = azurerm_resource_group.dev.id
+  environment         = var.environment
+  github_org_or_user  = var.github_org_or_user
+  github_repo_name    = var.github_repo_name
+}
+
 # 4. NETWORK MODULE (Day 6)
 module "network" {
   source              = "../../modules/network"
@@ -72,6 +83,8 @@ module "postgres" {
   vnet_id             = module.network.vnet_id
   subnet_id           = module.network.db_subnet_id
   admin_password      = random_password.db_password.result
+  aad_admin_object_id = module.identity.app_identity_principal_id
+  aad_admin_name      = module.identity.app_identity_name
 }
 
 # 7. KEY VAULT MODULE (Day 7)
@@ -111,7 +124,7 @@ module "containerapp" {
   app_version         = var.api_image
   db_host             = module.postgres.host
   db_name             = "healthcheck"
-  db_user             = "psqladmin"
+  db_user             = module.identity.app_identity_name
 
   # Entra ID Config for Frontend
   entra_client_id = var.entra_client_id
@@ -119,6 +132,10 @@ module "containerapp" {
 
   # Monitoring
   app_insights_connection_string = module.monitor.app_insights_connection_string
+
+  # Identity for Cloud Auth
+  app_identity_id           = module.identity.app_identity_id
+  app_identity_principal_id = module.identity.app_identity_principal_id
 
   # Ensure the secret is created in Key Vault BEFORE the apps try to mount it
   depends_on = [azurerm_key_vault_secret.db_password]

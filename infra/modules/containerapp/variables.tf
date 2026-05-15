@@ -27,3 +27,6 @@ variable "app_insights_connection_string" {
   default   = ""
   sensitive = true
 }
+
+variable "app_identity_id" { type = string }
+variable "app_identity_principal_id" { type = string }

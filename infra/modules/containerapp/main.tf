@@ -27,27 +27,20 @@ resource "azurerm_container_app_environment" "main" {
   infrastructure_subnet_id = var.subnet_id
 }
 
-# 3. MANAGED IDENTITY (The "Security Passport" for the Apps)
-resource "azurerm_user_assigned_identity" "apps" {
-  name                = "id-healthcheck-apps-${var.environment}"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-}
-
-# 4. PERMISSIONS (The "Weld")
+# 3. PERMISSIONS (The "Weld")
 
 # Allow the Apps to pull images from ACR
 resource "azurerm_role_assignment" "acr_pull" {
   scope                = var.acr_id
   role_definition_name = "AcrPull"
-  principal_id         = azurerm_user_assigned_identity.apps.principal_id
+  principal_id         = var.app_identity_principal_id
 }
 
 # Allow the Apps to read secrets from Key Vault
 resource "azurerm_role_assignment" "kv_secrets" {
   scope                = var.keyvault_id
   role_definition_name = "Key Vault Secrets User"
-  principal_id         = azurerm_user_assigned_identity.apps.principal_id
+  principal_id         = var.app_identity_principal_id
 }
 
 # Azure AD Role Assignments take time to propagate. 
@@ -66,14 +59,14 @@ resource "azurerm_container_app" "api" {
 
   identity {
     type         = "UserAssigned"
-    identity_ids = [azurerm_user_assigned_identity.apps.id]
+    identity_ids = [var.app_identity_id]
   }
 
   depends_on = [time_sleep.wait_for_rbac]
 
   registry {
     server   = var.acr_login_server
-    identity = azurerm_user_assigned_identity.apps.id
+    identity = var.app_identity_id
   }
 
   ingress {
@@ -89,12 +82,6 @@ resource "azurerm_container_app" "api" {
       allowed_methods = ["GET", "POST", "OPTIONS"]
       allowed_headers = ["*"]
     }
-  }
-
-  secret {
-    name                = "db-password"
-    key_vault_secret_id = "${var.keyvault_uri}secrets/database-password"
-    identity            = azurerm_user_assigned_identity.apps.id
   }
 
   template {
@@ -129,10 +116,6 @@ resource "azurerm_container_app" "api" {
         value = var.db_user
       }
 
-      env {
-        name        = "DB_PASSWORD"
-        secret_name = "db-password"
-      }
 
       env {
         name  = "ENTRA_TENANT_ID"
@@ -167,14 +150,14 @@ resource "azurerm_container_app_job" "worker" {
 
   identity {
     type         = "UserAssigned"
-    identity_ids = [azurerm_user_assigned_identity.apps.id]
+    identity_ids = [var.app_identity_id]
   }
 
   depends_on = [time_sleep.wait_for_rbac]
 
   registry {
     server   = var.acr_login_server
-    identity = azurerm_user_assigned_identity.apps.id
+    identity = var.app_identity_id
   }
 
   schedule_trigger_config {
@@ -183,12 +166,6 @@ resource "azurerm_container_app_job" "worker" {
 
   replica_timeout_in_seconds = 60
   replica_retry_limit        = 1
-
-  secret {
-    name                = "db-password"
-    key_vault_secret_id = "${var.keyvault_uri}secrets/database-password"
-    identity            = azurerm_user_assigned_identity.apps.id
-  }
 
   template {
     container {
@@ -223,11 +200,6 @@ resource "azurerm_container_app_job" "worker" {
       }
 
       env {
-        name        = "DB_PASSWORD"
-        secret_name = "db-password"
-      }
-
-      env {
         name  = "APPLICATIONINSIGHTS_CONNECTION_STRING"
         value = var.app_insights_connection_string
       }
@@ -250,14 +222,14 @@ resource "azurerm_container_app" "web" {
 
   identity {
     type         = "UserAssigned"
-    identity_ids = [azurerm_user_assigned_identity.apps.id]
+    identity_ids = [var.app_identity_id]
   }
 
   depends_on = [time_sleep.wait_for_rbac]
 
   registry {
     server   = var.acr_login_server
-    identity = azurerm_user_assigned_identity.apps.id
+    identity = var.app_identity_id
   }
 
   ingress {
@@ -334,3 +306,4 @@ output "api_app_id" {
 output "worker_job_id" {
   value = azurerm_container_app_job.worker.id
 }
+

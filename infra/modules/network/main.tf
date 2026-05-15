@@ -38,6 +38,45 @@ resource "azurerm_subnet" "database" {
   }
 }
 
+# 3. NETWORK SECURITY GROUP (The Internal Firewall)
+resource "azurerm_network_security_group" "db" {
+  name                = "nsg-db-${var.environment}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+
+  # RULE: Only allow the Apps Subnet to talk to the DB on port 5432
+  security_rule {
+    name                       = "AllowAppsToDB"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "5432"
+    source_address_prefix      = "10.0.1.0/24" # The Apps Subnet
+    destination_address_prefix = "10.0.2.0/24" # The DB Subnet
+  }
+
+  # RULE: Deny everything else (High priority number means it runs last)
+  security_rule {
+    name                       = "DenyAllInbound"
+    priority                   = 1000
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
+# 4. LINK NSG TO SUBNET
+resource "azurerm_subnet_network_security_group_association" "db" {
+  subnet_id                 = azurerm_subnet.database.id
+  network_security_group_id = azurerm_network_security_group.db.id
+}
+
 output "vnet_id" {
   value = azurerm_virtual_network.main.id
 }
