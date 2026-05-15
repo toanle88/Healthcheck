@@ -86,6 +86,7 @@ resource "azurerm_storage_account" "tfstate" {
   #checkov:skip=CKV2_AZURE_1:Customer Managed Key not required for learning project
   #checkov:skip=CKV2_AZURE_41:SAS expiration policy not required for tfstate
   #checkov:skip=CKV2_AZURE_21:Storage logging not required for tfstate
+  #checkov:skip=CKV2_AZURE_38:Soft-delete enabled below
   name                     = "sthctfstate${random_string.storage_suffix.result}"
   resource_group_name      = azurerm_resource_group.bootstrap.name
   location                 = azurerm_resource_group.bootstrap.location
@@ -96,6 +97,12 @@ resource "azurerm_storage_account" "tfstate" {
   allow_nested_items_to_be_public = false
   shared_access_key_enabled       = false
   min_tls_version                 = "TLS1_2"
+
+  blob_properties {
+    delete_retention_policy {
+      days = 7
+    }
+  }
 }
 
 resource "azurerm_storage_container" "tfstate" {
