@@ -31,6 +31,12 @@ resource "azurerm_postgresql_flexible_server" "main" {
   administrator_login    = "psqladmin"
   administrator_password = var.admin_password
 
+  # THE MASTER SWITCH: Enable both Password and Azure AD Auth
+  authentication {
+    active_directory_auth_enabled = true
+    password_auth_enabled         = true
+  }
+
   # SKU: B1ms is the "Burstable" tier, perfect for dev/learning at ~$0.017/hour.
   sku_name   = "B_Standard_B1ms"
   storage_mb = 32768
