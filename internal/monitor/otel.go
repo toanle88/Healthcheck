@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
@@ -26,6 +27,14 @@ var (
 	CheckCounter     metric.Int64Counter
 	LatencyHistogram metric.Float64Histogram
 )
+
+func init() {
+	// Initialize with No-Ops to prevent nil panics if InitOTel fails
+	nm := noop.NewMeterProvider().Meter("noop")
+	Meter = nm
+	CheckCounter, _ = nm.Int64Counter("noop_total")
+	LatencyHistogram, _ = nm.Float64Histogram("noop_latency")
+}
 
 // InitOTel initializes the OpenTelemetry SDK.
 // It returns a metrics handler, a shutdown function, and an error.
@@ -45,9 +54,10 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 	// 1. Setup Tracing
 	traceOpts := []otlptracehttp.Option{}
 	if isAzure {
-		endpoint, ikey := parseConnectionString(connString)
+		host, ikey := parseConnectionString(connString)
 		traceOpts = append(traceOpts,
-			otlptracehttp.WithEndpoint(endpoint),
+			otlptracehttp.WithEndpoint(host),
+			otlptracehttp.WithURLPath("/v2.1/otlp/v1/traces"),
 			otlptracehttp.WithHeaders(map[string]string{"x-otlp-api-key": ikey}),
 		)
 	} else {
@@ -70,9 +80,10 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 	promExporter, _ := otelprom.New(otelprom.WithRegisterer(prometheus.DefaultRegisterer))
 
 	if isAzure {
-		endpoint, ikey := parseConnectionString(connString)
+		host, ikey := parseConnectionString(connString)
 		metricExporter, err := otlpmetrichttp.New(ctx,
-			otlpmetrichttp.WithEndpoint(endpoint),
+			otlpmetrichttp.WithEndpoint(host),
+			otlpmetrichttp.WithURLPath("/v2.1/otlp/v1/metrics"),
 			otlpmetrichttp.WithHeaders(map[string]string{"x-otlp-api-key": ikey}),
 		)
 		if err != nil {
@@ -92,7 +103,7 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 	}
 	otel.SetMeterProvider(mp)
 
-	// Create the Meter and instruments
+	// Initialize real instruments
 	Meter = mp.Meter(serviceName)
 	CheckCounter, _ = Meter.Int64Counter("healthcheck_status_total",
 		metric.WithDescription("Total number of health checks performed"))
@@ -108,32 +119,25 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 			return err
 		}
 		if mp != nil {
-			if err := mp.Shutdown(ctx); err != nil {
-				return err
-			}
+			return mp.Shutdown(ctx)
 		}
 		return nil
 	}, nil
 }
 
-// parseConnectionString extracts the ingestion endpoint and instrumentation key.
-// Azure connection string looks like: InstrumentationKey=...;IngestionEndpoint=https://.../
+// parseConnectionString extracts the ingestion HOST and instrumentation key.
 func parseConnectionString(connStr string) (string, string) {
 	parts := strings.Split(connStr, ";")
-	var ikey, endpoint string
+	var ikey, host string
 	for _, p := range parts {
 		if strings.HasPrefix(p, "InstrumentationKey=") {
 			ikey = strings.TrimPrefix(p, "InstrumentationKey=")
 		}
 		if strings.HasPrefix(p, "IngestionEndpoint=") {
-			endpoint = strings.TrimPrefix(p, "IngestionEndpoint=")
-			endpoint = strings.TrimPrefix(endpoint, "https://")
-			endpoint = strings.TrimSuffix(endpoint, "/")
+			host = strings.TrimPrefix(p, "IngestionEndpoint=")
+			host = strings.TrimPrefix(host, "https://")
+			host = strings.TrimSuffix(host, "/")
 		}
 	}
-	// Add the OTLP path suffix if missing (Azure expects /v2.1/otlp)
-	if !strings.Contains(endpoint, "/v2.1/otlp") {
-		endpoint = endpoint + "/v2.1/otlp"
-	}
-	return endpoint, ikey
+	return host, ikey
 }
