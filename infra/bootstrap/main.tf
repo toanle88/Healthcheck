@@ -61,17 +61,17 @@ resource "random_string" "acr_suffix" {
   upper   = false
 }
 
-# checkov:skip=CKV_AZURE_233:Basic SKU does not support zone redundancy
-# checkov:skip=CKV_AZURE_167:Retention policy requires Premium SKU
-# checkov:skip=CKV_AZURE_166:Quarantine and scanning require Premium SKU
-# checkov:skip=CKV_AZURE_164:Image signing requires Premium SKU
-# checkov:skip=CKV_AZURE_137:Admin account is disabled (FIXED BELOW)
 resource "azurerm_container_registry" "main" {
+  #checkov:skip=CKV_AZURE_233:Basic SKU does not support zone redundancy
+  #checkov:skip=CKV_AZURE_167:Retention policy requires Premium SKU
+  #checkov:skip=CKV_AZURE_166:Quarantine and scanning require Premium SKU
+  #checkov:skip=CKV_AZURE_164:Image signing requires Premium SKU
+  #checkov:skip=CKV_AZURE_137:Admin account is disabled
   name                = "crhealthcheck${random_string.acr_suffix.result}"
   resource_group_name = azurerm_resource_group.bootstrap.name
   location            = azurerm_resource_group.bootstrap.location
   sku                 = "Basic"
-  admin_enabled       = false # FIXED: Using Managed Identity instead of Admin password
+  admin_enabled       = false
 }
 
 # 5. THE STORAGE (For Terraform Remote State)
@@ -81,11 +81,11 @@ resource "random_string" "storage_suffix" {
   upper   = false
 }
 
-# checkov:skip=CKV2_AZURE_33:Private endpoint not required for tfstate in this project
-# checkov:skip=CKV2_AZURE_1:Customer Managed Key not required for learning project
-# checkov:skip=CKV2_AZURE_41:SAS expiration policy not required for tfstate
-# checkov:skip=CKV2_AZURE_21:Storage logging not required for tfstate
 resource "azurerm_storage_account" "tfstate" {
+  #checkov:skip=CKV2_AZURE_33:Private endpoint not required for tfstate in this project
+  #checkov:skip=CKV2_AZURE_1:Customer Managed Key not required for learning project
+  #checkov:skip=CKV2_AZURE_41:SAS expiration policy not required for tfstate
+  #checkov:skip=CKV2_AZURE_21:Storage logging not required for tfstate
   name                     = "sthctfstate${random_string.storage_suffix.result}"
   resource_group_name      = azurerm_resource_group.bootstrap.name
   location                 = azurerm_resource_group.bootstrap.location
@@ -93,12 +93,13 @@ resource "azurerm_storage_account" "tfstate" {
   account_replication_type = "LRS"
 
   # FIXES:
-  allow_nested_items_to_be_public = false # CKV2_AZURE_47
-  shared_access_key_enabled       = false # CKV2_AZURE_40
+  allow_nested_items_to_be_public = false
+  shared_access_key_enabled       = false
   min_tls_version                 = "TLS1_2"
 }
 
 resource "azurerm_storage_container" "tfstate" {
+  #checkov:skip=CKV2_AZURE_21:Storage logging not required for tfstate
   name                  = "tfstate"
   storage_account_name  = azurerm_storage_account.tfstate.name
   container_access_type = "private"
