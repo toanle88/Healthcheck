@@ -65,22 +65,4 @@ resource "azurerm_monitor_metric_alert" "errors" {
   }
 }
 
-# 5. ACTIVITY LOG ALERT: Worker Job Failure
-resource "azurerm_monitor_activity_log_alert" "worker_failure" {
-  name                = "alert-worker-failed-${var.environment}"
-  resource_group_name = var.resource_group_name
-  location            = "Global"
-  scopes              = [var.resource_group_id] # Scope to RG to catch job events
-  description         = "Fires when a Container App Job execution fails"
 
-  criteria {
-    resource_id    = var.worker_job_id
-    operation_name = "Microsoft.App/containerApps/jobs/executions/write"
-    category       = "Administrative"
-    status         = "Failed"
-  }
-
-  action {
-    action_group_id = azurerm_monitor_action_group.main.id
-  }
-}
