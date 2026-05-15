@@ -38,7 +38,7 @@ func New(ctx context.Context, databaseURL string) (*Store, error) {
 
 		// This hook runs every time a NEW connection is opened in the pool.
 		// It fetches a fresh token so we never have to worry about expiry.
-		cfg.BeforeConnect = func(ctx context.Context, pgc *pgx.ConnectConfig) error {
+		cfg.BeforeConnect = func(ctx context.Context, pgc *pgx.ConnConfig) error {
 			token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
 				Scopes: []string{"https://ossrdbms-aad.database.windows.net/.default"},
 			})
