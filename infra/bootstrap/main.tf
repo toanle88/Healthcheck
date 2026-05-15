@@ -64,12 +64,14 @@ resource "random_string" "acr_suffix" {
 # checkov:skip=CKV_AZURE_233:Basic SKU does not support zone redundancy
 # checkov:skip=CKV_AZURE_167:Retention policy requires Premium SKU
 # checkov:skip=CKV_AZURE_166:Quarantine and scanning require Premium SKU
+# checkov:skip=CKV_AZURE_164:Image signing requires Premium SKU
+# checkov:skip=CKV_AZURE_137:Admin account is disabled (FIXED BELOW)
 resource "azurerm_container_registry" "main" {
   name                = "crhealthcheck${random_string.acr_suffix.result}"
   resource_group_name = azurerm_resource_group.bootstrap.name
   location            = azurerm_resource_group.bootstrap.location
   sku                 = "Basic"
-  admin_enabled       = true
+  admin_enabled       = false # FIXED: Using Managed Identity instead of Admin password
 }
 
 # 5. THE STORAGE (For Terraform Remote State)

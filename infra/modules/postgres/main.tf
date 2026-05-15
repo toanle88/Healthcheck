@@ -16,6 +16,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "main" {
 }
 
 # 3. POSTGRES FLEXIBLE SERVER
+# checkov:skip=CKV2_AZURE_57:Using VNet Integration (Delegated Subnet) instead of Private Endpoint
 resource "azurerm_postgresql_flexible_server" "main" {
   name                = "psql-healthcheck-${var.environment}"
   resource_group_name = var.resource_group_name
