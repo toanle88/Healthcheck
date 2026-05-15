@@ -7,7 +7,6 @@ resource "random_string" "kv_suffix" {
 }
 
 resource "azurerm_key_vault" "main" {
-  #checkov:skip=CKV2_AZURE_32:Private endpoint not required for learning project
   # Key Vault names must be globally unique and between 3-24 characters.
   # We use a random suffix to avoid soft-delete naming conflicts across redeployments.
   name                        = "kv-hc-${var.environment}-${random_string.kv_suffix.result}"
