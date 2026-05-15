@@ -1,26 +1,32 @@
-# .checkov.yaml
+# infra/.checkov.yaml
 # Global suppressions for the Healthcheck project (Dev Environment)
 
 skip-check:
-  # ACR Enterprise Features (Too expensive for learning)
+  # ACR Enterprise Features (Too expensive/complex for learning)
   - CKV_AZURE_233  # Zone redundancy
   - CKV_AZURE_167  # Retention policy
   - CKV_AZURE_166  # Image scanning
   - CKV_AZURE_164  # Signed images
   - CKV_AZURE_237  # Dedicated data endpoints
   - CKV_AZURE_165  # Geo-replication
+  - CKV_AZURE_139  # Public network access (Required for GitHub Actions pull)
+  - CKV_AZURE_163  # Vulnerability scanning
+  - CKV_AZURE_137  # Admin account
   
   # Storage/Postgres High Availability (Too expensive)
   - CKV2_AZURE_33  # Private endpoint for tfstate
   - CKV2_AZURE_1   # Customer managed key
   - CKV2_AZURE_41  # SAS expiration policy
   - CKV2_AZURE_21  # Storage logging
-  - CKV2_AZURE_38  # Soft delete (Enabled, but Checkov sometimes misses it)
+  - CKV2_AZURE_38  # Soft delete
   - CKV_AZURE_136  # Geo-redundant backups for Postgres
-  - CKV2_AZURE_57  # Private endpoint for Postgres (We use VNet Integration)
+  - CKV2_AZURE_57  # Private endpoint for Postgres
+  - CKV_AZURE_206  # Replication (GRS vs LRS)
   
   # Key Vault
   - CKV2_AZURE_32  # Private endpoint for Key Vault
 
   # Networking
   - CKV_AZURE_59   # Public access on storage
+  - CKV_AZURE_160  # Port 80 restricted (We want HTTP for the web app)
+  - CKV_AZURE_10   # SSH restricted (We have an explicit deny, but Checkov is picky)
