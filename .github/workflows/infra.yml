@@ -19,8 +19,30 @@ env:
   ARM_USE_OIDC: true
 
 jobs:
+  # ==========================================
+  # STAGE 1: SECURITY AUDIT
+  # ==========================================
+  security_scan:
+    name: "🛡️ Security: Checkov Scan"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "📂 Checkout Code"
+        uses: actions/checkout@v4
+
+      - name: "🔍 Run Checkov"
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: infra/
+          # soft_fail: true # Uncomment this if you want to see errors without breaking the build
+          framework: terraform
+          output_format: cli
+
+  # ==========================================
+  # STAGE 2: THE DEPLOYER
+  # ==========================================
   terraform:
     name: "🏗️ Terraform Apply"
+    needs: security_scan # <--- ONLY RUN IF SECURITY SCAN PASSES!
     if: github.event.inputs.confirm_apply == 'yes'
     runs-on: ubuntu-latest
     defaults:

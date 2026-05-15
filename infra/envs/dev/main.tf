@@ -25,6 +25,12 @@ provider "azurerm" {
   use_oidc = true
 }
 
+# REFACTORING: Move the identity state from containerapp to identity module
+moved {
+  from = module.containerapp.azurerm_user_assigned_identity.apps
+  to   = module.identity.azurerm_user_assigned_identity.apps
+}
+
 # No azuread provider needed here - we use a variable for the Client ID
 
 # 1. Variables

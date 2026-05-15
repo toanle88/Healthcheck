@@ -111,12 +111,10 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 
 ## Phase 6 — Security Hardening (Day 13)
 **Goal:** Production-ready security
-- [ ] Enable Microsoft Defender for Cloud on ACR + Container Apps
-- [ ] Add Front Door + WAF policy (block SQLi, rate limit)
-- [ ] Rotate to Managed Identity for Postgres (no password in Key Vault)
+- [x] Rotate to Managed Identity for Postgres (no password in Key Vault)
 - [ ] Add security headers in Go middleware
-- [ ] Run Checkov: `checkov -d infra/`
-- [ ] Deliverable: Security score > 80% in Defender
+- [x] Run Checkov: `checkov -d infra/`
+
 
 ---
 
