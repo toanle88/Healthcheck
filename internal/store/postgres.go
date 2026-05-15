@@ -2,52 +2,67 @@ package store
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool" // pgx is a Postgres driver. pgxpool = connection pooling
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Store holds all database connections and methods.
-// This is the "database layer" that your handlers will use.
 type Store struct {
-	DB *pgxpool.Pool // Pool = a collection of reusable DB connections. Way faster than opening new ones each time
+	DB *pgxpool.Pool
 }
 
-// New creates a new database connection pool.
-// This gets called once when your app starts up.
+// New creates a new database connection pool with hybrid auth support.
 func New(ctx context.Context, databaseURL string) (*Store, error) {
-	// Wrap the parent context with a 5 second timeout.
-	// If DB doesn't connect in 5s, we give up instead of hanging forever.
-	// defer cancel() ensures we clean up the timeout when function returns.
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	// Parse the connection string like "postgres://user:pass@host:5432/dbname"
-	// into a config struct pgx can understand
 	cfg, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
-		return nil, err // Return error if URL is malformed
+		return nil, fmt.Errorf("failed to parse database URL: %w", err)
 	}
 
-	// Tune the connection pool. These are conservative defaults for small apps.
-	cfg.MaxConns = 5 // Max 5 connections open at once. Prevents overwhelming DB
-	cfg.MinConns = 1 // Keep at least 1 connection warm so first request isn't slow
+	// HYBRID AUTH LOGIC
+	// If we are NOT in local dev, we use Azure Managed Identity tokens
+	if os.Getenv("ENV") != "local" && os.Getenv("ENV") != "" {
+		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create azure credential: %w", err)
+		}
 
-	// Create the actual pool using our config
+		// This hook runs every time a NEW connection is opened in the pool.
+		// It fetches a fresh token so we never have to worry about expiry.
+		cfg.BeforeConnect = func(ctx context.Context, pgc *pgx.ConnectConfig) error {
+			token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
+				Scopes: []string{"https://ossrdbms-aad.database.windows.net/.default"},
+			})
+			if err != nil {
+				return fmt.Errorf("failed to get azure ad token: %w", err)
+			}
+			pgc.Password = token.Token
+			return nil
+		}
+	}
+
+	cfg.MaxConns = 10
+	cfg.MinConns = 2
+
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
-		return nil, err // DB might be down, wrong password, etc
+		return nil, fmt.Errorf("failed to connect to postgres: %w", err)
 	}
 
-	// Ping = send a simple "are you alive?" query to DB.
-	// This verifies the connection actually works before we return.
-	// If ping fails, close the pool so we don't leak connections.
 	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
-		return nil, err
+		return nil, fmt.Errorf("failed to ping postgres: %w", err)
 	}
 
-	// Success: wrap the pool in our Store struct and return it
 	return &Store{DB: pool}, nil
 }
 
