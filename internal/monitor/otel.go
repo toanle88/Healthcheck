@@ -128,16 +128,27 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 // parseConnectionString extracts the ingestion HOST and instrumentation key.
 func parseConnectionString(connStr string) (string, string) {
 	parts := strings.Split(connStr, ";")
-	var ikey, host string
+	var ikey, endpoint string
 	for _, p := range parts {
 		if strings.HasPrefix(p, "InstrumentationKey=") {
 			ikey = strings.TrimPrefix(p, "InstrumentationKey=")
 		}
 		if strings.HasPrefix(p, "IngestionEndpoint=") {
-			host = strings.TrimPrefix(p, "IngestionEndpoint=")
-			host = strings.TrimPrefix(host, "https://")
-			host = strings.TrimSuffix(host, "/")
+			endpoint = strings.TrimPrefix(p, "IngestionEndpoint=")
+			endpoint = strings.TrimPrefix(endpoint, "https://")
+			endpoint = strings.TrimSuffix(endpoint, "/")
 		}
 	}
-	return host, ikey
+
+	// Transform classic App Insights host to modern Monitor Ingestion host if needed
+	// e.g. eastasia-0.in.applicationinsights.azure.com -> eastasia.ingestion.monitor.azure.com
+	if strings.Contains(endpoint, "applicationinsights.azure.com") {
+		regionParts := strings.Split(endpoint, ".")
+		if len(regionParts) > 0 {
+			region := strings.Split(regionParts[0], "-")[0]
+			endpoint = fmt.Sprintf("%s.ingestion.monitor.azure.com", region)
+		}
+	}
+
+	return endpoint, ikey
 }
