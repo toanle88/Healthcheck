@@ -8,6 +8,11 @@ variable "resource_group_name" {
   description = "Resource group name"
 }
 
+variable "resource_group_id" {
+  type        = string
+  description = "Resource group ID"
+}
+
 variable "environment" {
   type        = string
   description = "Environment name (dev, prod)"

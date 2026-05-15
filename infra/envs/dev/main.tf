@@ -129,6 +129,7 @@ module "monitor" {
   source                       = "../../modules/monitor"
   location                     = azurerm_resource_group.dev.location
   resource_group_name          = azurerm_resource_group.dev.name
+  resource_group_id            = azurerm_resource_group.dev.id
   environment                  = var.environment
   container_app_environment_id = module.containerapp.container_app_environment_id
   api_container_app_id         = module.containerapp.api_app_id

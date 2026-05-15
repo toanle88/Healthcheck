@@ -70,7 +70,7 @@ resource "azurerm_monitor_activity_log_alert" "worker_failure" {
   name                = "alert-worker-failed-${var.environment}"
   resource_group_name = var.resource_group_name
   location            = "Global"
-  scopes              = [var.resource_group_name] # Scope to RG to catch job events
+  scopes              = [var.resource_group_id] # Scope to RG to catch job events
   description         = "Fires when a Container App Job execution fails"
 
   criteria {
