@@ -134,7 +134,7 @@ module "monitor" {
   container_app_environment_id = module.containerapp.container_app_environment_id
   api_container_app_id         = module.containerapp.api_app_id
   worker_job_id                = module.containerapp.worker_job_id
-  alert_email                  = "toanl@example.com" # Placeholder
+  alert_email                  = "toanle88@outlook.com"
 }
 
 # Store the DB password in Key Vault for later use by the App

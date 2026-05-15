@@ -98,14 +98,14 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 
 ## Phase 5 — Observability (Day 12)
 **Goal:** Know when it breaks
-- [ ] Instrument Go with otel → Application Insights
-- [ ] Create Log Analytics workspace via Terraform
-- [ ] Add Azure Monitor alerts:
+- [x] Instrument Go with otel → Application Insights
+- [x] Create Log Analytics workspace via Terraform
+- [x] Add Azure Monitor alerts:
   - P95 latency > 500ms (5 min)
   - Error rate > 1%
   - Worker job failed
-- [ ] Create dashboard in Azure Portal
-- [ ] Deliverable: Trigger 500 error, alert fires
+- [x] Create dashboard in Azure Portal
+- [x] Deliverable: Trigger 500 error, alert fires
 
 ---
 
