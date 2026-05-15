@@ -40,7 +40,7 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 
 	// 1. Setup Tracing
 	traceOpts := []otlptracehttp.Option{}
-	
+
 	// If running in local docker-compose, use Jaeger
 	if os.Getenv("ENV") == "local" || os.Getenv("ENV") == "" {
 		traceOpts = append(traceOpts, otlptracehttp.WithEndpoint("jaeger:4318"), otlptracehttp.WithInsecure())
@@ -77,7 +77,7 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create metric exporter: %w", err)
 		}
-		
+
 		promExporter, err := otelprom.New(otelprom.WithRegisterer(prometheus.DefaultRegisterer))
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create prometheus exporter: %w", err)
