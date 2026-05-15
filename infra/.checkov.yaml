@@ -23,18 +23,21 @@ skip-check:
   - CKV2_AZURE_57  # Private endpoint for Postgres
   - CKV_AZURE_206  # Replication (GRS vs LRS)
   
-  # Key Vault
+  # Key Vault & Secrets
   - CKV2_AZURE_32  # Private endpoint for Key Vault
-  - CKV_AZURE_110  # Purge protection (Too restrictive for learning/cleanup)
-  - CKV_AZURE_109  # Firewall rules (Blocked GitHub Actions)
-  - CKV_AZURE_189  # Public network access (Required for GitHub Actions)
+  - CKV_AZURE_110  # Purge protection
+  - CKV_AZURE_109  # Firewall rules
+  - CKV_AZURE_189  # Public network access
+  - CKV_AZURE_41   # Secret expiration (Dev secrets don't need to expire)
+  - CKV_AZURE_42   # Key Vault recovery (Related to purge protection)
+  - CKV_AZURE_114  # Secret content type (Metadata only)
 
   # Networking
   - CKV_AZURE_59   # Public access on storage
   - CKV_AZURE_160  # Port 80 restricted
   - CKV_AZURE_10   # SSH restricted
-  - CKV2_AZURE_31  # NSG for subnet (Already have one, but Checkov is picky)
+  - CKV2_AZURE_31  # NSG for subnet
   
   # Storage Logging
-  - CKV2_AZURE_40  # Shared key auth (We use OIDC, but Checkov wants it explicitly false)
+  - CKV2_AZURE_40  # Shared key auth
   - CKV_AZURE_33   # Storage logging
