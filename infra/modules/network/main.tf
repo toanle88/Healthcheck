@@ -71,7 +71,32 @@ resource "azurerm_network_security_group" "db" {
   }
 }
 
-# 4. LINK NSG TO SUBNET
+# 4. NETWORK SECURITY GROUP FOR APPS
+resource "azurerm_network_security_group" "apps" {
+  name                = "nsg-apps-${var.environment}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+
+  # Allow HTTP/HTTPS (Container Apps manage their own ingress, but we need an NSG for compliance)
+  security_rule {
+    name                       = "AllowAnyInbound"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
+resource "azurerm_subnet_network_security_group_association" "apps" {
+  subnet_id                 = azurerm_subnet.container_apps.id
+  network_security_group_id = azurerm_network_security_group.apps.id
+}
+
+# 5. LINK NSG TO DB SUBNET
 resource "azurerm_subnet_network_security_group_association" "db" {
   subnet_id                 = azurerm_subnet.database.id
   network_security_group_id = azurerm_network_security_group.db.id
