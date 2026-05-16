@@ -27,6 +27,12 @@ func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	slog.Info("starting healthcheck api", "version", Version)
 
+	// CHAOS ENGINEERING: Poison Pill for Phase 7
+	if os.Getenv("POISON_PILL") == "true" {
+		slog.Error("!!! POISON PILL DETECTED - CRASHING !!!")
+		panic("Simulated application failure for Phase 7 Chaos Test")
+	}
+
 	cfg := config.Load()
 
 	metricsHandler, shutdown, err := monitor.InitOTel(ctx, "healthcheck-api")

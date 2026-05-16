@@ -132,8 +132,7 @@ Pick one based on interest:
 - [ ] **Blue-Green:** Two Container App revisions, traffic split via Terraform
 - [ ] **Cost:** Auto-scale to zero, schedule worker to stop at night
 - [ ] **Testing:** Add integration tests with testcontainers-go
-- [ ] **GitOps:** Replace GitHub Actions with FluxCD
-- [ ] **Multi-region:** Deploy to East US + Southeast Asia, Front Door failover
+
 
 ---
 
