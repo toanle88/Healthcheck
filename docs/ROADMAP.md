@@ -119,11 +119,9 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 
 ## Phase 7 — Chaos & Rollback (Day 14)
 **Goal:** Prove reliability
-- [ ] Simulate DB failover — does app reconnect?
-- [ ] Push bad image (panic on start), verify automatic rollback
-- [ ] Test `terraform destroy` and rebuild from scratch in <15 min
-- [ ] Document RTO/RPO in README
-- [ ] Deliverable: Recorded demo of break/fix
+- [x] Push bad image (panic on start), verify automatic rollback
+- [x] Test `terraform destroy` and rebuild from scratch in <15 min
+
 
 ---
 
@@ -131,7 +129,6 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 Pick one based on interest:
 - [ ] **Blue-Green:** Two Container App revisions, traffic split via Terraform
 - [ ] **Cost:** Auto-scale to zero, schedule worker to stop at night
-- [ ] **Testing:** Add integration tests with testcontainers-go
 
 
 ---

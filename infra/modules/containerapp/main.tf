@@ -55,7 +55,7 @@ resource "azurerm_container_app" "api" {
   name                         = "ca-healthcheck-api-${var.environment}"
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = var.resource_group_name
-  revision_mode                = "Single"
+  revision_mode                = "Multiple"
 
   identity {
     type         = "UserAssigned"
@@ -116,7 +116,6 @@ resource "azurerm_container_app" "api" {
         value = var.db_user
       }
 
-
       env {
         name  = "AZURE_CLIENT_ID"
         value = var.app_identity_client_id
@@ -137,11 +136,14 @@ resource "azurerm_container_app" "api" {
         value = var.app_insights_connection_string
       }
     }
+    min_replicas = 0
+    max_replicas = 3
   }
 
   lifecycle {
     ignore_changes = [
-      template[0].container[0].image
+      template[0].container[0].image,
+      traffic_weight
     ]
   }
 }
@@ -228,7 +230,7 @@ resource "azurerm_container_app" "web" {
   name                         = "ca-healthcheck-web-${var.environment}"
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = var.resource_group_name
-  revision_mode                = "Single"
+  revision_mode                = "Multiple"
 
   identity {
     type         = "UserAssigned"
@@ -284,6 +286,8 @@ resource "azurerm_container_app" "web" {
         value = var.environment
       }
     }
+    min_replicas = 0
+    max_replicas = 3
   }
 
   lifecycle {
