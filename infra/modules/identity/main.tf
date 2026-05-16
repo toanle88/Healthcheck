@@ -35,3 +35,7 @@ output "app_identity_principal_id" {
 output "app_identity_name" {
   value = azurerm_user_assigned_identity.apps.name
 }
+
+output "app_identity_client_id" {
+  value = azurerm_user_assigned_identity.apps.client_id
+}
