@@ -292,7 +292,8 @@ resource "azurerm_container_app" "web" {
 
   lifecycle {
     ignore_changes = [
-      template[0].container[0].image
+      template[0].container[0].image,
+      ingress[0].traffic_weight
     ]
   }
 }
