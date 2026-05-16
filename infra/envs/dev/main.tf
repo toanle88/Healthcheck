@@ -146,6 +146,7 @@ module "containerapp" {
   # Identity for Cloud Auth
   app_identity_id           = module.identity.app_identity_id
   app_identity_principal_id = module.identity.app_identity_principal_id
+  app_identity_client_id    = module.identity.app_identity_client_id
 
   # Ensure the secret is created in Key Vault BEFORE the apps try to mount it
   depends_on = [azurerm_key_vault_secret.db_password]

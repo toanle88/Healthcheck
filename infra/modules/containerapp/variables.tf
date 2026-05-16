@@ -30,3 +30,4 @@ variable "app_insights_connection_string" {
 
 variable "app_identity_id" { type = string }
 variable "app_identity_principal_id" { type = string }
+variable "app_identity_client_id" { type = string }
