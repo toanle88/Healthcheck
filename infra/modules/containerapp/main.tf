@@ -143,7 +143,7 @@ resource "azurerm_container_app" "api" {
   lifecycle {
     ignore_changes = [
       template[0].container[0].image,
-      traffic_weight
+      ingress[0].traffic_weight
     ]
   }
 }
