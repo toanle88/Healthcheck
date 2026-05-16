@@ -133,6 +133,11 @@ resource "azurerm_container_app" "api" {
       }
 
       env {
+        name  = "POISON_PILL"
+        value = "true"
+      }
+
+      env {
         name  = "APPLICATIONINSIGHTS_CONNECTION_STRING"
         value = var.app_insights_connection_string
       }
