@@ -12,11 +12,12 @@ This document outlines the **"Clean Split"** architectural model for the Healthc
 ## 🧱 Step 0: The Bootstrap (Foundation)
 Before the first deployment, you must build the "Foundation" where your State and Images live.
 
-1. **Run Bootstrap Script**: Execute the script in the root to create the Bootstrap Resource Group, Storage Account, and ACR.
-   ```powershell
-   ./scripts/bootstrap.ps1
-   ```
-2. **Note the Outputs**: Copy the **Storage Account Name** and **ACR Name**. You will need these for the next steps.
+1. **Run Bootstrap Terraform**: Navigate to `infra/bootstrap` and run `terraform apply`. This creates:
+   - The **Resource Group** for your base infrastructure.
+   - The **Storage Account** for your `.tfstate` files.
+   - The **Container Registry (ACR)** for your Docker images.
+   - The **Managed Identity** with OIDC trust for GitHub Actions.
+2. **Configure GitHub**: Add the outputted `client_id`, `tenant_id`, and `subscription_id` to your GitHub Repository Secrets.
 
 ---
 
@@ -72,13 +73,13 @@ Ensure these are set in your GitHub repository:
 - `AZURE_ACR_NAME`: Your Container Registry name.
 - `ENTRA_CLIENT_ID`: The GUID from Step 1 above.
 
-### The Deployment Command
-The `infra.yml` workflow is now updated to handle the split automatically:
-```bash
-terraform apply -auto-approve \
-  -var="acr_name=${{ secrets.AZURE_ACR_NAME }}" \
-  -var="entra_client_id=${{ secrets.ENTRA_CLIENT_ID }}"
-```
+### The Deployment Logic
+The environment is now "Identity-Driven."
+1.  **GitHub** uses **OIDC** to assume the identity of the Bootstrap Managed Identity.
+2.  **Terraform** creates the environment, including a **User-Assigned Managed Identity** for the app.
+3.  **The App** uses its identity to request **AAD Tokens** for PostgreSQL and Key Vault.
+
+**Zero secrets are stored in GitHub, Terraform state, or environment variables.**
 
 ---
 
@@ -95,8 +96,9 @@ If you have manually deleted your Resource Group and State, follow these steps t
 ---
 
 ## ✅ Final Review Verification
-- **Frontend**: Dynamically uses the Enterprise `env.js` runtime configuration pattern via the custom `getEnv()` utility instead of static build-time placeholders.
-- **Backend**: Validates JWTs using the `ENTRA_TENANT_ID` and `ENTRA_CLIENT_ID` passed via Container App environment variables.
-- **Security**: No secrets (except DB password) are stored in the state. OIDC trust remains in the Main Tenant for safe management.
+- **Frontend**: Uses Entra External ID (CIAM) for secure user login.
+- **Backend**: Uses **Managed Identity** to log into Postgres (No DB password exists in the config).
+- **Network**: **VNet Injection** ensures the database is invisible to the public internet.
+- **Security**: **Checkov** scans every PR to ensure infrastructure compliance.
 
-**Your architecture is now Enterprise-Grade. 🟢🚀🛡️**
+**Your architecture is now a production-ready, zero-secret masterpiece. 🟢🚀🛡️**

@@ -56,13 +56,14 @@ graph TD
         end
         ACR["Container Registry (ACR)"]
         KV["Key Vault (Secrets)"]
+        ID["Managed Identity"]
     end
 
-    GitHub["GitHub Actions"] -- OIDC --> Azure
-    GitHub -- Push Image --> ACR
-    API -- Query --> DB
-    Worker -- Insert --> DB
-    API -- Get Secrets --> KV
+    GitHub["GitHub Actions"] -- OIDC --> ID
+    ID -- Deploy --> API
+    API -- AAD Token --> DB
+    Worker -- AAD Token --> DB
+    API -- Managed ID --> KV
 ```
 
 ### Infrastructure as Code (Terraform)
@@ -70,9 +71,12 @@ We use a modular Terraform structure for maximum maintainability:
 
 | Module | Purpose |
 | :--- | :--- |
-| `modules/identity` | OIDC/Federated Credentials for passwordless GitHub login. |
-| `modules/network` | VNet and Subnets (App & DB) for network isolation. |
-| `modules/acr` | Private Docker registry for our hardened images. |
+| `modules/identity` | OIDC federation and User-Assigned Managed Identity. |
+| `modules/network` | VNet, Subnets, and Private DNS for network isolation. |
+| `modules/postgres` | Flexible Server with Azure AD Authentication (Passwordless). |
+| `modules/containerapp` | API, Web, and Worker Job with Scale-to-Zero and Blue-Green. |
+| `modules/keyvault` | Secure secret storage for app configuration. |
+| `modules/monitor` | Log Analytics and App Insights for full observability. |
 
 ---
 
@@ -146,6 +150,18 @@ source .env.azure    # for terraform
 └── PROJECT.md
 ```
 
+## 🎓 Learning Center
+
+If you want to understand how this project works, follow our **Masterclass Curriculum**:
+
+1. [Lesson 01: Architecture Overview](./docs/lessons/01-architecture-overview.md) — The "Big Picture."
+2. [Lesson 02: Go Microservices](./docs/lessons/02-go-microservices.md) — Identity-aware Go code.
+3. [Lesson 03: Infrastructure as Code](./docs/lessons/03-infrastructure-as-code.md) — The Terraform blueprint.
+4. [Lesson 04: Azure Container Apps](./docs/lessons/04-azure-container-apps.md) — Scaling & Resilience.
+5. [Lesson 05: CI/CD & Security](./docs/lessons/05-cicd-and-security.md) — Automating the "Castle."
+
+---
+
 ## 🚀 Quick Start (Local Development)
 
 ### 1. Launch the Full Stack
@@ -192,33 +208,21 @@ pnpm run dev
 
 ## ☁️ Quick Start (Azure)
 
-1. **Prereqs**: Azure CLI, Terraform ≥1.7, Go 1.26
-> **Dev Container tip:** If `terraform` is not found, rebuild with the updated `.devcontainer/devcontainer.json` that installs Terraform via apt (the Node feature breaks on Bookworm).
+1. **Prereqs**: Azure CLI, Terraform ≥1.8, Go 1.23
 
+2. **OIDC Bootstrap**:
+   - Run Terraform in `infra/bootstrap` to create the ACR and the OIDC Service Principal.
+   - Configure your GitHub repository with the `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID`.
 
-2. **Create Service Principal**:
+3. **Deploy Infrastructure**:
    ```bash
-   az ad sp create-for-rbac --name "healthcheck-sp"      --role Contributor      --scopes /subscriptions/YOUR-SUBSCRIPTION-ID
-   ```
-
-3. **Create `.env.azure`** (never commit):
-   ```bash
-   export ARM_SUBSCRIPTION_ID="your-id"
-   export ARM_TENANT_ID="your-id"
-   export ARM_CLIENT_ID="your-id"
-   export ARM_CLIENT_SECRET="your-secret"
-   ```
-
-4. **Load env and run Terraform**:
-   ```bash
-   source .env.azure
    cd infra/envs/dev
    terraform init
-   terraform fmt
-   terraform plan -out tfplan
-   terraform apply "tfplan"
-   terraform destroy -auto-approve
+   terraform plan
+   terraform apply
    ```
+
+4. **Push to main**: CI/CD handles the rest via OIDC.
 
 5. **Push to main**: CI builds images, pushes to ACR, updates Container Apps
 
@@ -247,27 +251,29 @@ pnpm run dev
 
 ## 🛡️ Security Checklist
 
-- [ ] Dockerfile uses distroless, USER nonroot
-- [ ] Trivy scan passes in CI
-- [ ] No secrets in repo, use Managed Identity + Key Vault for runtime
-- [ ] PostgreSQL: private endpoint only, SSL enforced
-- [ ] Container App has only "Key Vault Secrets User" role
-- [ ] Defender for Cloud enabled on ACR and Container Apps
-- [ ] WAF enabled on Front Door
+- [x] Dockerfile uses distroless, USER nonroot
+- [x] Checkov security auditing (Infra-as-Code compliance)
+- [x] Zero-Secret Runtime: Managed Identity for Postgres and Key Vault
+- [x] Network Isolation: Postgres VNet Injection + Private DNS
+- [x] Hardened Ingress: HTTPS-only, CORS restricted, Port 22 blocked (NSG)
+- [x] Cost Optimization: Scale-to-Zero for API and Web
+- [x] Resilience: Blue-Green deployments with automatic rollback
+- [x] OIDC Authentication: Secretless GitHub Actions deployment
 
 ## 📅 14-Day Roadmap
 
 This project is designed as a 2-week playground. See `ROADMAP.md` for daily tasks.
 
-**Week 1 – Local Go + Docker**
-- Days 1-3: API skeleton, worker, React frontend
-- Days 4-5: Hardened Dockerfiles, slog JSON, OpenTelemetry
+**Week 1 – Local Go + Docker** ✅
+- [x] API skeleton, worker, React frontend
+- [x] Hardened Dockerfiles, slog JSON, OpenTelemetry
 
-**Week 2 – Azure + Terraform + CI/CD**
-- Days 6-8: Terraform for network, ACR, Key Vault, Postgres, Container Apps
-- Days 9-11: GitHub Actions CI/CD with Service Principal
-- Days 12-13: Application Insights, alerts, Defender for Cloud, WAF
-- Day 14: Chaos testing and rollback
+**Week 2 – Azure + Terraform + CI/CD** ✅
+- [x] Terraform for network, ACR, Key Vault, Postgres, Container Apps
+- [x] GitHub Actions CI/CD with OIDC (Passwordless)
+- [x] Application Insights, alerts, and dashboards
+- [x] Chaos engineering (Poison Pill) and automatic rollback
+- [x] Stretch goals: Blue-Green deploys, Auto-Scale to Zero
 
 Stretch goals: blue-green deploys, auto-scale to zero, multi-region with Front Door.
 

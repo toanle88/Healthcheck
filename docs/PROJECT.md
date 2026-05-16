@@ -11,18 +11,17 @@ A tiny, production-like app built specifically to learn **CI/CD, Terraform, Dock
 - Security: Key Vault, RBAC least privilege, Trivy scanning, Defender for Cloud
 
 ## 🏗️ Architecture (Azure)
-```
-Browser → Azure Front Door + Azure Static Web Apps (React/Vite)
-                           ↓
-                    Azure Container Apps → Go API
-                           ↓
-                    Azure Container Apps Job → Go Worker → Azure Database for PostgreSQL Flexible Server
-```
-All secrets retrieved from Azure Key Vault using Managed Identity.
+Browser → Entra External ID (CIAM) → Azure Container Apps (Web)
+                                          ↓
+                                   Azure Container Apps (API) → Go API
+                                          ↓
+                                   Azure Container Apps Job → Go Worker → Azure Database for PostgreSQL (VNet Injected)
+
+All secrets and database access managed via Managed Identity (Zero-Secret).
 
 ## 📦 Tech Stack
-- **Backend API**: Go 1.26, Gin, pgx/v5, slog
-- **Worker**: Go 1.26, robfig/cron, shared postgres store
+- **Backend API**: Go 1.23, Gin, pgx/v5, slog
+- **Worker**: Go 1.23, robfig/cron, shared postgres store
 - **Frontend**: React 19 + Vite + TypeScript + Tailwind CSS 4 + React Query + Axios
 - **Database**: PostgreSQL 18
 - **Testing**: Vitest + MSW (Frontend), Playwright (E2E), Go Testing (Backend)
@@ -111,13 +110,14 @@ Same pattern for worker.
 5. az containerapp job update (Worker) with the new SHA tag
 
 ## 🛡️ Security Checklist
-- [ ] Dockerfile uses distroless, USER nonroot
-- [ ] Trivy scan passes in CI
-- [ ] No secrets in repo — use Managed Identity + Key Vault
-- [ ] PostgreSQL: private endpoint only, SSL enforced
-- [ ] Container App identity has only "Key Vault Secrets User" role
-- [ ] Defender for Cloud enabled on ACR and Container Apps
-- [ ] WAF enabled on Front Door
+- [x] Dockerfile uses distroless, USER nonroot
+- [x] Checkov security auditing (Infra-as-Code compliance)
+- [x] Zero-Secret Runtime: Managed Identity for Postgres and Key Vault
+- [x] Network Isolation: Postgres VNet Injection + Private DNS
+- [x] Hardened Ingress: HTTPS-only, CORS restricted, Port 22 blocked (NSG)
+- [x] Cost Optimization: Scale-to-Zero for API and Web
+- [x] Resilience: Blue-Green deployments with automatic rollback
+- [x] OIDC Authentication: Secretless GitHub Actions deployment
 
 ## 📊 Observability (Go)
 ```go
@@ -135,31 +135,26 @@ handler := otelhttp.NewHandler(router, "api")
 
 ## 🧪 Terraform Layout
 ```hcl
-# infra/envs/dev/main.tf
-provider "azurerm" { features {} }
+module "identity" {
+  source = "../../modules/identity"
+}
 
 module "network" {
   source = "../../modules/network"
 }
 
-module "acr" {
-  source = "../../modules/acr"
-}
-
-module "keyvault" {
-  source = "../../modules/keyvault"
-}
-
 module "postgres" {
-  source              = "../../modules/postgres"
-  private_vnet_id     = module.network.vnet_id
+  source          = "../../modules/postgres"
+  subnet_id       = module.network.db_subnet_id
+  dns_zone_id     = module.network.postgres_dns_zone_id
+  admin_id        = module.identity.app_identity_principal_id
 }
 
-module "containerapp_api" {
-  source          = "../../modules/containerapp"
-  image           = "${module.acr.login_server}/api:latest"
-  keyvault_id     = module.keyvault.id
-  postgres_fqdn   = module.postgres.fqdn
+module "containerapp" {
+  source                 = "../../modules/containerapp"
+  app_identity_id        = module.identity.app_identity_id
+  app_identity_client_id = module.identity.app_identity_client_id
+  # ... other networking and environment variables
 }
 ```
 

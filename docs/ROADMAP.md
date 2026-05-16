@@ -127,8 +127,8 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 
 ## Phase 8 — Stretch Goals (After Day 14)
 Pick one based on interest:
-- [ ] **Blue-Green:** Two Container App revisions, traffic split via Terraform
-- [ ] **Cost:** Auto-scale to zero, schedule worker to stop at night
+- [x] **Blue-Green:** Two Container App revisions, traffic split via Terraform
+- [x] **Cost:** Auto-scale to zero, schedule worker to stop at night
 
 
 ---
