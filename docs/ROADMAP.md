@@ -112,7 +112,6 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 ## Phase 6 — Security Hardening (Day 13)
 **Goal:** Production-ready security
 - [x] Rotate to Managed Identity for Postgres (no password in Key Vault)
-- [ ] Add security headers in Go middleware
 - [x] Run Checkov: `checkov -d infra/`
 
 

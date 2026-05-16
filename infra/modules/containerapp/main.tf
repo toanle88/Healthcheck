@@ -118,6 +118,11 @@ resource "azurerm_container_app" "api" {
 
 
       env {
+        name  = "AZURE_CLIENT_ID"
+        value = var.app_identity_client_id
+      }
+
+      env {
         name  = "ENTRA_TENANT_ID"
         value = var.tenant_id
       }
@@ -197,6 +202,11 @@ resource "azurerm_container_app_job" "worker" {
       env {
         name  = "DB_USER"
         value = var.db_user
+      }
+
+      env {
+        name  = "AZURE_CLIENT_ID"
+        value = var.app_identity_client_id
       }
 
       env {
