@@ -25,7 +25,7 @@ func main() {
 	defer stop()
 
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
-	slog.Info("starting healthcheck api", "version", Version)
+	slog.Info("starting healthcheck api v2 - THE GREEN VERSION", "version", Version)
 
 	cfg := config.Load()
 
