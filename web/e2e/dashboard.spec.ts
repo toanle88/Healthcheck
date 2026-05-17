@@ -1,7 +1,13 @@
 import { test, expect } from '@playwright/test';
 
 test('has title and displays status', async ({ page }) => {
-  // Navigate to the local dev server
+  // Playwright Best Practice: Set a global variable on the window object BEFORE loading the page.
+  // Playwright's addInitScript runs this on the new document immediately after navigation,
+  // before the React bundle scripts execute.
+  await page.addInitScript(() => {
+    (window as unknown as { playwrightMockAuth: boolean }).playwrightMockAuth = true;
+  });
+
   await page.goto('http://localhost:5173');
 
   // Check the title
@@ -14,6 +20,7 @@ test('has title and displays status', async ({ page }) => {
   // Since E2E tests run against the real backend, 
   // we check if the operational status indicator is visible.
   // Note: This requires the backend and worker to be running!
-  const statusIndicator = page.locator('p', { hasText: 'System' });
+  // Playwright Best Practice: Use user-facing text locators rather than fragile HTML tag selectors
+  const statusIndicator = page.getByText('System', { exact: false });
   await expect(statusIndicator).toBeVisible();
 });

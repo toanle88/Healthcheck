@@ -1,10 +1,9 @@
-import { AuthenticatedTemplate, UnauthenticatedTemplate } from "@azure/msal-react";
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import { useAuth } from './hooks/useAuth';
 
 function App() {
-  const { isProcessing } = useAuth();
+  const { isAuthenticated, isProcessing } = useAuth();
 
   // If we are in the middle of a login/redirect process, show a clean loading screen
   if (isProcessing) {
@@ -18,16 +17,7 @@ function App() {
     );
   }
 
-  return (
-    <>
-      <AuthenticatedTemplate>
-        <DashboardPage />
-      </AuthenticatedTemplate>
-      <UnauthenticatedTemplate>
-        <LoginPage />
-      </UnauthenticatedTemplate>
-    </>
-  );
+  return isAuthenticated ? <DashboardPage /> : <LoginPage />;
 }
 
 export default App;

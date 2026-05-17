@@ -42,7 +42,7 @@ describe('App', () => {
     expect(screen.getByText(/Processing secure login/i)).toBeInTheDocument();
   });
 
-  it('renders main app templates when not processing', () => {
+  it('renders DashboardPage when authenticated', () => {
     vi.mocked(useAuth).mockReturnValue({
       isProcessing: false,
       isAuthenticated: true,
@@ -63,7 +63,22 @@ describe('App', () => {
     });
 
     renderWithProviders(<App />);
-    expect(screen.getByTestId('auth')).toBeInTheDocument();
-    expect(screen.getByTestId('unauth')).toBeInTheDocument();
+    expect(screen.getByText('Dashboard Page')).toBeInTheDocument();
+    expect(screen.queryByText('Login Page')).not.toBeInTheDocument();
+  });
+
+  it('renders LoginPage when not authenticated', () => {
+    vi.mocked(useAuth).mockReturnValue({
+      isProcessing: false,
+      isAuthenticated: false,
+      user: null,
+      login: vi.fn(),
+      logout: vi.fn(),
+      getAccessToken: vi.fn(),
+    });
+
+    renderWithProviders(<App />);
+    expect(screen.getByText('Login Page')).toBeInTheDocument();
+    expect(screen.queryByText('Dashboard Page')).not.toBeInTheDocument();
   });
 });

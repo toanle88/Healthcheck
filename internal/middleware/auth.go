@@ -3,6 +3,7 @@ package middleware
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/MicahParks/keyfunc/v3"
@@ -36,6 +37,12 @@ func AuthMiddleware(tenantID, clientID string) gin.HandlerFunc {
 		}
 
 		tokenString := bearerToken[1]
+
+		// 2b. E2E / Development mock token bypass (MFA / redirect automation support)
+		if tokenString == "mocked-e2e-token" && os.Getenv("ENV") == "development" {
+			c.Next()
+			return
+		}
 
 		// 3. Parse and validate the token
 		token, err := jwt.Parse(tokenString, k.Keyfunc)

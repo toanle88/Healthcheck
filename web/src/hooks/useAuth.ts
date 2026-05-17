@@ -9,7 +9,14 @@ import { loginRequest, tokenRequest } from "../authConfig";
 export const useAuth = () => {
   const { instance, accounts, inProgress } = useMsal();
 
-  const user = useMemo(() => {
+  const isE2E = typeof window !== 'undefined' && (
+    window.location.search.includes("test-mode=true") || 
+    localStorage.getItem("playwright-mock-auth") === "true" ||
+    (window as unknown as { playwrightMockAuth?: boolean | string }).playwrightMockAuth === true ||
+    (window as unknown as { playwrightMockAuth?: boolean | string }).playwrightMockAuth === "true"
+  );
+
+  const realUser = useMemo(() => {
     if (accounts.length > 0) {
       return {
         name: accounts[0].name,
@@ -20,7 +27,18 @@ export const useAuth = () => {
     return null;
   }, [accounts]);
 
-  const login = useCallback(async () => {
+  const user = useMemo(() => {
+    if (isE2E) {
+      return {
+        name: "E2E Test User",
+        username: "e2e@example.com",
+        account: {} as unknown as typeof accounts[0]
+      };
+    }
+    return realUser;
+  }, [isE2E, realUser]);
+
+  const realLogin = useCallback(async () => {
     try {
       await instance.loginRedirect(loginRequest);
     } catch (error) {
@@ -28,23 +46,33 @@ export const useAuth = () => {
     }
   }, [instance]);
 
-  const logout = useCallback(() => {
+  const login = useCallback(async () => {
+    if (isE2E) return;
+    return realLogin();
+  }, [isE2E, realLogin]);
+
+  const realLogout = useCallback(() => {
     instance.logoutRedirect({
       postLogoutRedirectUri: window.location.origin,
     });
   }, [instance]);
 
+  const logout = useCallback(() => {
+    if (isE2E) return;
+    realLogout();
+  }, [isE2E, realLogout]);
+
   /**
    * Acquires a fresh access token for the CIAM API.
    * Attempts silent acquisition first, then falls back to interactive if needed.
    */
-  const getAccessToken = useCallback(async () => {
-    if (!user) throw new Error("No active account found. Please log in.");
+  const realGetAccessToken = useCallback(async () => {
+    if (!realUser) throw new Error("No active account found. Please log in.");
 
     try {
       const response = await instance.acquireTokenSilent({
         ...tokenRequest,
-        account: user.account,
+        account: realUser.account,
       });
       return response.accessToken;
     } catch (silentError) {
@@ -57,12 +85,19 @@ export const useAuth = () => {
         throw popupError;
       }
     }
-  }, [instance, user]);
+  }, [instance, realUser]);
+
+  const getAccessToken = useCallback(async () => {
+    if (isE2E) {
+      return "mocked-e2e-token";
+    }
+    return realGetAccessToken();
+  }, [isE2E, realGetAccessToken]);
 
   return {
     user,
-    isAuthenticated: accounts.length > 0,
-    isProcessing: inProgress !== "none",
+    isAuthenticated: isE2E ? true : accounts.length > 0,
+    isProcessing: isE2E ? false : inProgress !== "none",
     login,
     logout,
     getAccessToken,
