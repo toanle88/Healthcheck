@@ -49,7 +49,9 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 	}
 
 	connString := os.Getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
-	isAzure := connString != "" && os.Getenv("ENV") != "local"
+	env := os.Getenv("ENV")
+	isLocal := env == "local" || env == "development" || env == ""
+	isAzure := connString != "" && !isLocal
 
 	// 1. Setup Tracing
 	traceOpts := []otlptracehttp.Option{}

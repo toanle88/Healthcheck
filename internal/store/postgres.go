@@ -28,8 +28,9 @@ func New(ctx context.Context, databaseURL string) (*Store, error) {
 	}
 
 	// HYBRID AUTH LOGIC
-	// If we are NOT in local dev, we use Azure Managed Identity tokens
-	if os.Getenv("ENV") != "local" && os.Getenv("ENV") != "" {
+	// If we are NOT in local dev (local, development, or empty), we use Azure Managed Identity tokens
+	env := os.Getenv("ENV")
+	if env != "local" && env != "development" && env != "" {
 		cred, err := azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create azure credential: %w", err)
