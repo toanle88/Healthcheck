@@ -19,12 +19,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
-    environment:
-      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/healthcheck?sslmode=disable
-      - PORT=8080
-      - ENV=development
-      - ENTRA_TENANT_ID=cea4bf39-5592-4b9c-bed9-0729bbf40cd4
-      - ENTRA_CLIENT_ID=a91de45f-2874-438b-aaa5-e0ae74985f40
+    env_file:
+      - docker-compose.env
     ports:
       - "8080:8080"
     depends_on:
@@ -35,8 +31,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
-    environment:
-      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/healthcheck?sslmode=disable
+    env_file:
+      - docker-compose.env
     ports:
       - "8081:8081" # Prometheus metrics for the worker
     depends_on:
@@ -49,11 +45,8 @@ services:
       dockerfile: Dockerfile.web
     ports:
       - "5173:80" # Map host 5173 to Nginx port 80
-    environment:
-      - VITE_API_URL=http://localhost:8080
-      - VITE_APP_VERSION=local-dev
-      - VITE_ENTRA_CLIENT_ID=a91de45f-2874-438b-aaa5-e0ae74985f40
-      - VITE_ENTRA_TENANT_ID=cea4bf39-5592-4b9c-bed9-0729bbf40cd4
+    env_file:
+      - docker-compose.env
     depends_on:
       - api
 

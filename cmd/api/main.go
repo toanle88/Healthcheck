@@ -92,11 +92,16 @@ func main() {
 
 	// --- PROTECTED ROUTES ---
 	api := r.Group("/api")
+	isLocalDev := cfg.Environment == "local" || cfg.Environment == "development" || cfg.Environment == ""
 	if cfg.EntraTenantID != "" && cfg.EntraClientID != "" {
 		slog.Info("enabling Entra ID authentication", "tenantID", cfg.EntraTenantID)
-		api.Use(middleware.AuthMiddleware(cfg.EntraTenantID, cfg.EntraClientID))
+		api.Use(middleware.AuthMiddleware(cfg.EntraTenantID, cfg.EntraClientID, cfg.Environment))
 	} else {
-		slog.Warn("Entra ID configuration missing, running without authentication")
+		if !isLocalDev {
+			slog.Error("Entra ID configuration missing in non-development environment! Failing closed.")
+			os.Exit(1)
+		}
+		slog.Warn("Entra ID configuration missing, running without authentication (development mode only)")
 	}
 
 	{
@@ -108,10 +113,12 @@ func main() {
 	}
 
 	// --- TEST ROUTES (UNPROTECTED FOR CHAOS TESTING) ---
-	test := r.Group("/api/test")
-	{
-		test.GET("/error", h.TestError)
-		test.GET("/slow", h.TestSlow)
+	if isLocalDev {
+		test := r.Group("/api/test")
+		{
+			test.GET("/error", h.TestError)
+			test.GET("/slow", h.TestSlow)
+		}
 	}
 
 	if metricsHandler != nil {

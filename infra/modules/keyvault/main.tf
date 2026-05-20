@@ -17,11 +17,16 @@ resource "azurerm_key_vault" "main" {
 
   # Soft delete allows you to recover a deleted vault. 7 days is a safe minimum for dev.
   soft_delete_retention_days = 7
-  purge_protection_enabled   = false
+  purge_protection_enabled   = var.environment != "dev"
   sku_name                   = "standard"
 
   # Modern standard (v4.0+): Use this instead of enable_rbac_authorization
   rbac_authorization_enabled = true
+
+  network_acls {
+    bypass         = "AzureServices"
+    default_action = var.environment == "dev" ? "Allow" : "Deny"
+  }
 }
 
 # IMPORTANT: Even if you are an "Owner" of the subscription, you cannot read/write

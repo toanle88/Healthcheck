@@ -8,9 +8,7 @@ ARG APP_VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-X main.Version=${APP_VERSION}" -o worker ./cmd/worker/main.go
 
 # FINAL STAGE
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates
-WORKDIR /root/
-COPY --from=builder /app/worker .
-# No EXPOSE needed as the worker doesn't listen for incoming traffic (it's a job)
-CMD ["./worker"]
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=builder /app/worker /worker
+USER nonroot:nonroot
+ENTRYPOINT ["/worker"]

@@ -21,3 +21,5 @@ tmp/
 bin/
 .env
 .env.local
+docker-compose.env
+

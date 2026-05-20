@@ -3,7 +3,6 @@ package middleware
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/MicahParks/keyfunc/v3"
@@ -12,7 +11,7 @@ import (
 )
 
 // AuthMiddleware validates the Entra ID JWT token
-func AuthMiddleware(tenantID, clientID string) gin.HandlerFunc {
+func AuthMiddleware(tenantID, clientID, environment string) gin.HandlerFunc {
 	// 1. Initialize the JWKS key function for CIAM
 	jwksURL := fmt.Sprintf("https://%s.ciamlogin.com/%s/discovery/v2.0/keys", tenantID, tenantID)
 
@@ -39,7 +38,8 @@ func AuthMiddleware(tenantID, clientID string) gin.HandlerFunc {
 		tokenString := bearerToken[1]
 
 		// 2b. E2E / Development mock token bypass (MFA / redirect automation support)
-		if tokenString == "mocked-e2e-token" && os.Getenv("ENV") == "development" {
+		isLocalDev := environment == "local" || environment == "development"
+		if tokenString == "mocked-e2e-token" && isLocalDev {
 			c.Next()
 			return
 		}

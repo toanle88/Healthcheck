@@ -15,6 +15,7 @@ tfplan
 .env
 .env.azure
 .envrc
+docker-compose.env
 
 # Go
 vendor/

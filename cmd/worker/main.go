@@ -37,7 +37,7 @@ func isPrivateIP(ip net.IP) bool {
 // newSafeHTTPClient returns an HTTP client that blocks connections to loopback/private/link-local addresses
 // to prevent SSRF and DNS Rebinding.
 func newSafeHTTPClient(env string) *http.Client {
-	isDev := env == "local" || env == "development" || env == ""
+	isDev := env == "local" || env == "development"
 
 	dialer := &net.Dialer{
 		Timeout:   5 * time.Second,
@@ -324,7 +324,7 @@ func runPingAndCheck(ctx context.Context, client *http.Client, st *store.Store, 
 		alertsWG.Add(1)
 		go func() {
 			defer alertsWG.Done()
-			sendWebhookAlert(context.Background(), url, prevStatus, status, latency)
+			sendWebhookAlert(context.Background(), client, url, prevStatus, status, latency)
 		}()
 	}
 
@@ -343,7 +343,7 @@ func runPingAndCheck(ctx context.Context, client *http.Client, st *store.Store, 
 	}
 }
 
-func sendWebhookAlert(ctx context.Context, target, oldStatus, newStatus string, latency time.Duration) {
+func sendWebhookAlert(ctx context.Context, client *http.Client, target, oldStatus, newStatus string, latency time.Duration) {
 	webhookURL := os.Getenv("ALERT_WEBHOOK_URL")
 	if webhookURL == "" {
 		return
@@ -376,7 +376,6 @@ func sendWebhookAlert(ctx context.Context, target, oldStatus, newStatus string, 
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		slog.Error("failed to send webhook alert", "err", err)

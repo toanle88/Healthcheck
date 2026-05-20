@@ -8,9 +8,8 @@ ARG APP_VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-X main.Version=${APP_VERSION}" -o api ./cmd/api/main.go
 
 # FINAL STAGE
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates
-WORKDIR /root/
-COPY --from=builder /app/api .
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=builder /app/api /api
 EXPOSE 8080
-CMD ["./api"]
+USER nonroot:nonroot
+ENTRYPOINT ["/api"]
