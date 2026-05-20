@@ -2,11 +2,13 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/toanle88/healthcheck/internal/store"
 )
 
@@ -118,6 +120,10 @@ func (h *Handler) DeleteTarget(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	if err := h.store.DeleteTarget(ctx, id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "target not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

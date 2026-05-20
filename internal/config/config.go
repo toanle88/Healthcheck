@@ -44,7 +44,7 @@ func Load() Config {
 	return Config{
 		Port:               getEnv("PORT", "8080"),
 		DatabaseURL:        dbURL,
-		Environment:        getEnv("ENV", "development"),
+		Environment:        getEnv("ENV", "production"),
 		LogLevel:           getEnv("LOG_LEVEL", "info"),
 		EntraTenantID:      os.Getenv("ENTRA_TENANT_ID"),
 		EntraClientID:      os.Getenv("ENTRA_CLIENT_ID"),

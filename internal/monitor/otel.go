@@ -117,11 +117,17 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 
 	// Return a combined shutdown function
 	return handler, func(ctx context.Context) error {
+		var errs []error
 		if err := tp.Shutdown(ctx); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 		if mp != nil {
-			return mp.Shutdown(ctx)
+			if err := mp.Shutdown(ctx); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		if len(errs) > 0 {
+			return fmt.Errorf("otel shutdown error(s): %v", errs)
 		}
 		return nil
 	}, nil

@@ -164,6 +164,7 @@ func main() {
 	mode := os.Getenv("WORKER_MODE")
 	if mode == "job" {
 		slog.Info("running in JOB mode (one-time execution)")
+		defer alertsWG.Wait()
 
 		dbTargets, err := st.GetTargets(ctx)
 		if err != nil {

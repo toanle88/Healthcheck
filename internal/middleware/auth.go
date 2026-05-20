@@ -38,7 +38,7 @@ func AuthMiddleware(tenantID, clientID, environment string) gin.HandlerFunc {
 		tokenString := bearerToken[1]
 
 		// 2b. E2E / Development mock token bypass (MFA / redirect automation support)
-		isLocalDev := environment == "local" || environment == "development"
+		isLocalDev := environment == "local"
 		if tokenString == "mocked-e2e-token" && isLocalDev {
 			c.Next()
 			return

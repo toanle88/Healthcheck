@@ -150,12 +150,7 @@ type TargetSLA struct {
 // GetLatestChecks retrieves the most recent check result for each active target, including 24h SLA.
 func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
 	rows, err := s.DB.Query(ctx, `
-		WITH latest AS (
-			SELECT DISTINCT ON (target) target, status, latency_ms, checked_at 
-			FROM checks 
-			ORDER BY target, checked_at DESC
-		),
-		sla AS (
+		WITH sla AS (
 			SELECT 
 				target,
 				ROUND(100.0 * COUNT(CASE WHEN status = 'up' THEN 1 END) / COUNT(*), 2) as uptime_percentage
@@ -171,7 +166,13 @@ func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
 			COALESCE(l.checked_at, t.created_at) as checked_at,
 			COALESCE(s.uptime_percentage, 100.0) as uptime_sla
 		FROM targets t
-		LEFT JOIN latest l ON t.url = l.target
+		LEFT JOIN LATERAL (
+			SELECT status, latency_ms, checked_at 
+			FROM checks 
+			WHERE target = t.url 
+			ORDER BY checked_at DESC 
+			LIMIT 1
+		) l ON TRUE
 		LEFT JOIN sla s ON t.url = s.target
 		WHERE t.is_active = TRUE
 		ORDER BY t.id
