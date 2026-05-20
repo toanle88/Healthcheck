@@ -8,6 +8,7 @@ export const handlers = [
     return HttpResponse.json({
       checks: [
         {
+          name: 'Google',
           target: 'https://google.com',
           status: 'up',
           latency_ms: 45,
@@ -15,6 +16,7 @@ export const handlers = [
           uptime_sla: 100.0,
         },
         {
+          name: 'GitHub',
           target: 'https://github.com',
           status: 'up',
           latency_ms: 120,

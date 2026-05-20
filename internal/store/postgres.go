@@ -123,6 +123,7 @@ func (s *Store) InsertCheck(ctx context.Context, target, status string, latencyM
 
 // Check represents a single health check record in the database.
 type Check struct {
+	Name      string    `json:"name"`
 	Target    string    `json:"target"`
 	Status    string    `json:"status"`
 	LatencyMs int       `json:"latency_ms"`
@@ -163,6 +164,7 @@ func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
 			GROUP BY target
 		)
 		SELECT 
+			t.name as name,
 			t.url as target, 
 			COALESCE(l.status, 'pending') as status, 
 			COALESCE(l.latency_ms, 0) as latency_ms, 
@@ -182,7 +184,7 @@ func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
 	var checks []Check
 	for rows.Next() {
 		var ck Check
-		if err := rows.Scan(&ck.Target, &ck.Status, &ck.LatencyMs, &ck.CheckedAt, &ck.UptimeSLA); err != nil {
+		if err := rows.Scan(&ck.Name, &ck.Target, &ck.Status, &ck.LatencyMs, &ck.CheckedAt, &ck.UptimeSLA); err != nil {
 			return nil, err
 		}
 		checks = append(checks, ck)

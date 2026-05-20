@@ -22,10 +22,10 @@ describe('DashboardPage', () => {
 
     // Wait for data to load
     await waitFor(() => {
-      expect(screen.getByText('google.com')).toBeInTheDocument();
+      expect(screen.getByText('Google')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('github.com')).toBeInTheDocument();
+    expect(screen.getByText('GitHub')).toBeInTheDocument();
     expect(screen.getByText(/Monitoring 2 endpoints/i)).toBeInTheDocument();
   });
 });

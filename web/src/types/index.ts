@@ -1,4 +1,5 @@
 export interface Check {
+  name: string;
   target: string;
   status: string;
   latency_ms: number;

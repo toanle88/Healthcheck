@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { renderWithProviders } from '../../test/testUtils';
 
 const mockCheck: Check = {
+  name: 'Example Service',
   target: 'https://example.com',
   status: 'up',
   latency_ms: 150,
@@ -16,7 +17,8 @@ describe('HealthCard', () => {
   it('renders endpoint target and status', () => {
     renderWithProviders(<HealthCard check={mockCheck} />);
     
-    expect(screen.getByText('example.com')).toBeInTheDocument();
+    expect(screen.getByText('Example Service')).toBeInTheDocument();
+    expect(screen.getByText('https://example.com')).toBeInTheDocument();
     expect(screen.getByText('up')).toBeInTheDocument();
     expect(screen.getByText('150ms')).toBeInTheDocument();
   });

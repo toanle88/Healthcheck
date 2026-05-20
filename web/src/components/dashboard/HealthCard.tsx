@@ -35,8 +35,8 @@ const HealthCard: React.FC<HealthCardProps> = ({ check }) => {
       </div>
       
       <div className="space-y-1 mb-6">
-        <h3 className="font-bold text-slate-200 truncate group-hover:text-white transition-colors" title={check.target}>
-          {check.target.replace(/^https?:\/\//, '')}
+        <h3 className="font-bold text-slate-200 truncate group-hover:text-white transition-colors" title={check.name || check.target}>
+          {check.name || check.target.replace(/^https?:\/\//, '')}
         </h3>
         <p className="text-xs text-slate-500 font-mono truncate">{check.target}</p>
       </div>
