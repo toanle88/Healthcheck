@@ -1,17 +1,27 @@
 # Full Project Check Script for Windows (PowerShell)
 # Runs a suite of verification checks to ensure project health before push or deploy.
 
+param(
+    [switch]$Quick,
+    [switch]$Fix
+)
+
 Write-Host "🚀 Starting Full Project Check..." -ForegroundColor Blue
 
 # --- 1. Backend Format Check ---
 Write-Host "`n--- [1/6] Checking Backend Code Formatting (gofmt) ---" -ForegroundColor Blue
-$unformatted = gofmt -l .
-if ($unformatted) {
-    Write-Host "❌ Go files are not formatted correctly. Please run 'go fmt ./...' to fix:" -ForegroundColor Red
-    $unformatted | Write-Host -ForegroundColor Red
-    exit 1
+if ($Fix) {
+    Write-Host "Running 'go fmt ./...' to format code..." -ForegroundColor Blue
+    go fmt ./...
+} else {
+    $unformatted = gofmt -l .
+    if ($unformatted) {
+        Write-Host "❌ Go files are not formatted correctly. Please run './check.ps1 -Fix' or 'go fmt ./...' to fix:" -ForegroundColor Red
+        $unformatted | Write-Host -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "✓ Go code is formatted correctly." -ForegroundColor Green
 }
-Write-Host "✓ Go code is formatted correctly." -ForegroundColor Green
 
 # --- 2. Backend Tests ---
 Write-Host "`n--- [2/6] Running Backend Tests (Go) ---" -ForegroundColor Blue
@@ -26,6 +36,10 @@ if ($LASTEXITCODE -ne 0) { Write-Host "❌ Compilation failed" -ForegroundColor 
 # --- 4. Frontend Lint ---
 Write-Host "`n--- [4/6] Running Frontend Lint (ESLint) ---" -ForegroundColor Blue
 Set-Location web
+if ($Fix) {
+    Write-Host "Running eslint --fix..." -ForegroundColor Blue
+    pnpm lint --fix
+}
 pnpm lint
 if ($LASTEXITCODE -ne 0) { Write-Host "❌ Lint failed" -ForegroundColor Red; exit $LASTEXITCODE }
 
@@ -36,8 +50,12 @@ if ($LASTEXITCODE -ne 0) { Write-Host "❌ Unit tests failed" -ForegroundColor R
 
 # --- 6. Frontend Build ---
 Write-Host "`n--- [6/6] Running Frontend Build (Vite) ---" -ForegroundColor Blue
-pnpm build
-if ($LASTEXITCODE -ne 0) { Write-Host "❌ Build failed" -ForegroundColor Red; exit $LASTEXITCODE }
+if ($Quick) {
+    Write-Host "✓ Skipping frontend production build (Quick Mode)." -ForegroundColor Green
+} else {
+    pnpm build
+    if ($LASTEXITCODE -ne 0) { Write-Host "❌ Build failed" -ForegroundColor Red; exit $LASTEXITCODE }
+}
 
 # Go back to root directory (just to be clean)
 Set-Location ..

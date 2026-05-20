@@ -6,6 +6,18 @@
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
+# Default settings
+QUICK_MODE=false
+FIX_MODE=false
+
+# Parse flags
+for arg in "$@"; do
+    case $arg in
+        --quick) QUICK_MODE=true ;;
+        --fix) FIX_MODE=true ;;
+    esac
+done
+
 # Define colors for output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -16,13 +28,18 @@ echo -e "${BLUE}🚀 Starting Full Project Check...${NC}"
 
 # --- 1. Backend Format Check ---
 echo -e "\n${BLUE}--- [1/6] Checking Backend Code Formatting (gofmt) ---${NC}"
-unformatted=$(gofmt -l .)
-if [ -n "$unformatted" ]; then
-    echo -e "${RED}❌ Go files are not formatted correctly. Please run 'go fmt ./...' to fix:${NC}"
-    echo "$unformatted"
-    exit 1
+if [ "$FIX_MODE" = true ]; then
+    echo -e "${BLUE}Running 'go fmt ./...' to format code...${NC}"
+    go fmt ./...
+else
+    unformatted=$(gofmt -l .)
+    if [ -n "$unformatted" ]; then
+        echo -e "${RED}❌ Go files are not formatted correctly. Please run './check.sh --fix' or 'go fmt ./...' to fix:${NC}"
+        echo "$unformatted"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Go code is formatted correctly.${NC}"
 fi
-echo -e "${GREEN}✓ Go code is formatted correctly.${NC}"
 
 # --- 2. Backend Tests ---
 echo -e "\n${BLUE}--- [2/6] Running Backend Tests (Go) ---${NC}"
@@ -35,6 +52,10 @@ go build ./cmd/...
 # --- 4. Frontend Lint ---
 echo -e "\n${BLUE}--- [4/6] Running Frontend Lint (ESLint) ---${NC}"
 cd web
+if [ "$FIX_MODE" = true ]; then
+    echo -e "${BLUE}Running eslint --fix...${NC}"
+    pnpm lint --fix || true
+fi
 pnpm lint
 
 # --- 5. Frontend Unit Tests ---
@@ -43,7 +64,11 @@ pnpm test:unit
 
 # --- 6. Frontend Build ---
 echo -e "\n${BLUE}--- [6/6] Running Frontend Build (Vite) ---${NC}"
-pnpm build
+if [ "$QUICK_MODE" = true ]; then
+    echo -e "${GREEN}✓ Skipping frontend production build (Quick Mode).${NC}"
+else
+    pnpm build
+fi
 
 # Go back to root directory (just to be clean)
 cd ..
