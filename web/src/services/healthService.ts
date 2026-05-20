@@ -1,5 +1,5 @@
 import { api } from '../lib/axios';
-import type { ApiResponse } from '../types';
+import type { ApiResponse, Target, Check } from '../types';
 
 export const healthService = {
   /**
@@ -7,6 +7,27 @@ export const healthService = {
    */
   getHealthStatus: async (): Promise<ApiResponse> => {
     const { data } = await api.get<ApiResponse>('/api/status');
+    return data;
+  },
+
+  getTargets: async (): Promise<Target[]> => {
+    const { data } = await api.get<Target[]>('/api/targets');
+    return data;
+  },
+
+  createTarget: async (name: string, url: string): Promise<Target> => {
+    const { data } = await api.post<Target>('/api/targets', { name, url });
+    return data;
+  },
+
+  deleteTarget: async (id: number): Promise<void> => {
+    await api.delete(`/api/targets/${id}`);
+  },
+
+  getTargetHistory: async (target: string, limit = 30): Promise<Check[]> => {
+    const { data } = await api.get<Check[]>('/api/history', {
+      params: { target, limit },
+    });
     return data;
   },
 };

@@ -275,7 +275,11 @@ This project is designed as a 2-week playground. See `ROADMAP.md` for daily task
 - [x] Chaos engineering (Poison Pill) and automatic rollback
 - [x] Stretch goals: Blue-Green deploys, Auto-Scale to Zero
 
-Stretch goals: blue-green deploys, auto-scale to zero, multi-region with Front Door.
+**Phase 9 – Production Enhancements** ✅
+- [x] Dynamic Targets CRUD (React UI + REST API endpoints)
+- [x] Latency Sparklines & State Ticks visualization
+- [x] State-Transition Webhook Alerting (Slack/Discord Webhooks)
+- [x] 24h SLA calculation & percentage badges
 
 ## 🧹 Cleanup
 

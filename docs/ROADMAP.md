@@ -21,7 +21,7 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 - [x] `cmd/api/main.go`: Gin server, `/health`, `/api/status`, `/api/history`
 - [x] `internal/store/postgres.go`: pgx pool with context timeout
 - [x] `docker-compose.yml`: postgres:18 only
-- [ ] Test: `go run ./cmd/api` → curl localhost:8080/health
+- [x] Test: `go run ./cmd/api` → curl localhost:8080/health
 
 ### Day 2 — Worker
 - [x] `cmd/worker/main.go`: cron every 60s, pings 3 APIs (httpbin, github, azure status)
@@ -129,6 +129,28 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 Pick one based on interest:
 - [x] **Blue-Green:** Two Container App revisions, traffic split via Terraform
 - [x] **Cost:** Auto-scale to zero, schedule worker to stop at night
+
+
+---
+
+## Phase 9 — Production Enhancements (All 4 Options) ✅
+Implement full-stack improvements to make the application highly interactive and SRE-ready:
+- [x] **Option 1: Dynamic Healthcheck Targets (CRUD)**
+  - [x] Database schema extension (add `targets` table)
+  - [x] REST API endpoints (`GET /api/targets`, `POST /api/targets`, `DELETE /api/targets/:id`)
+  - [x] Cron worker integration (pull ping targets dynamically from DB)
+  - [x] React CRUD UI to manage targets dynamically
+- [x] **Option 2: Uptime & Latency History Visualization**
+  - [x] Implement `GET /api/history` with time-series DB queries
+  - [x] Optimize Postgres with index on `(target, checked_at)`
+  - [x] Render interactive latency graphs and state grids (Recharts / SVG) on Dashboard
+- [x] **Option 3: State-Transition Alerting**
+  - [x] Add Slack or Discord Webhook integration via environment config
+  - [x] Detect state changes (`up` -> `down`, `down` -> `up`) in cron worker
+  - [x] Send webhook notification payloads with incident/recovery details
+- [x] **Option 4: 24h SLA & Uptime Percentages**
+  - [x] Write SQL calculation logic for 24h/7d uptime percentages
+  - [x] Display SLA progress meters/percentage badges on the React frontend
 
 
 ---

@@ -59,7 +59,7 @@ func main() {
 		if origin != "" {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 		}
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 
@@ -88,6 +88,9 @@ func main() {
 	{
 		api.GET("/status", h.Status)
 		api.GET("/history", h.History)
+		api.GET("/targets", h.GetTargets)
+		api.POST("/targets", h.CreateTarget)
+		api.DELETE("/targets/:id", h.DeleteTarget)
 	}
 
 	// --- TEST ROUTES (UNPROTECTED FOR CHAOS TESTING) ---

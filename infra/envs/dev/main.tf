@@ -117,6 +117,13 @@ variable "ciam_tenant_id" {
   default     = "cea4bf39-5592-4b9c-bed9-0729bbf40cd4"
 }
 
+variable "alert_webhook_url" {
+  type        = string
+  description = "The Slack/Discord Webhook URL for alerting"
+  default     = ""
+  sensitive   = true
+}
+
 # 8. CONTAINER APPS MODULE (Day 8)
 module "containerapp" {
   source              = "../../modules/containerapp"
@@ -139,6 +146,9 @@ module "containerapp" {
   # Entra ID Config for Frontend
   entra_client_id = var.entra_client_id
   tenant_id       = var.ciam_tenant_id
+
+  # Alert Webhook URL
+  alert_webhook_url = var.alert_webhook_url
 
   # Monitoring
   app_insights_connection_string = module.monitor.app_insights_connection_string

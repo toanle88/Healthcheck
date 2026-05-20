@@ -79,7 +79,7 @@ resource "azurerm_container_app" "api" {
     }
     cors {
       allowed_origins = ["https://ca-healthcheck-web-${var.environment}.${azurerm_container_app_environment.main.default_domain}"]
-      allowed_methods = ["GET", "POST", "OPTIONS"]
+      allowed_methods = ["GET", "POST", "DELETE", "OPTIONS"]
       allowed_headers = ["*"]
     }
   }
@@ -214,6 +214,11 @@ resource "azurerm_container_app_job" "worker" {
       env {
         name  = "APPLICATIONINSIGHTS_CONNECTION_STRING"
         value = var.app_insights_connection_string
+      }
+
+      env {
+        name  = "ALERT_WEBHOOK_URL"
+        value = var.alert_webhook_url
       }
     }
   }

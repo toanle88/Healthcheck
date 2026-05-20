@@ -22,6 +22,26 @@ func (m *mockStore) GetLatestChecks(ctx context.Context) ([]store.Check, error) 
 	return m.checks, m.err
 }
 
+func (m *mockStore) GetTargets(ctx context.Context) ([]store.Target, error) {
+	return nil, nil
+}
+
+func (m *mockStore) InsertTarget(ctx context.Context, name, url string) (store.Target, error) {
+	return store.Target{}, nil
+}
+
+func (m *mockStore) DeleteTarget(ctx context.Context, id int) error {
+	return nil
+}
+
+func (m *mockStore) GetHistoricalChecks(ctx context.Context, target string, limit int) ([]store.Check, error) {
+	return nil, nil
+}
+
+func (m *mockStore) GetPreviousCheckStatus(ctx context.Context, target string) (string, error) {
+	return "", nil
+}
+
 func TestHealth(t *testing.T) {
 	// Set Gin to test mode
 	gin.SetMode(gin.TestMode)

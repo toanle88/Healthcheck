@@ -1,73 +1,96 @@
-# React + TypeScript + Vite
+# Healthcheck Dashboard Client (React + TypeScript)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the front-end dashboard client for the Healthcheck project. It is built using **React 19**, **Vite**, **TypeScript**, and **Tailwind CSS v4**.
 
-Currently, two official plugins are available:
+It communicates with the Go API backend to provide real-time endpoint monitoring status, history graphs, targets administration, and OAuth2/Entra authentication.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 📦 Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Framework**: React 19 + TypeScript + Vite
+- **Styling**: Tailwind CSS v4
+- **State & Data Fetching**: TanStack React Query v5 + Axios
+- **Authentication**: `@azure/msal-react` & `@azure/msal-browser` (Entra External ID / CIAM)
+- **Icons**: Lucide React
+- **Unit Testing**: Vitest + React Testing Library + Mock Service Worker (MSW)
+- **E2E Testing**: Playwright
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🎨 Features
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+1. **Enterprise Authentication**: SSO integration with Microsoft Entra External ID (CIAM) using the Authorization Code Flow with PKCE.
+2. **Real-time Status Feed**: Automated refresh loops querying target latencies and state checks every 10 seconds.
+3. **Dynamic Targets Administration**: Add new URLs (validated) and delete existing targets instantly via standard REST API endpoints.
+4. **SLA Badges**: 24h SLA calculation shown with color-coded safety margins.
+5. **Visual Health Sparklines**: Interactive SVG sparklines rendering the last 30 pings of latency history, plus chronological status tick bars showing detailed timeline patterns.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+---
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 📁 Project Structure
+
+```
+web/
+├── e2e/                     # Playwright E2E test suite
+├── public/                  # Static assets and runtime environment files
+├── src/
+│   ├── assets/              # Icons and images
+│   ├── components/
+│   │   ├── common/          # ErrorDisplay, LoadingSpinner
+│   │   ├── dashboard/       # HealthCard, UptimeChart, TargetsHeader, TargetModal
+│   │   └── layout/          # Header, Footer
+│   ├── config/              # Runtime environment variables loader
+│   ├── hooks/               # Custom React hooks (useAuth, useHealthQuery)
+│   ├── lib/                 # Shared Axios client configuration
+│   ├── pages/               # LoginPage, DashboardPage
+│   ├── services/            # API client service layer (healthService)
+│   ├── test/                # Test utilities, setups, and MSW mocks
+│   ├── types/               # TypeScript interface schemas (Check, Target)
+│   ├── App.tsx              # Application entrypoint with MSAL/Query providers
+│   ├── authConfig.ts        # MSAL configuration (client IDs, scopes)
+│   └── main.tsx             # DOM mounting
+├── Dockerfile.web           # Nginx-based multi-stage container
+└── package.json
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 🚀 Running Locally
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Ensure you have [Node.js](https://nodejs.org/) and `pnpm` installed.
+
+### 1. Install dependencies
+```bash
+pnpm install
 ```
+
+### 2. Configure Environment variables
+The application reads settings at runtime from `public/env.js` (locally) or injected in Docker.
+Copy `.env.example` to `.env` or check `web/.env.example`.
+Standard local API port is `http://localhost:8080`.
+
+### 3. Run development server (HMR enabled)
+```bash
+pnpm run dev
+```
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+### 4. Build for production
+```bash
+pnpm run build
+```
+This generates the optimized bundle in the `dist/` directory, ready to be served by Nginx.
+
+---
+
+## 🧪 Testing
+
+The client includes unit and integration tests covering components, pages, custom hooks, and service layers.
+
+### Run Unit Tests (Vitest)
+```bash
+pnpm run test:unit
+```
+
+All API requests in tests are mocked via **Mock Service Worker (MSW)** defined in `src/test/mocks/handlers.ts` to ensure consistent, offline test coverage.

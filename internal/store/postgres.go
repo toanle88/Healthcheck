@@ -79,6 +79,21 @@ func (s *Store) Close() {
 func (s *Store) InitSchema(ctx context.Context) error {
 	// Exec runs SQL that doesn't return rows, like CREATE TABLE
 	_, err := s.DB.Exec(ctx, `
+	CREATE TABLE IF NOT EXISTS targets (
+		id SERIAL PRIMARY KEY,
+		name TEXT NOT NULL,
+		url TEXT UNIQUE NOT NULL,
+		is_active BOOLEAN DEFAULT TRUE,
+		created_at TIMESTAMPTZ DEFAULT NOW(),
+		updated_at TIMESTAMPTZ DEFAULT NOW()
+	);
+
+	INSERT INTO targets (name, url) VALUES
+		('Httpbin', 'http://httpbin.org/get'),
+		('GitHub', 'https://github.com'),
+		('Azure Status', 'https://azure.microsoft.com/en-us/status/')
+	ON CONFLICT (url) DO NOTHING;
+
 	CREATE TABLE IF NOT EXISTS checks (
 		id SERIAL PRIMARY KEY,                    -- Auto-incrementing ID
 		target TEXT NOT NULL,                     -- What URL/service we checked, like "https://google.com"
@@ -86,6 +101,8 @@ func (s *Store) InitSchema(ctx context.Context) error {
 		latency_ms INT NOT NULL,                  -- How long the check took, in milliseconds
 		checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()  -- When we ran the check, with timezone
 	);
+
+	CREATE INDEX IF NOT EXISTS idx_checks_target_checked_at ON checks(target, checked_at DESC);
 	`)
 	return err // Return nil if table created/exists, or error if SQL failed
 }
@@ -109,19 +126,124 @@ type Check struct {
 	Status    string    `json:"status"`
 	LatencyMs int       `json:"latency_ms"`
 	CheckedAt time.Time `json:"checked_at"`
+	UptimeSLA float64   `json:"uptime_sla"`
 }
 
-// GetLatestChecks retrieves the most recent check result for each unique target.
-// It uses Postgres' DISTINCT ON feature to efficiently group by target.
+// Target represents a monitored URL/endpoint.
+type Target struct {
+	ID        int       `json:"id"`
+	Name      string    `json:"name"`
+	URL       string    `json:"url"`
+	IsActive  bool      `json:"is_active"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// TargetSLA represents calculated uptime percentage.
+type TargetSLA struct {
+	Target           string  `json:"target"`
+	UptimePercentage float64 `json:"uptime_percentage"`
+}
+
+// GetLatestChecks retrieves the most recent check result for each active target, including 24h SLA.
 func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
-	// DISTINCT ON (target) ensures we only get one row per target.
-	// We order by target first (required by DISTINCT ON) and then by checked_at DESC
-	// to make sure we get the newest one.
 	rows, err := s.DB.Query(ctx, `
-		SELECT DISTINCT ON (target) target, status, latency_ms, checked_at 
-		FROM checks 
-		ORDER BY target, checked_at DESC
+		WITH latest AS (
+			SELECT DISTINCT ON (target) target, status, latency_ms, checked_at 
+			FROM checks 
+			ORDER BY target, checked_at DESC
+		),
+		sla AS (
+			SELECT 
+				target,
+				ROUND(100.0 * COUNT(CASE WHEN status = 'up' THEN 1 END) / COUNT(*), 2) as uptime_percentage
+			FROM checks
+			WHERE checked_at >= NOW() - INTERVAL '24 hours'
+			GROUP BY target
+		)
+		SELECT 
+			t.url as target, 
+			COALESCE(l.status, 'pending') as status, 
+			COALESCE(l.latency_ms, 0) as latency_ms, 
+			COALESCE(l.checked_at, t.created_at) as checked_at,
+			COALESCE(s.uptime_percentage, 100.0) as uptime_sla
+		FROM targets t
+		LEFT JOIN latest l ON t.url = l.target
+		LEFT JOIN sla s ON t.url = s.target
+		WHERE t.is_active = TRUE
+		ORDER BY t.id
 	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var checks []Check
+	for rows.Next() {
+		var ck Check
+		if err := rows.Scan(&ck.Target, &ck.Status, &ck.LatencyMs, &ck.CheckedAt, &ck.UptimeSLA); err != nil {
+			return nil, err
+		}
+		checks = append(checks, ck)
+	}
+	return checks, nil
+}
+
+// GetTargets retrieves all monitored targets.
+func (s *Store) GetTargets(ctx context.Context) ([]Target, error) {
+	rows, err := s.DB.Query(ctx, `
+		SELECT id, name, url, is_active, created_at, updated_at 
+		FROM targets 
+		ORDER BY id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var targets []Target
+	for rows.Next() {
+		var t Target
+		if err := rows.Scan(&t.ID, &t.Name, &t.URL, &t.IsActive, &t.CreatedAt, &t.UpdatedAt); err != nil {
+			return nil, err
+		}
+		targets = append(targets, t)
+	}
+	return targets, nil
+}
+
+// InsertTarget saves a new target.
+func (s *Store) InsertTarget(ctx context.Context, name, url string) (Target, error) {
+	var t Target
+	err := s.DB.QueryRow(ctx, `
+		INSERT INTO targets (name, url) 
+		VALUES ($1, $2)
+		RETURNING id, name, url, is_active, created_at, updated_at
+	`, name, url).Scan(&t.ID, &t.Name, &t.URL, &t.IsActive, &t.CreatedAt, &t.UpdatedAt)
+	return t, err
+}
+
+// DeleteTarget removes a target and its associated check history.
+func (s *Store) DeleteTarget(ctx context.Context, id int) error {
+	var url string
+	err := s.DB.QueryRow(ctx, "DELETE FROM targets WHERE id = $1 RETURNING url", id).Scan(&url)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.DB.Exec(ctx, "DELETE FROM checks WHERE target = $1", url)
+	return err
+}
+
+// GetHistoricalChecks retrieves the last N checks for a target in chronological order.
+func (s *Store) GetHistoricalChecks(ctx context.Context, target string, limit int) ([]Check, error) {
+	rows, err := s.DB.Query(ctx, `
+		SELECT target, status, latency_ms, checked_at 
+		FROM checks 
+		WHERE target = $1 
+		ORDER BY checked_at DESC 
+		LIMIT $2
+	`, target, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -135,21 +257,33 @@ func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
 		}
 		checks = append(checks, ck)
 	}
+
+	// Reverse to return in chronological order
+	for i, j := 0, len(checks)-1; i < j; i, j = i+1, j-1 {
+		checks[i], checks[j] = checks[j], checks[i]
+	}
 	return checks, nil
 }
 
-// CleanupOldChecks deletes records older than the specified duration.
-// This prevents the database from growing indefinitely.
-func (s *Store) CleanupOldChecks(ctx context.Context, olderThan time.Duration) (int64, error) {
-	// Calculate the cutoff time
-	cutoff := time.Now().Add(-olderThan)
+// GetPreviousCheckStatus retrieves the status of the most recent check for a target.
+func (s *Store) GetPreviousCheckStatus(ctx context.Context, target string) (string, error) {
+	var status string
+	err := s.DB.QueryRow(ctx, `
+		SELECT status 
+		FROM checks 
+		WHERE target = $1 
+		ORDER BY checked_at DESC 
+		LIMIT 1
+	`, target).Scan(&status)
+	return status, err
+}
 
-	// Exec the DELETE statement
+// CleanupOldChecks deletes records older than the specified duration.
+func (s *Store) CleanupOldChecks(ctx context.Context, olderThan time.Duration) (int64, error) {
+	cutoff := time.Now().Add(-olderThan)
 	result, err := s.DB.Exec(ctx, "DELETE FROM checks WHERE checked_at < $1", cutoff)
 	if err != nil {
 		return 0, err
 	}
-
-	// RowsAffected() tells us how many rows were cleaned up
 	return result.RowsAffected(), nil
 }

@@ -1,0 +1,23 @@
+# Ignore frontend build artifacts and dependencies
+web/node_modules/
+web/dist/
+
+# Ignore local Git information
+.git/
+.gitignore
+
+# Ignore documentation
+docs/
+*.md
+
+# Ignore Terraform states, caches, and configuration variables
+.terraform/
+*.tfstate*
+*.tfvars*
+.terraform.lock.hcl
+
+# Ignore developer temporary assets
+tmp/
+bin/
+.env
+.env.local

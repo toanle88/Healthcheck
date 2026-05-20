@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -67,30 +70,16 @@ func main() {
 	if mode == "job" {
 		slog.Info("running in JOB mode (one-time execution)")
 
-		targets := []string{
-			"http://httpbin.org/get",
-			"https://github.com",
-			"https://azure.microsoft.com/en-us/status/",
+		dbTargets, err := st.GetTargets(ctx)
+		if err != nil {
+			slog.Error("failed to get targets from database", "err", err)
+			os.Exit(1)
 		}
 
-		slog.Info("executing health pings", "count", len(targets))
-		for _, url := range targets {
-			pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			status, latency := pingTarget(pingCtx, url)
-			cancel()
-
-			// Record metrics
-			monitor.CheckCounter.Add(ctx, 1, metric.WithAttributes(
-				attribute.String("target", url),
-				attribute.String("status", status),
-			))
-			monitor.LatencyHistogram.Record(ctx, latency.Seconds(), metric.WithAttributes(
-				attribute.String("target", url),
-			))
-
-			// Save to DB
-			if err := st.InsertCheck(ctx, url, status, int(latency.Milliseconds())); err != nil {
-				slog.Error("failed to save check", "target", url, "err", err)
+		slog.Info("executing health pings", "count", len(dbTargets))
+		for _, target := range dbTargets {
+			if target.IsActive {
+				runPingAndCheck(ctx, st, nil, target.URL)
 			}
 		}
 
@@ -107,13 +96,6 @@ func main() {
 	slog.Info("running in SERVICE mode (background cron)")
 	c := cron.New()
 
-	// List of targets to monitor as defined in PROJECT.md
-	targets := []string{
-		"http://httpbin.org/get",
-		"https://github.com",
-		"https://azure.microsoft.com/en-us/status/",
-	}
-
 	// Add a job to run every minute
 	// "@every 1m" is a shorthand for "0 * * * * *" (every minute at the 0th second)
 	_, err = c.AddFunc("@every 1m", func() {
@@ -122,42 +104,18 @@ func main() {
 		batchCtx, span := tracer.Start(context.Background(), "RunBatch")
 		defer span.End()
 
-		slog.Info("running health checks", "count", len(targets))
+		dbTargets, err := st.GetTargets(batchCtx)
+		if err != nil {
+			slog.Error("failed to get targets from database", "err", err)
+			return
+		}
 
-		for _, url := range targets {
-			// Create a child span for each individual ping
-			_, childSpan := tracer.Start(batchCtx, "PingTarget", trace.WithAttributes(
-				attribute.String("http.url", url),
-			))
+		slog.Info("running health checks", "count", len(dbTargets))
 
-			pingCtx, cancel := context.WithTimeout(batchCtx, 10*time.Second)
-
-			status, latency := pingTarget(pingCtx, url)
-
-			childSpan.SetAttributes(
-				attribute.String("health.status", status),
-				attribute.Int64("health.latency_ms", latency.Milliseconds()),
-			)
-
-			// Record metrics in Prometheus
-			monitor.CheckCounter.Add(batchCtx, 1, metric.WithAttributes(
-				attribute.String("target", url),
-				attribute.String("status", status),
-			))
-			monitor.LatencyHistogram.Record(batchCtx, latency.Seconds(), metric.WithAttributes(
-				attribute.String("target", url),
-			))
-
-			// Record the result in the database
-			if err := st.InsertCheck(context.Background(), url, status, int(latency.Milliseconds())); err != nil {
-				slog.Error("failed to save check", "target", url, "err", err)
-				childSpan.RecordError(err)
-			} else {
-				slog.Info("check recorded", "target", url, "status", status, "latency_ms", latency.Milliseconds())
+		for _, target := range dbTargets {
+			if target.IsActive {
+				runPingAndCheck(batchCtx, st, tracer, target.URL)
 			}
-
-			childSpan.End()
-			cancel()
 		}
 	})
 
@@ -227,4 +185,103 @@ func pingTarget(ctx context.Context, url string) (string, time.Duration) {
 	}
 
 	return "down", time.Since(start)
+}
+
+func runPingAndCheck(ctx context.Context, st *store.Store, tracer trace.Tracer, url string) {
+	var childSpan trace.Span
+	var pingCtx context.Context = ctx
+	if tracer != nil {
+		pingCtx, childSpan = tracer.Start(ctx, "PingTarget", trace.WithAttributes(
+			attribute.String("http.url", url),
+		))
+	}
+
+	runCtx, cancel := context.WithTimeout(pingCtx, 10*time.Second)
+	status, latency := pingTarget(runCtx, url)
+	cancel()
+
+	if childSpan != nil {
+		childSpan.SetAttributes(
+			attribute.String("health.status", status),
+			attribute.Int64("health.latency_ms", latency.Milliseconds()),
+		)
+	}
+
+	// Record metrics in Prometheus
+	monitor.CheckCounter.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("target", url),
+		attribute.String("status", status),
+	))
+	monitor.LatencyHistogram.Record(ctx, latency.Seconds(), metric.WithAttributes(
+		attribute.String("target", url),
+	))
+
+	// Get previous status to check for transitions
+	prevStatus, err := st.GetPreviousCheckStatus(ctx, url)
+	if err == nil && prevStatus != "" && prevStatus != status {
+		// State transitioned! Alert!
+		slog.Info("status transition detected, sending alert", "target", url, "old_status", prevStatus, "new_status", status)
+		go sendWebhookAlert(context.Background(), url, prevStatus, status, latency)
+	}
+
+	// Record the result in the database
+	if err := st.InsertCheck(ctx, url, status, int(latency.Milliseconds())); err != nil {
+		slog.Error("failed to save check", "target", url, "err", err)
+		if childSpan != nil {
+			childSpan.RecordError(err)
+		}
+	} else {
+		slog.Info("check recorded", "target", url, "status", status, "latency_ms", latency.Milliseconds())
+	}
+
+	if childSpan != nil {
+		childSpan.End()
+	}
+}
+
+func sendWebhookAlert(ctx context.Context, target, oldStatus, newStatus string, latency time.Duration) {
+	webhookURL := os.Getenv("ALERT_WEBHOOK_URL")
+	if webhookURL == "" {
+		return
+	}
+
+	var statusEmoji string
+	if newStatus == "up" {
+		statusEmoji = "🟢"
+	} else {
+		statusEmoji = "🔴"
+	}
+
+	message := fmt.Sprintf("%s *Healthcheck Alert*\n*Target:* %s\n*Event:* Status changed from `%s` to `%s`\n*Latency:* %dms\n*Time:* %s",
+		statusEmoji, target, oldStatus, newStatus, latency.Milliseconds(), time.Now().UTC().Format(time.RFC3339))
+
+	payload := map[string]string{
+		"text": message,
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		slog.Error("failed to marshal webhook payload", "err", err)
+		return
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, webhookURL, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		slog.Error("failed to create webhook request", "err", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		slog.Error("failed to send webhook alert", "err", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		slog.Error("webhook alert returned non-2xx status", "code", resp.StatusCode)
+	} else {
+		slog.Info("webhook alert sent successfully", "target", target, "new_status", newStatus)
+	}
 }
