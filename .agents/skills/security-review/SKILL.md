@@ -1,5 +1,5 @@
 ---
-command: security-review
+name: security-review
 description: Security-only analysis of changed or specific files (Review only, no fixes).
 ---
 
