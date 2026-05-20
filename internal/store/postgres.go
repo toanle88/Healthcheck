@@ -103,6 +103,7 @@ func (s *Store) InitSchema(ctx context.Context) error {
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_checks_target_checked_at ON checks(target, checked_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_checks_checked_at_target ON checks(checked_at DESC, target);
 	`)
 	return err // Return nil if table created/exists, or error if SQL failed
 }
@@ -186,6 +187,9 @@ func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
 		}
 		checks = append(checks, ck)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating latest checks: %w", err)
+	}
 	return checks, nil
 }
 
@@ -209,6 +213,9 @@ func (s *Store) GetTargets(ctx context.Context) ([]Target, error) {
 		}
 		targets = append(targets, t)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating targets: %w", err)
+	}
 	return targets, nil
 }
 
@@ -225,14 +232,27 @@ func (s *Store) InsertTarget(ctx context.Context, name, url string) (Target, err
 
 // DeleteTarget removes a target and its associated check history.
 func (s *Store) DeleteTarget(ctx context.Context, id int) error {
+	tx, err := s.DB.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	var url string
-	err := s.DB.QueryRow(ctx, "DELETE FROM targets WHERE id = $1 RETURNING url", id).Scan(&url)
+	err = tx.QueryRow(ctx, "DELETE FROM targets WHERE id = $1 RETURNING url", id).Scan(&url)
 	if err != nil {
 		return err
 	}
 
-	_, err = s.DB.Exec(ctx, "DELETE FROM checks WHERE target = $1", url)
-	return err
+	_, err = tx.Exec(ctx, "DELETE FROM checks WHERE target = $1", url)
+	if err != nil {
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	return nil
 }
 
 // GetHistoricalChecks retrieves the last N checks for a target in chronological order.
@@ -256,6 +276,9 @@ func (s *Store) GetHistoricalChecks(ctx context.Context, target string, limit in
 			return nil, err
 		}
 		checks = append(checks, ck)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating historical checks: %w", err)
 	}
 
 	// Reverse to return in chronological order

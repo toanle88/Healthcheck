@@ -1,9 +1,9 @@
-import type { Configuration, PopupRequest } from "@azure/msal-browser";
+import { PublicClientApplication, type Configuration, type PopupRequest } from "@azure/msal-browser";
 import { getEnv } from "./config/env";
 
 const clientId = getEnv("VITE_ENTRA_CLIENT_ID");
 const tenantId = getEnv("VITE_ENTRA_TENANT_ID");
-const tenantDomain = "toanlesandbox.ciamlogin.com";
+const tenantDomain = getEnv("VITE_ENTRA_TENANT_DOMAIN") || "toanlesandbox.ciamlogin.com";
 
 export const msalConfig: Configuration = {
   auth: {
@@ -28,3 +28,5 @@ export const loginRequest: PopupRequest = {
 export const tokenRequest = {
   scopes: [`api://${clientId}/access_as_user`]
 };
+
+export const msalInstance = new PublicClientApplication(msalConfig);

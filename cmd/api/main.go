@@ -52,16 +52,30 @@ func main() {
 	r.Use(otelgin.Middleware("healthcheck-api"))
 
 	// --- CORS MIDDLEWARE ---
-	// Now that we handle auth in code, we can use a standard CORS middleware.
 	r.Use(func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
-		// Allow local dev and the deployed web app
 		if origin != "" {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			isAllowed := false
+			// Default local development origins
+			if cfg.Environment == "local" || cfg.Environment == "development" || cfg.Environment == "" {
+				if origin == "http://localhost:5173" || origin == "http://localhost:3000" {
+					isAllowed = true
+				}
+			}
+			for _, allowed := range cfg.CORSAllowedOrigins {
+				if origin == allowed {
+					isAllowed = true
+					break
+				}
+			}
+
+			if isAllowed {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+				c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
 		}
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)

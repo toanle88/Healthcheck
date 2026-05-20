@@ -5,10 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -20,9 +23,93 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
 )
 
 var Version = "dev"
+var alertsWG sync.WaitGroup
+
+// isPrivateIP checks if a net.IP is loopback, link-local, or private.
+func isPrivateIP(ip net.IP) bool {
+	return ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsPrivate()
+}
+
+// newSafeHTTPClient returns an HTTP client that blocks connections to loopback/private/link-local addresses
+// to prevent SSRF and DNS Rebinding.
+func newSafeHTTPClient(env string) *http.Client {
+	isDev := env == "local" || env == "development" || env == ""
+
+	dialer := &net.Dialer{
+		Timeout:   5 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				host = addr
+				port = "80"
+			}
+
+			ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+			if err != nil {
+				return nil, err
+			}
+
+			for _, ip := range ips {
+				if !isDev && isPrivateIP(ip) {
+					return nil, fmt.Errorf("SSRF prevention: connection to private/loopback address %s is blocked", ip)
+				}
+			}
+
+			var lastErr error
+			for _, ip := range ips {
+				if !isDev && isPrivateIP(ip) {
+					continue
+				}
+				targetAddr := net.JoinHostPort(ip.String(), port)
+				conn, err := dialer.DialContext(ctx, network, targetAddr)
+				if err == nil {
+					return conn, nil
+				}
+				lastErr = err
+			}
+			if lastErr != nil {
+				return nil, lastErr
+			}
+			return nil, fmt.Errorf("failed to connect to resolved IPs for host: %s", host)
+		},
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+
+	return &http.Client{
+		Transport: transport,
+		Timeout:   10 * time.Second,
+	}
+}
+
+// runBatch performs health checks concurrently for a batch of targets,
+// throttling concurrency to match or stay below the database connection limit.
+func runBatch(ctx context.Context, client *http.Client, st *store.Store, tracer trace.Tracer, dbTargets []store.Target) {
+	g, batchCtx := errgroup.WithContext(ctx)
+	g.SetLimit(8) // Limit to 8 concurrent connections to be safe with DB connections (max 10)
+
+	for _, target := range dbTargets {
+		if target.IsActive {
+			tURL := target.URL
+			g.Go(func() error {
+				runPingAndCheck(batchCtx, client, st, tracer, tURL)
+				return nil
+			})
+		}
+	}
+	_ = g.Wait()
+}
 
 func main() {
 	// --- 1. SETUP LOGGING ---
@@ -39,6 +126,7 @@ func main() {
 
 	// --- 4. INITIALIZE OPENTELEMETRY ---
 	metricsHandler, shutdown, err := monitor.InitOTel(ctx, "healthcheck-worker")
+	var metricsSrv *http.Server
 	if err != nil {
 		slog.Error("otel init failed", "err", err)
 	} else {
@@ -46,13 +134,20 @@ func main() {
 
 		// Start a small HTTP server for Prometheus metrics in the background
 		go func() {
-			http.Handle("/metrics", metricsHandler)
+			mux := http.NewServeMux()
+			mux.Handle("/metrics", metricsHandler)
+			metricsSrv = &http.Server{
+				Addr:    ":8081",
+				Handler: mux,
+			}
 			slog.Info("worker metrics server starting", "port", 8081)
-			if err := http.ListenAndServe(":8081", nil); err != nil {
+			if err := metricsSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				slog.Error("metrics server failed", "err", err)
 			}
 		}()
 	}
+
+	safeClient := newSafeHTTPClient(cfg.Environment)
 
 	// --- 4. CONNECT TO DATABASE ---
 	// We need the DB to store our ping results.
@@ -77,11 +172,7 @@ func main() {
 		}
 
 		slog.Info("executing health pings", "count", len(dbTargets))
-		for _, target := range dbTargets {
-			if target.IsActive {
-				runPingAndCheck(ctx, st, nil, target.URL)
-			}
-		}
+		runBatch(ctx, safeClient, st, nil, dbTargets)
 
 		// Run Cleanup too
 		slog.Info("executing database cleanup")
@@ -111,12 +202,7 @@ func main() {
 		}
 
 		slog.Info("running health checks", "count", len(dbTargets))
-
-		for _, target := range dbTargets {
-			if target.IsActive {
-				runPingAndCheck(batchCtx, st, tracer, target.URL)
-			}
-		}
+		runBatch(batchCtx, safeClient, st, tracer, dbTargets)
 	})
 
 	if err != nil {
@@ -156,14 +242,25 @@ func main() {
 	stopCtx := c.Stop()
 	select {
 	case <-stopCtx.Done():
-		slog.Info("worker stopped cleanly")
+		slog.Info("cron scheduler stopped")
 	case <-time.After(10 * time.Second):
-		slog.Warn("worker shutdown timed out, forcing exit")
+		slog.Warn("cron scheduler shutdown timed out")
 	}
+
+	if metricsSrv != nil {
+		slog.Info("shutting down metrics server")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = metricsSrv.Shutdown(shutdownCtx)
+		cancel()
+	}
+
+	slog.Info("waiting for in-flight alerts to complete")
+	alertsWG.Wait()
+	slog.Info("worker stopped cleanly")
 }
 
 // pingTarget performs an HTTP GET request to the URL and returns the status ("up"/"down") and latency.
-func pingTarget(ctx context.Context, url string) (string, time.Duration) {
+func pingTarget(ctx context.Context, client *http.Client, url string) (string, time.Duration) {
 	start := time.Now()
 
 	// Create a new HTTP request with the context (for timeout support)
@@ -173,11 +270,14 @@ func pingTarget(ctx context.Context, url string) (string, time.Duration) {
 	}
 
 	// Execute the request
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return "down", time.Since(start)
 	}
 	defer resp.Body.Close()
+
+	// Drain body to enable connection reuse
+	_, _ = io.Copy(io.Discard, resp.Body)
 
 	// If we get a 2xx status code, we consider it "up"
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
@@ -187,7 +287,7 @@ func pingTarget(ctx context.Context, url string) (string, time.Duration) {
 	return "down", time.Since(start)
 }
 
-func runPingAndCheck(ctx context.Context, st *store.Store, tracer trace.Tracer, url string) {
+func runPingAndCheck(ctx context.Context, client *http.Client, st *store.Store, tracer trace.Tracer, url string) {
 	var childSpan trace.Span
 	var pingCtx context.Context = ctx
 	if tracer != nil {
@@ -197,7 +297,7 @@ func runPingAndCheck(ctx context.Context, st *store.Store, tracer trace.Tracer, 
 	}
 
 	runCtx, cancel := context.WithTimeout(pingCtx, 10*time.Second)
-	status, latency := pingTarget(runCtx, url)
+	status, latency := pingTarget(runCtx, client, url)
 	cancel()
 
 	if childSpan != nil {
@@ -221,7 +321,11 @@ func runPingAndCheck(ctx context.Context, st *store.Store, tracer trace.Tracer, 
 	if err == nil && prevStatus != "" && prevStatus != status {
 		// State transitioned! Alert!
 		slog.Info("status transition detected, sending alert", "target", url, "old_status", prevStatus, "new_status", status)
-		go sendWebhookAlert(context.Background(), url, prevStatus, status, latency)
+		alertsWG.Add(1)
+		go func() {
+			defer alertsWG.Done()
+			sendWebhookAlert(context.Background(), url, prevStatus, status, latency)
+		}()
 	}
 
 	// Record the result in the database
@@ -272,7 +376,8 @@ func sendWebhookAlert(ctx context.Context, target, oldStatus, newStatus string, 
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		slog.Error("failed to send webhook alert", "err", err)
 		return

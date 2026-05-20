@@ -1,7 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../hooks/useAuth';
-import { setAuthToken } from '../../lib/axios';
 import { healthService } from '../../services/healthService';
 
 interface UptimeChartProps {
@@ -9,15 +8,11 @@ interface UptimeChartProps {
 }
 
 const UptimeChart: React.FC<UptimeChartProps> = ({ target }) => {
-  const { getAccessToken, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   const { data: history, isLoading, isError } = useQuery({
     queryKey: ['healthHistory', target],
-    queryFn: async () => {
-      const token = await getAccessToken();
-      setAuthToken(token);
-      return healthService.getTargetHistory(target, 30);
-    },
+    queryFn: () => healthService.getTargetHistory(target, 30),
     enabled: isAuthenticated && !!target,
     refetchInterval: 30000, // Refresh every 30s
   });

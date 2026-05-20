@@ -5,6 +5,7 @@ import { useAuth } from './hooks/useAuth';
 function App() {
   const { isAuthenticated, isProcessing } = useAuth();
 
+
   // If we are in the middle of a login/redirect process, show a clean loading screen
   if (isProcessing) {
     return (

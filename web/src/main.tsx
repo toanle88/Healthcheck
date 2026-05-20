@@ -2,13 +2,12 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
-import { PublicClientApplication, EventType, type AuthenticationResult } from "@azure/msal-browser";
+import { EventType, type AuthenticationResult } from "@azure/msal-browser";
 import { MsalProvider } from "@azure/msal-react";
-import { msalConfig } from "./authConfig";
+import { msalInstance } from "./authConfig";
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-const msalInstance = new PublicClientApplication(msalConfig);
 const queryClient = new QueryClient({
     defaultOptions: {
         queries: {

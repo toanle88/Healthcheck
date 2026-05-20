@@ -15,7 +15,7 @@ func TestPingTarget(t *testing.T) {
 	}))
 	defer tsUp.Close()
 
-	status, latency := pingTarget(context.Background(), tsUp.URL)
+	status, latency := pingTarget(context.Background(), http.DefaultClient, tsUp.URL)
 	if status != "up" {
 		t.Errorf("Expected status 'up', got %s", status)
 	}
@@ -29,7 +29,7 @@ func TestPingTarget(t *testing.T) {
 	}))
 	defer tsDown.Close()
 
-	status, _ = pingTarget(context.Background(), tsDown.URL)
+	status, _ = pingTarget(context.Background(), http.DefaultClient, tsDown.URL)
 	if status != "down" {
 		t.Errorf("Expected status 'down', got %s", status)
 	}
@@ -44,7 +44,7 @@ func TestPingTarget(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 
-	status, _ = pingTarget(ctx, tsTimeout.URL)
+	status, _ = pingTarget(ctx, http.DefaultClient, tsTimeout.URL)
 	if status != "down" {
 		t.Errorf("Expected status 'down' on timeout, got %s", status)
 	}

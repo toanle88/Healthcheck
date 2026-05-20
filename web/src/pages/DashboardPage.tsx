@@ -8,7 +8,6 @@ import ErrorDisplay from '../components/common/ErrorDisplay';
 import { useHealthQuery } from '../hooks/useHealthQuery';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
-import { setAuthToken } from '../lib/axios';
 import { healthService } from '../services/healthService';
 import { Settings, Plus, Trash2, Globe, Sparkles } from 'lucide-react';
 
@@ -23,7 +22,7 @@ const DashboardPage: React.FC = () => {
     refetch 
   } = useHealthQuery();
 
-  const { getAccessToken, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
 
   const [showManage, setShowManage] = useState(false);
@@ -34,21 +33,13 @@ const DashboardPage: React.FC = () => {
   // Query to fetch all targets
   const { data: targetsList } = useQuery({
     queryKey: ['targets'],
-    queryFn: async () => {
-      const token = await getAccessToken();
-      setAuthToken(token);
-      return healthService.getTargets();
-    },
+    queryFn: () => healthService.getTargets(),
     enabled: isAuthenticated && showManage,
   });
 
   // Mutation to add a target
   const addTargetMutation = useMutation({
-    mutationFn: async ({ name, url }: { name: string; url: string }) => {
-      const token = await getAccessToken();
-      setAuthToken(token);
-      return healthService.createTarget(name, url);
-    },
+    mutationFn: ({ name, url }: { name: string; url: string }) => healthService.createTarget(name, url),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['targets'] });
       queryClient.invalidateQueries({ queryKey: ['healthStatus'] });
@@ -64,11 +55,7 @@ const DashboardPage: React.FC = () => {
 
   // Mutation to delete a target
   const deleteTargetMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const token = await getAccessToken();
-      setAuthToken(token);
-      return healthService.deleteTarget(id);
-    },
+    mutationFn: (id: number) => healthService.deleteTarget(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['targets'] });
       queryClient.invalidateQueries({ queryKey: ['healthStatus'] });
