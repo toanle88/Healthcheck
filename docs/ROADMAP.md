@@ -4,7 +4,7 @@ This roadmap breaks the 2-week DevOps playground into daily, shippable milestone
 
 ## Phase 0 — Setup (Day 0)
 **Goal:** Clean repo, tooling ready
-- [x] `git init`, create repo structure from PROJECT.md
+- [x] `git init`, create repository structure
 - [x] Install: Go 1.26, Docker, Terraform ≥1.7, Azure CLI, golangci-lint, Trivy
 - [x] `az login` and create dev subscription/resource group
 - [x] Create GitHub repo, enable Actions, add OIDC federated credential for Azure
@@ -155,11 +155,10 @@ Implement full-stack improvements to make the application highly interactive and
 
 ---
 
-## Daily Workflow with Meta AI Web
+## Daily Workflow with AI Assistant
 For each task, upload:
 1. Current file you're editing
-2. `PROJECT.md` for context
-3. One example from repo
+2. One example or schema file from repo
 
 Example prompt for Day 4:
 > "Based on Dockerfile.api in this project, create Dockerfile.worker for cmd/worker/main.go using same distroless hardening. Output only Dockerfile."

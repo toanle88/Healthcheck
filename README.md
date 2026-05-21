@@ -2,7 +2,7 @@
 
 A tiny, production-like app built specifically to learn **CI/CD, Terraform, Docker, monitoring, and security on Azure using Go**. The app pings 3 public APIs every minute and shows green/red status, so you spend 90% of your time on infra, not features.
 
-See [PROJECT.md](./docs/PROJECT.md) for full specs, [ROADMAP.md](./docs/ROADMAP.md) for the 14-day plan, and [AGENT_GUIDELINES.md](./docs/AGENT_GUIDELINES.md) for code style and structure standards.
+See [ROADMAP.md](file:///mnt/d/Dev/Projects/Healthcheck/docs/ROADMAP.md) for the 14-day plan, and [AGENT_GUIDELINES.md](file:///mnt/d/Dev/Projects/Healthcheck/docs/AGENT_GUIDELINES.md) for code style and structure standards.
 
 ## 🎯 Learning Goals
 
@@ -149,7 +149,7 @@ source .env.azure    # for terraform
 ├── Dockerfile.worker
 ├── docker-compose.yml
 ├── go.mod
-└── PROJECT.md
+└── go.sum
 ```
 
 ## 🎓 Learning Center
@@ -294,12 +294,11 @@ cd infra/envs/dev
 terraform destroy -auto-approve
 ```
 
-## 🤖 Using with Meta AI
+## 🤖 Using an AI Assistant
 
 When asking for help, upload:
-1. The file you're editing (e.g., `internal/config/config.go`)
-2. `PROJECT.md`
-3. One related example
+1. The file you're editing (e.g., [config.go](file:///mnt/d/Dev/Projects/Healthcheck/internal/config/config.go))
+2. One related example or module file
 
 Example: "Based on Dockerfile.api, generate Dockerfile.worker for ./cmd/worker with same distroless hardening."
 
