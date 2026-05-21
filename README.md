@@ -2,7 +2,7 @@
 
 A tiny, production-like app built specifically to learn **CI/CD, Terraform, Docker, monitoring, and security on Azure using Go**. The app pings 3 public APIs every minute and shows green/red status, so you spend 90% of your time on infra, not features.
 
-See `PROJECT.md` for full specs and `ROADMAP.md` for the 14-day plan.
+See [PROJECT.md](./docs/PROJECT.md) for full specs, [ROADMAP.md](./docs/ROADMAP.md) for the 14-day plan, and [AGENT_GUIDELINES.md](./docs/AGENT_GUIDELINES.md) for code style and structure standards.
 
 ## 🎯 Learning Goals
 
@@ -26,6 +26,8 @@ Browser → Azure Container Apps (Web) → Entra External ID (CIAM)
 This project uses a **"Clean Split"** architecture: Core infrastructure is automated via Terraform, while Customer Identity (CIAM) is managed as a curated one-time setup for maximum stability.
 
 ## 🛠️ Development & Quality
+
+For detailed conventions on styling, code structure, architecture, and testing for both backend, frontend, and infrastructure, please consult the **[Developer & Agent Guidelines](./docs/AGENT_GUIDELINES.md)**.
 
 ### Code Formatting
 This project strictly enforces Go standards. To fix any formatting issues before pushing to GitHub, run:
