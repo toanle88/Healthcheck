@@ -26,6 +26,17 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}🚀 Starting Full Project Check...${NC}"
 
+# --- 0. Generate & Sync OpenAPI Spec ---
+echo -e "\n${BLUE}--- [0/6] Generating OpenAPI Specification (swag) ---${NC}"
+if ! command -v swag &> /dev/null; then
+    echo -e "${BLUE}swag not found. Installing via go install...${NC}"
+    go install github.com/swaggo/swag/cmd/swag@latest
+fi
+swag init -g cmd/api/main.go --output docs --outputTypes json --quiet
+rm -f docs/swagger.json
+cp docs/openapi.json internal/handler/openapi.json
+echo -e "${GREEN}✓ Generated docs/openapi.json (OpenAPI 3.1) and synced to internal/handler/openapi.json${NC}"
+
 # --- 1. Backend Format Check ---
 echo -e "\n${BLUE}--- [1/6] Checking Backend Code Formatting (gofmt) ---${NC}"
 if [ "$FIX_MODE" = true ]; then

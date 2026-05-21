@@ -1,0 +1,528 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Healthcheck API",
+    "description": "API documentation for the Healthcheck Dashboard, a DevOps playground application monitoring public APIs.",
+    "version": "2.0.0"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Relative server URL"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Check service health",
+        "description": "Returns the operational status, current time, and service name.",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "time": {
+                      "type": "string",
+                      "format": "date-time",
+                      "example": "2026-05-21T03:14:07Z"
+                    },
+                    "service": {
+                      "type": "string",
+                      "example": "healthcheck-api"
+                    }
+                  },
+                  "required": ["status", "time", "service"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/status": {
+      "get": {
+        "summary": "Get latest checks status",
+        "description": "Retrieves the most recent check results for all active targets, including their computed 24-hour SLA.",
+        "security": [
+          {
+            "EntraID": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved status checks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer",
+                      "example": 3
+                    },
+                    "checks": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Check"
+                      }
+                    }
+                  },
+                  "required": ["count", "checks"]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history": {
+      "get": {
+        "summary": "Get historical checks",
+        "description": "Retrieves the execution history of health checks for a specified target URL.",
+        "security": [
+          {
+            "EntraID": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "target",
+            "in": "query",
+            "required": true,
+            "description": "The exact URL of the target to fetch history for.",
+            "schema": {
+              "type": "string",
+              "example": "https://github.com"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "The maximum number of history records to return.",
+            "schema": {
+              "type": "integer",
+              "default": 30,
+              "example": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved historical records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Check"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/targets": {
+      "get": {
+        "summary": "List monitored targets",
+        "description": "Retrieves all currently registered endpoints that are scheduled for active monitoring.",
+        "security": [
+          {
+            "EntraID": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of monitored targets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Target"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a monitored target",
+        "description": "Adds a new target URL to the dashboard scheduler.",
+        "security": [
+          {
+            "EntraID": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Display name of the target service.",
+                    "example": "Google Search"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Target endpoint URL.",
+                    "example": "https://google.com"
+                  }
+                },
+                "required": ["name", "url"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successfully created target",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Target"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/targets/{id}": {
+      "delete": {
+        "summary": "Delete monitored target",
+        "description": "Removes a target by its unique identifier, halting its periodic check schedule.",
+        "security": [
+          {
+            "EntraID": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The unique integer ID of the target resource.",
+            "schema": {
+              "type": "integer",
+              "example": 5
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully deleted target",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "target deleted"
+                    }
+                  },
+                  "required": ["message"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid ID value provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Target ID does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/test/error": {
+      "get": {
+        "summary": "Chaos Test: Error Handler",
+        "description": "Simulates an internal database/server error to validate error response models and alert integrations.",
+        "responses": {
+          "500": {
+            "description": "Mocked internal server error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/test/slow": {
+      "get": {
+        "summary": "Chaos Test: Latency Spikes",
+        "description": "Delays the API response by 2000ms to test client request timeouts and threshold alerts.",
+        "responses": {
+          "200": {
+            "description": "Slow response message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Chaos alert triggered: slow response"
+                    }
+                  },
+                  "required": ["message"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Prometheus Metrics",
+        "description": "Exposes standard OpenTelemetry system and application performance metrics.",
+        "responses": {
+          "200": {
+            "description": "Standard Prometheus text format metrics",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "# HELP go_goroutines Number of goroutines that currently exist.\n# TYPE go_goroutines gauge\ngo_goroutines 18"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "EntraID": {
+        "type": "oauth2",
+        "description": "Microsoft Entra ID (CIAM) authentication context",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+            "tokenUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+            "scopes": {}
+          }
+        }
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Enter your Bearer token directly"
+      }
+    },
+    "schemas": {
+      "Check": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name of the target.",
+            "example": "GitHub"
+          },
+          "target": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL target checked.",
+            "example": "https://github.com"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["up", "down", "pending"],
+            "description": "Health status outcome.",
+            "example": "up"
+          },
+          "latency_ms": {
+            "type": "integer",
+            "description": "Check request duration in milliseconds.",
+            "example": 78
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when target was verified.",
+            "example": "2026-05-21T03:14:07Z"
+          },
+          "uptime_sla": {
+            "type": "number",
+            "format": "float",
+            "description": "Computed 24-hour service uptime compliance SLA percentage.",
+            "example": 99.98
+          }
+        },
+        "required": ["name", "target", "status", "latency_ms", "checked_at", "uptime_sla"]
+      },
+      "Target": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Unique auto-incrementing record database identifier.",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "description": "Monitored target display name.",
+            "example": "Httpbin"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Endpoint URL verified by cron worker.",
+            "example": "http://httpbin.org/get"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Boolean state indicating if the monitor scheduler is active.",
+            "example": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record creation timestamp.",
+            "example": "2026-05-20T23:42:12Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last update record timestamp.",
+            "example": "2026-05-20T23:42:12Z"
+          }
+        },
+        "required": ["id", "name", "url", "is_active", "created_at", "updated_at"]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Underlying error context details.",
+            "example": "target not found"
+          }
+        },
+        "required": ["error"]
+      }
+    }
+  }
+}

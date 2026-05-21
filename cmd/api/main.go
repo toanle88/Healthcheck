@@ -18,6 +18,20 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
+// @title Healthcheck API
+// @version 2.0.0
+// @description API documentation for the Healthcheck Dashboard, a DevOps playground application monitoring public APIs.
+// @host localhost:8080
+// @BasePath /
+
+// @securityDefinitions.oauth2.implicit EntraID
+// @authorizationurl https://login.microsoftonline.com/common/oauth2/v2.0/authorize
+// @scope.api://default/access_as_user Access Healthcheck API as user
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Enter "Bearer <token>" to authenticate.
 var Version = "dev"
 
 func main() {
@@ -89,6 +103,8 @@ func main() {
 
 	// --- PUBLIC ROUTES ---
 	r.GET("/health", h.Health)
+	r.GET("/openapi.json", h.OpenAPISpec)
+	r.GET("/docs", h.Docs)
 
 	// --- PROTECTED ROUTES ---
 	api := r.Group("/api")

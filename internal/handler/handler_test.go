@@ -93,3 +93,38 @@ func TestStatus(t *testing.T) {
 		t.Errorf("Expected 1 check, got %d", len(checks))
 	}
 }
+
+func TestDocs(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h := New(&mockStore{})
+	r := gin.New()
+	r.GET("/openapi.json", h.OpenAPISpec)
+	r.GET("/docs", h.Docs)
+
+	// Test OpenAPI Spec
+	w1 := httptest.NewRecorder()
+	req1, _ := http.NewRequest("GET", "/openapi.json", nil)
+	r.ServeHTTP(w1, req1)
+
+	if w1.Code != http.StatusOK {
+		t.Errorf("Expected status 200 for openapi.json, got %d", w1.Code)
+	}
+	contentType1 := w1.Header().Get("Content-Type")
+	if contentType1 != "application/json" {
+		t.Errorf("Expected Content-Type application/json, got %s", contentType1)
+	}
+
+	// Test Docs page
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest("GET", "/docs", nil)
+	r.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Errorf("Expected status 200 for docs, got %d", w2.Code)
+	}
+	contentType2 := w2.Header().Get("Content-Type")
+	if contentType2 != "text/html; charset=utf-8" {
+		t.Errorf("Expected Content-Type text/html; charset=utf-8, got %s", contentType2)
+	}
+}

@@ -8,6 +8,19 @@ param(
 
 Write-Host "🚀 Starting Full Project Check..." -ForegroundColor Blue
 
+# --- 0. Generate & Sync OpenAPI Spec ---
+Write-Host "`n--- [0/6] Generating OpenAPI Specification (swag) ---" -ForegroundColor Blue
+if (-not (Get-Command swag -ErrorAction SilentlyContinue)) {
+    Write-Host "swag not found. Installing via go install..." -ForegroundColor Blue
+    go install github.com/swaggo/swag/cmd/swag@latest
+    if ($LASTEXITCODE -ne 0) { Write-Host "❌ Failed to install swag" -ForegroundColor Red; exit $LASTEXITCODE }
+}
+swag init -g cmd/api/main.go --output docs --outputTypes json --quiet
+if ($LASTEXITCODE -ne 0) { Write-Host "❌ swag generation failed" -ForegroundColor Red; exit $LASTEXITCODE }
+Remove-Item docs/swagger.json -ErrorAction SilentlyContinue
+Copy-Item docs/openapi.json internal/handler/openapi.json -Force
+Write-Host "✓ Generated docs/openapi.json (OpenAPI 3.1) and synced to internal/handler/openapi.json" -ForegroundColor Green
+
 # --- 1. Backend Format Check ---
 Write-Host "`n--- [1/6] Checking Backend Code Formatting (gofmt) ---" -ForegroundColor Blue
 if ($Fix) {

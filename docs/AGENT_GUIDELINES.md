@@ -75,6 +75,12 @@ The repository follows a clean, modular structure. Any new code should fit into 
 - Wrap errors with additional context when passing them up the stack using `fmt.Errorf("context: %w", err)`.
 - In handlers, log the raw error and return a sanitized response to the user to prevent leakage of internal architecture details.
 
+### 6. API Documentation (Scalar)
+- API documentation is served dynamically at `/docs` using **Scalar**.
+- The underlying OpenAPI 3.1.0 specification is stored in `docs/openapi.json`.
+- The validation scripts (`check.sh` and `check.ps1`) automatically synchronize this file to `internal/handler/openapi.json` for binary embedding and serving at `/openapi.json`.
+- Developers and agents modifying API routes or payloads should update `docs/openapi.json` and run the validation script to automatically synchronize and test the updates.
+
 ---
 
 ## ⚛️ Frontend Standards (React + TypeScript + Tailwind)

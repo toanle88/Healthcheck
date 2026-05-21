@@ -176,6 +176,7 @@ docker-compose up --build
 - **Dashboard**: [http://localhost:5173](http://localhost:5173)
 - **API Health**: [http://localhost:8080/health](http://localhost:8080/health)
 - **API Status**: [http://localhost:8080/api/status](http://localhost:8080/api/status)
+- **API Documentation (Scalar)**: [http://localhost:8080/docs](http://localhost:8080/docs) (Interactive playground with Entra ID and manual Bearer Token authentication support)
 
 ### 📊 Observability Dashboards
 This project includes a full-stack observability suite:

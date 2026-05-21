@@ -31,7 +31,19 @@ func New(s Storer) *Handler {
 	return &Handler{store: s}
 }
 
-// GET /health
+// CreateTargetInput defines the schema for target creation request body.
+type CreateTargetInput struct {
+	Name string `json:"name" binding:"required" example:"Google"`
+	URL  string `json:"url" binding:"required,url" example:"https://google.com"`
+}
+
+// Health godoc
+// @Summary Check service health
+// @Description Returns the operational status, current time, and service name.
+// @Tags Health
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Router /health [get]
 func (h *Handler) Health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "ok",
@@ -40,21 +52,39 @@ func (h *Handler) Health(c *gin.Context) {
 	})
 }
 
-// GET /api/status
+// Status godoc
+// @Summary Get latest checks status
+// @Description Retrieves the most recent check results for all active targets, including their computed 24-hour SLA.
+// @Tags Status
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /api/status [get]
+// @Security EntraID
+// @Security BearerAuth
 func (h *Handler) Status(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	// Call the new store method which handles the grouping and latest logic
 	checks, err := h.store.GetLatestChecks(ctx)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(200, gin.H{"checks": checks, "count": len(checks)})
+	c.JSON(http.StatusOK, gin.H{"checks": checks, "count": len(checks)})
 }
 
-// GET /api/history
+// History godoc
+// @Summary Get historical checks
+// @Description Retrieves historical ping results for a specific target URL.
+// @Tags History
+// @Produce json
+// @Param target query string true "Target URL to filter history by"
+// @Param limit query int false "Max historical records to return (default 30)"
+// @Success 200 {array} store.Check
+// @Router /api/history [get]
+// @Security EntraID
+// @Security BearerAuth
 func (h *Handler) History(c *gin.Context) {
 	target := c.Query("target")
 	if target == "" {
@@ -77,7 +107,15 @@ func (h *Handler) History(c *gin.Context) {
 	c.JSON(http.StatusOK, checks)
 }
 
-// GET /api/targets
+// GetTargets godoc
+// @Summary Get all monitored targets
+// @Description Retrieves the list of active URL targets being monitored by the system.
+// @Tags Targets
+// @Produce json
+// @Success 200 {array} store.Target
+// @Router /api/targets [get]
+// @Security EntraID
+// @Security BearerAuth
 func (h *Handler) GetTargets(c *gin.Context) {
 	ctx := c.Request.Context()
 	targets, err := h.store.GetTargets(ctx)
@@ -88,12 +126,19 @@ func (h *Handler) GetTargets(c *gin.Context) {
 	c.JSON(http.StatusOK, targets)
 }
 
-// POST /api/targets
+// CreateTarget godoc
+// @Summary Create a monitored target
+// @Description Adds a new target URL to the monitoring queue.
+// @Tags Targets
+// @Accept json
+// @Produce json
+// @Param target body CreateTargetInput true "Target configuration details"
+// @Success 201 {object} store.Target
+// @Router /api/targets [post]
+// @Security EntraID
+// @Security BearerAuth
 func (h *Handler) CreateTarget(c *gin.Context) {
-	var input struct {
-		Name string `json:"name" binding:"required"`
-		URL  string `json:"url" binding:"required,url"`
-	}
+	var input CreateTargetInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -110,7 +155,16 @@ func (h *Handler) CreateTarget(c *gin.Context) {
 	c.JSON(http.StatusCreated, target)
 }
 
-// DELETE /api/targets/:id
+// DeleteTarget godoc
+// @Summary Delete a monitored target
+// @Description Removes a URL target from the monitor list by its database ID.
+// @Tags Targets
+// @Produce json
+// @Param id path int true "Target Database ID"
+// @Success 200 {object} map[string]string
+// @Router /api/targets/{id} [delete]
+// @Security EntraID
+// @Security BearerAuth
 func (h *Handler) DeleteTarget(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -131,12 +185,24 @@ func (h *Handler) DeleteTarget(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "target deleted"})
 }
 
-// GET /api/test/error (Chaos Testing)
+// TestError godoc
+// @Summary Trigger a chaos error
+// @Description Artificially triggers a 500 Internal Server Error for testing observability and alerting.
+// @Tags Chaos
+// @Produce json
+// @Success 500 {object} map[string]string
+// @Router /api/test/error [get]
 func (h *Handler) TestError(c *gin.Context) {
 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Chaos alert triggered: internal server error"})
 }
 
-// GET /api/test/slow (Chaos Testing)
+// TestSlow godoc
+// @Summary Trigger a slow chaos response
+// @Description Deliberately delays the response by 2 seconds to test timeout handling and latency metrics.
+// @Tags Chaos
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Router /api/test/slow [get]
 func (h *Handler) TestSlow(c *gin.Context) {
 	time.Sleep(2 * time.Second)
 	c.JSON(http.StatusOK, gin.H{"message": "Chaos alert triggered: slow response"})

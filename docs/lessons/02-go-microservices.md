@@ -47,6 +47,14 @@ In `middleware/auth.go`, we:
 2.  Validate it against your Azure CIAM tenant.
 3.  Only if the token is valid does the code allow the request to reach the database.
 
+## 5. Embedded API Documentation (Scalar) 📖🔍
+
+To make developer onboarding seamless, the API embeds its own interactive documentation using **Scalar** and the standard OpenAPI 3.1.0 specification.
+
+- **Single-Binary Distribution (`go:embed`)**: The OpenAPI JSON schema (`openapi.json`) is embedded directly into the Go binary at build time. This ensures that the documentation is always packaged with the application and never gets out of sync or lost.
+- **Dynamic Configuration**: The server dynamically rewrites the OpenAPI authorization and token URLs to point to the active Microsoft Entra ID tenant (from the `ENTRA_TENANT_ID` and `ENTRA_CLIENT_ID` environment variables) when served.
+- **Dual Authentication Modes**: Developers can authenticate via the standard Entra ID redirect login flow (pre-filled with the active Client ID) or manually paste a Bearer JWT token directly into the Scalar console.
+
 ---
 
 ### Key Takeaway
