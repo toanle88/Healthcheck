@@ -1,46 +1,30 @@
 # Lesson 04: Azure Container Apps 🚀🌀
 
-Azure Container Apps (ACA) is our "Serverless" platform. It gives us the power of Kubernetes without the headache of managing it.
-
-## 1. The Environment Foundation (The Sandbox Infrastructure)
-
-Before executing container runtimes, we configure the administrative platform for security, networking, and log collection:
-
-### A. The Log Hub (`azurerm_log_analytics_workspace`)
-```hcl
-resource "azurerm_log_analytics_workspace" "main" {
-  name              = "log-healthcheck-${var.environment}"
-  sku               = "PerGB2018"
-  retention_in_days = 30
-}
-```
-All system stdout/stderr streams from our containers are automatically routed to this centralized Log Analytics Workspace. It acts as the central data sink for our observability queries.
-
-### B. The Shared Cluster (`azurerm_container_app_environment`)
-```hcl
-resource "azurerm_container_app_environment" "main" {
-  name                       = "cae-healthcheck-${var.environment}"
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
-  infrastructure_subnet_id   = var.subnet_id # Links to snet-apps
-}
-```
-This is the boundary enclosing our Container Apps. Linking it to our `subnet_id` binds it directly inside our Virtual Network, letting our apps communicate securely over private IPs.
-
-### C. Registry Access (`azurerm_role_assignment`)
-```hcl
-resource "azurerm_role_assignment" "acr_pull" {
-  scope                = var.acr_id
-  role_definition_name = "AcrPull"
-  principal_id         = var.app_identity_principal_id
-}
-```
-Since our Container Registry is secure, Azure Container Apps needs permission to pull our private Docker images. We assign the **`AcrPull`** role to the container app's user-assigned managed identity. **No registry credentials ever touch our environment!**
+Azure Container Apps (ACA) is our cloud platform for deploying containers. Under the hood, ACA runs on **Kubernetes (AKS)**, uses **KEDA** for scaling, and leverages **Envoy** as an ingress proxy—but it hides all this complexity, giving you the power of Kubernetes without the administrative overhead.
 
 ---
 
-## 2. Scale-to-Zero: The Money Saver 💰💤
+## 📁 1. The Container Sandbox Infrastructure
 
-In `modules/containerapp/main.tf`, we set:
+Before running any containers, we provision the control plane and administrative backing resources:
+
+### A. The Log Analytics Workspace
+A centralized logging database. All stdout (standard output) and stderr (standard error) logs printed by our Go binaries are automatically piped here.
+*   **Log Retention:** Configured for 30 days to optimize cost while keeping enough historical data for troubleshooting.
+
+### B. The Container App Environment (CAE)
+The CAE represents the secure boundary (virtual cluster) enclosing our apps. By linking the CAE to our virtual network subnet (`infrastructure_subnet_id = var.subnet_id`), all containers inside it are placed into the private network space. They can talk to the database securely and call each other over internal DNS names.
+
+### C. ACR Role Mappings (`AcrPull`)
+Our Azure Container Registry (ACR) is private. To pull Docker images, we assign the User-Assigned Managed Identity of the Container App the **`AcrPull`** role over the registry.
+*   **Security Win:** No passwords or docker registry keys are hardcoded in the deployment configs.
+
+---
+
+## 💤 2. Autoscaling & KEDA (Scale-to-Zero)
+
+One of the best cost-saving features of serverless container hosting is **Scale-to-Zero**:
+
 ```hcl
 template {
   min_replicas = 0
@@ -48,101 +32,74 @@ template {
 }
 ```
 
-*   **How it works**: Azure uses **KEDA** (Kubernetes Event-driven Autoscaling). KEDA actively monitors the Ingress. If 5 minutes pass with 0 HTTP requests, it terminates all replicas.
-*   **Cold Start**: When a new request arrives, Azure wakes up the app. This is the optimal cost-saving mechanism for Dev/Test environments.
+### How KEDA Works
+**KEDA** (Kubernetes Event-driven Autoscaling) monitors external triggers. For our web API, the trigger is HTTP traffic.
+1.  **Scaling Down:** If the system detects 0 requests for 5 minutes (the cool-down period), KEDA terminates all running container replicas. The application consumes **zero** CPU and memory, costing you **$0**.
+2.  **Scaling Up (Cold Start):** When a user visits the dashboard, the public ingress routes the request. KEDA detects the request, provisions a new container, and boots it.
+3.  **The Go Advantage:** Because Go compiles to a single, highly optimized native binary (with no heavy JVM or node_modules to load), our cold starts take less than 1-2 seconds.
 
 ---
 
-## 3. Revisions: The Safety Net 🛡️🔄
+## 🔄 3. Revisions & Traffic Splitting
 
-We use `revision_mode = "Multiple"`.
+By running in `revision_mode = "Multiple"`, every change to our code or configuration creates a new **Revision** (an immutable snapshot of the application state).
 
-Every time you change environment variables or container images in Terraform, Azure creates a **New Revision**. 
-*   **The Blue-Green Split**: You can split traffic (e.g., 90/10) to canary test new code.
-*   **Automatic Rollback**: If a new revision fails its readiness probes on startup, Azure retains 100% of the traffic on the last healthy revision automatically.
-
----
-
-## 4. Jobs vs. Apps 🏃‍♂️ vs 🧍‍♂️
-
-*   **`azurerm_container_app` (The API/Web)**: Designed for long-running, interactive web processes. They have URLs and listen for requests.
-*   **`azurerm_container_app_job` (The Worker)**: Designed for one-off tasks. It has no URL, does not listen for requests, and executes on a **Cron schedule** (`cron_expression`), immediately shutting down upon completion.
-
----
-
-## 5. The Ingress (The Front Door) 🚪
-
-```hcl
-ingress {
-  external_enabled = true
-  target_port      = 8080
-  traffic_weight {
-    latest_revision = true
-    percentage      = 100
-  }
-}
+```mermaid
+graph LR
+    Ingress[Public Ingress] -->|90% Traffic| Rev1[Revision 1: Stable]
+    Ingress -->|10% Traffic| Rev2[Revision 2: Canary]
 ```
 
-*   **`external_enabled = true`**: Generates a public HTTPS URL.
-*   **`target_port = 8080`**: Maps incoming public TLS traffic (`443`) to the container's private port (`8080`).
-*   **Automatic TLS**: Azure manages the HTTPS certificates automatically behind the scenes.
-*   **Lifecycle Rules**: We added `ignore_changes = [ingress[0].traffic_weight]` in Terraform. This prevents Terraform from reverting manual traffic weight splits configured in the portal, giving us complete control over our manual Blue-Green deployments!
+*   **Canary Deployments:** We can route 90% of our traffic to the stable revision, and send 10% to the newly deployed revision to verify it works under real-world load without risking a major outage.
+*   **Automatic Rollback:** If a new revision fails its startup checks or health probes, ACA keeps 100% of traffic routing to the old revision.
+*   **Terraform Lifecycle Rule:** In our Terraform modules, we add `ignore_changes = [ingress[0].traffic_weight]`. This prevents Terraform from overwriting manual traffic splitting allocations during subsequent runs, allowing developers to manually shift traffic weights in the Azure Portal or CLI during a live release.
 
 ---
 
-## 6. Deep Dive: Monitoring & Observability (`modules/monitor/main.tf`) 📈🔔
+## 🏃‍♂️ 4. Apps vs. Jobs
 
-In modern microservices, you don't wait for your users to tell you your website is down. You design your system to monitor itself. This module creates a proactive observability loop:
+We run two distinct compute models inside Azure Container Apps:
 
-### A. The Telemetry Receiver (`azurerm_application_insights`)
-```hcl
-resource "azurerm_application_insights" "main" {
-  name                = "appi-healthcheck-${var.environment}"
-  application_type    = "web"
-  sampling_percentage = 100
-}
-```
-Application Insights is our **APM (Application Performance Management)** platform. Our Go application is instrumented with the **OpenTelemetry (OTel) Go SDK** to stream structured logs, latency metrics, and distributed execution traces directly here. Setting the sampling rate to `100` ensures we record every single developer request for inspection.
-
-### B. The Notification Hub (`azurerm_monitor_action_group`)
-```hcl
-resource "azurerm_monitor_action_group" "main" {
-  name       = "ag-healthcheck-${var.environment}"
-  short_name = "hc-alerts"
-
-  email_receiver {
-    name          = "admin"
-    email_address = var.alert_email
-  }
-}
-```
-An **Action Group** is a centralized notification list. Instead of hardcoding alert endpoints on every rule, we define this group once. If an alert fires, Azure instantly alerts the receivers via email, SMS, slack webhooks, or automated Azure functions.
-
-### C. Metric Alerts (Response Time & Spikes)
-We set up proactive, real-time metric thresholds directly on the Container App metrics:
-```hcl
-resource "azurerm_monitor_metric_alert" "latency" {
-  name   = "alert-latency-high-${var.environment}"
-  scopes = [var.api_container_app_id] # Watch the API container
-
-  criteria {
-    metric_namespace = "Microsoft.App/containerApps"
-    metric_name      = "ResponseTime"
-    aggregation      = "Average"
-    operator         = "GreaterThan"
-    threshold        = 500 # 500 milliseconds
-  }
-
-  action {
-    action_group_id = azurerm_monitor_action_group.main.id
-  }
-}
-```
-If the average response time of the API container app exceeds **500ms** within its evaluation window, Azure automatically fires the alert, categorizes it as a warning, and emails your administrative Action Group.
+*   **`azurerm_container_app` (The API/Web)**: A long-running service that listens on an HTTP port. It stays active to serve requests and scales up/down dynamically based on traffic concurrency.
+*   **`azurerm_container_app_job` (The Worker)**: A process designed for short-lived, run-to-completion tasks. It does not expose a port or listen for requests. Instead, it is triggered on a **Cron Schedule** (`cron_expression`), boots up, pings our target sites, logs the check in PostgreSQL, and immediately terminates.
 
 ---
 
-### Key Takeaway
-Azure Container Apps combined with Azure Monitor gives us enterprise-grade resilience out of the box. By defining KEDA auto-scaling, revision control, OTel telemetry, and Action Group alert chains directly in code, we ensure our environment is secure, robust, and entirely self-documenting.
+## 🔎 5. Troubleshooting Logs with Kusto (KQL)
 
-Next: **Lesson 05 — CI/CD & Security Compliance**.
+Because all container stdout/stderr logs are collected in our **Log Analytics Workspace**, we can query them using **KQL (Kusto Query Language)** inside the Azure Portal.
+
+Here are three essential KQL queries for troubleshooting:
+
+### A. View All Application Logs
+Use this to see all messages printed by your Go application's structured logger:
+```kusto
+ContainerAppConsoleLogs_CL
+| where ContainerAppName_s startswith "ca-healthcheck-api"
+| project TimeGenerated, Log_s
+| order by TimeGenerated desc
+| limit 100
+```
+
+### B. Search for Error Messages
+Filters the logs to show only entries containing the word "error" or failing connections:
+```kusto
+ContainerAppConsoleLogs_CL
+| where Log_s contains "error" or Log_s contains "failed"
+| project TimeGenerated, ContainerName_s, Log_s
+| order by TimeGenerated desc
+```
+
+### C. Check Worker Execution Status
+Queries the execution history of our background cron job to verify it is completing successfully:
+```kusto
+ContainerAppSystemLogs_CL
+| where ComponentType_s == "ContainerAppJob"
+| project TimeGenerated, Reason_s, Log_s
+| order by TimeGenerated desc
+```
+
+---
+
+### Next Steps 🚀
+Now that we understand how our containers scale and report status, let's explore **[Lesson 05: CI/CD & Security Compliance](file:///mnt/d/Dev/Projects/Healthcheck/docs/lessons/05-cicd-and-security.md)** to see how we build automated security audits and deployment pipelines.

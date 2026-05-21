@@ -1,129 +1,131 @@
 # Lesson 03: Infrastructure as Code (Terraform) 🏗️
 
-Terraform is the "Source of Truth" for our environment. If it's not in Terraform, it doesn't exist.
+Terraform is the "Source of Truth" for our cloud environments. Rather than clicking buttons manually inside the Azure Portal (which is slow, unrepeatable, and prone to errors), we define our entire infrastructure as HCL (HashiCorp Configuration Language) code.
 
-## 1. The Structure: "The Clean Split"
+---
 
-We split our Terraform into three logical layers:
+## 📁 1. The Directory Structure: "The Clean Split"
+
+To build enterprise-ready infrastructure, we partition our Terraform into three layers:
 
 ### A. The Bootstrap (`infra/bootstrap/`)
-This is the "Foundational" layer. It creates the resources that *store* our infrastructure, like the **Storage Account** for our `.tfstate` and the **Azure Container Registry (ACR)**. You only run this once.
+This is the foundational layer. It creates the resources that *store* our infrastructure, like the **Storage Account** for our Terraform state file (`.tfstate`) and the **Azure Container Registry (ACR)**.
+*   **Why it's split:** You only run this once. We build the registry first so we have a place to upload our Docker images *before* we deploy our container apps.
 
-### B. The Modules (`infra/modules/`)
-These are our reusable "LEGO bricks." 
-- **`network/`**: The VNet and NSGs.
-- **`postgres/`**: The Flexible Server.
-- **`identity/`**: The Managed Identities.
-- **`containerapp/`**: The logic for our containers.
+### B. Reusable Modules (`infra/modules/`)
+These are our reusable "LEGO bricks." They do not declare environments directly; instead, they define parameterized components:
+*   `network/`: Builds the Virtual Network (VNet), subnets, and Network Security Groups (NSGs).
+*   `postgres/`: Provisions the PostgreSQL Flexible Server database.
+*   `identity/`: Manages user-assigned identities and role mappings.
+*   `keyvault/`: Sets up a hardened Key Vault.
+*   `containerapp/`: Configures container app clusters and job processes.
 
 ### C. The Environments (`infra/envs/dev/`)
-This is where we "instantiate" the bricks. It’s like a recipe that says: *"Take the networking brick, the identity brick, and the container brick, and connect them together to make the 'Dev' environment."*
+This is where we combine our modules to build a specific environment (like Dev, Staging, or Prod). It acts as a configuration file, passing specific inputs (like smaller machine sizes for dev, or custom environment names) to our modules.
 
-## 2. Deep Dive: The Network Castle 🛡️
+---
 
-The `network` module (`modules/network/main.tf`) is our primary line of defense. It builds a private, multi-tier virtual space:
+## 🛡️ 2. Deep Dive: Networking & Subnets
+
+The network module (`modules/network/main.tf`) is our primary defense. It constructs our private virtual space:
 
 ```hcl
 resource "azurerm_virtual_network" "main" {
   name                = "vnet-healthcheck-${var.environment}"
-  address_space       = ["10.0.0.0/16"] # 65,536 private IP addresses
+  address_space       = ["10.0.0.0/16"]
 }
 ```
 
-### A. Subnet Delegation
-We slice this VNet into two `/24` subnets (256 private IPs each) and delegate them to specific services:
-*   **`snet-apps` (`10.0.1.0/24`)**: Delegated exclusively to `Microsoft.App/environments` for our containers.
-*   **`snet-db` (`10.0.2.0/24`)**: Delegated to `Microsoft.DBforPostgreSQL/flexibleServers`. This isolates the database inside our network sandbox.
+### Understanding CIDR Notation (For Beginners)
+*   **`10.0.0.0/16`**: The `/16` means the first 16 bits of the IP address (corresponding to `10.0.`) are locked. This leaves 16 bits for hosts, giving us a range from `10.0.0.0` to `10.0.255.255` (65,536 private IP addresses).
+*   **`/24` Subnets**: We slice this large block into smaller `/24` subnets (first 24 bits locked, like `10.0.1.`). This leaves 8 bits for hosts, giving us 256 IPs per subnet.
 
-### B. Network Security Groups (NSGs)
-We attach strict firewalls to each subnet to enforce the **Least Privilege** network access rule:
-1.  **Database Firewall (`nsg-db`)**: Only allows inbound traffic on port `5432` from the apps subnet (`10.0.1.0/24`). Everything else is dropped (`DenyAllInbound` rule).
-2.  **Apps Firewall (`nsg-apps`)**: Allows standard HTTPS (`443`) and HTTP (`80`) inbound from the `Internet`. It explicitly denies SSH (`22`) from all sources to pass Checkov security policies (`CKV_AZURE_10`).
+### Subnet Delegation
+Standard subnets are just generic pools of IP addresses. However, certain Azure services need deep integration with the network card layer.
+We tell Azure that specific subnets are reserved exclusively for specific services:
 
----
-
-## 3. The "Secret" to No Secrets 🚫🔑
-
-Look at `modules/identity/main.tf`. Instead of managing certificates or passwords, we split our security identities into two:
-
-1.  **Deployment Identity (`github_actions` / `id-github-actions-${var.environment}`)**:
-    *   Assigned the **"Contributor"** role strictly over our Resource Group.
-    *   GitHub Actions logs in *as* this identity via secure **OIDC Workload Identity Federation**.
-2.  **Runtime Identity (`apps` / `id-healthcheck-apps-${var.environment}`)**:
-    *   Has zero permission to create or delete cloud infrastructure.
-    *   Assigned only `Key Vault Secrets User` and `PostgreSQL Administrator` roles on those specific instances.
-    *   **Scope Isolation**: Even if a hacker compromised our container API, they cannot modify or delete anything inside your Azure subscription.
-
-### A. The Client Config Helper (`azurerm_client_config`)
-Inside `modules/postgres/main.tf` and `modules/keyvault/main.tf`, you'll see:
 ```hcl
-data "azurerm_client_config" "current" {}
+delegation {
+  name = "aca-delegation"
+  service_delegation {
+    name    = "Microsoft.App/environments"
+    actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+  }
+}
 ```
-This is a built-in provider utility that dynamically fetches the active deployment session's metadata (e.g., `tenant_id`, `subscription_id`, and `object_id`). We use it to automatically link our resources to your active Entra ID tenant without hardcoding sensitive IDs.
+*   **`Microsoft.App/environments`**: Delegated to Azure Container Apps (`snet-apps` / `10.0.1.0/24`).
+*   **`Microsoft.DBforPostgreSQL/flexibleServers`**: Delegated to PostgreSQL (`snet-db` / `10.0.2.0/24`).
+
+### Network Security Groups (NSGs)
+NSGs act as network firewalls at the subnet level. We use them to enforce the principle of **Least Privilege**:
+1.  **Database Subnet Security (`nsg-db`)**: We add a rule that only allows inbound traffic on port `5432` (Postgres) if it originates from our apps subnet IP range (`10.0.1.0/24`). All other traffic is blocked.
+2.  **Apps Subnet Security (`nsg-apps`)**: We block all incoming SSH traffic on port `22` to satisfy Checkov policy audits (`CKV_AZURE_10`).
 
 ---
 
-## 4. Deep Dive: The Database (`modules/postgres/main.tf`) 🐘
+## 🚫 3. OIDC and Identity Isolation
 
-This module implements a fully secure, scalable, and isolated PostgreSQL Flexible Server database tier:
+Instead of using credentials, we split our system into two distinct active identities:
 
-### A. Private DNS Zone & Link
+1.  **Deployment Identity (`id-github-actions`)**:
+    *   Assigned the `Contributor` role over our specific Resource Group.
+    *   GitHub Actions logs in *as* this identity via secure **OIDC (OpenID Connect) Workload Identity Federation**.
+    *   No credentials or client secrets are saved in GitHub secrets!
+2.  **Runtime Identity (`id-healthcheck-apps`)**:
+    *   This is the identity our Go containers run as.
+    *   It has zero rights to create, modify, or delete Azure resources.
+    *   It only has `Key Vault Secrets User` (to read configs) and `PostgreSQL Administrator` roles.
+
+---
+
+## 🐘 4. VNet Database Isolation (`modules/postgres/main.tf`)
+
+Because our PostgreSQL server has no public IP address, we must address two problems: how does the app find it, and how does the database authenticate users?
+
+### Private DNS Resolution
+Because our database is entirely private, standard public DNS servers cannot resolve its IP address. We create a **Private DNS Zone** inside our VNet:
+
 ```hcl
 resource "azurerm_private_dns_zone" "postgres" {
   name = "healthcheck.postgres.database.azure.com"
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "main" {
-  virtual_network_id  = var.vnet_id
+  virtual_network_id    = var.vnet_id
   private_dns_zone_name = azurerm_private_dns_zone.postgres.name
 }
 ```
-Because our database has zero public internet access (`public_network_access_enabled = false`), it only has a private IP address within our VNet. This DNS Zone maps the public database hostname to its private internal IP, so our apps can securely resolve it.
+This maps the database hostname (e.g., `psql-healthcheck-dev.postgres.database.azure.com`) directly to its private network IP address (`10.0.2.x`), allowing our Go applications to connect.
 
-### B. Flexible Server Engine
+### Enabling Entra ID Authentication
+We configure PostgreSQL to accept both standard database passwords and modern active directory tokens:
+
 ```hcl
-resource "azurerm_postgresql_flexible_server" "main" {
-  name                = "psql-healthcheck-${var.environment}"
-  delegated_subnet_id = var.subnet_id
-  private_dns_zone_id = azurerm_private_dns_zone.postgres.id
-  sku_name            = "B_Standard_B1ms" # Burstable tier perfect for dev ($0.017/hour)
-
-  authentication {
-    active_directory_auth_enabled = true
-    password_auth_enabled         = true
-  }
+authentication {
+  active_directory_auth_enabled = true
+  password_auth_enabled         = true
 }
 ```
-We set up dual authentication modes (`authentication`), enabling both traditional password logins (used as a fallback) and modern, highly secure **Active Directory (Entra ID) token-based authentication**.
 
 ---
 
-## 5. Deep Dive: Key Vault Secrets (`modules/keyvault/main.tf`) 🔑
+## 🔑 5. Secure Configurations (`modules/keyvault/main.tf`)
 
-Key Vault secures our system configuration, but it has its own strict security rules:
+Key Vault is where we store application configurations (like API keys or endpoints). We configure it to use modern **Role-Based Access Control (RBAC)** instead of legacy access policies:
 
 ```hcl
 resource "azurerm_key_vault" "main" {
   name                        = "kv-hc-${var.environment}-${random_string.kv_suffix.result}"
   tenant_id                   = data.azurerm_client_config.current.tenant_id
   sku_name                    = "standard"
-  rbac_authorization_enabled  = true # Uses modern RBAC roles instead of legacy access policies
+  rbac_authorization_enabled  = true
 }
 ```
 
-### A. Role-Based Vault Access
-Normally, even a subscription "Owner" cannot read or write secrets inside a Key Vault by default. To solve this, we explicitly assign our deployment identity the **Secrets Officer** role:
-```hcl
-resource "azurerm_role_assignment" "current_user_secrets" {
-  scope                = azurerm_key_vault.main.id
-  role_definition_name = "Key Vault Secrets Officer"
-  principal_id         = data.azurerm_client_config.current.object_id
-}
-```
+### Access Isolation
+By setting `rbac_authorization_enabled = true`, access to the vault is managed using standard Azure role assignments. Even the user who created the subscription cannot read secrets inside the Key Vault unless they are explicitly assigned the **Key Vault Secrets Officer** or **Key Vault Secrets User** role!
 
 ---
 
-### Key Takeaway
-Terraform allows us to build complex security (VNets, NSGs, Postgres Private Links, RBAC Key Vaults, and OIDC Identities) in a repeatable, documentable blueprint. We don't "hope" the security is right; we *code* it to be right.
-
-Next: **Lesson 04 — Azure Container Apps (Scaling & Resilience)**.
+### Next Steps 🚀
+Now that we've coded our environment blueprint, let's explore **[Lesson 04: Azure Container Apps](file:///mnt/d/Dev/Projects/Healthcheck/docs/lessons/04-azure-container-apps.md)** to see how we deploy, scale, and monitor our Go containers.

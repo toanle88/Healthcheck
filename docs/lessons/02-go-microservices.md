@@ -1,21 +1,47 @@
 # Lesson 02: Go Microservices 🐹
 
-Our Go application is designed to be **Cloud-Native**. This means it doesn't just run *on* Azure; it *integrates* with Azure services.
+Our Go application is built to be **Cloud-Native**. This means it is optimized for container environments, integrates seamlessly with Azure Managed Identity, and exposes structured telemetry for cloud monitoring.
 
-## 1. The Entry Points (`cmd/`)
+---
 
-We have two separate binaries built from the same codebase:
-- **`cmd/api/main.go`**: The long-running web server (using the Gin framework).
-- **`cmd/worker/main.go`**: The short-lived task runner.
+## 📂 1. Core Codebase Layout
 
-They share the same business logic in the `internal/` folder, which keeps our code DRY (Don't Repeat Yourself).
+To keep code DRY (Don't Repeat Yourself), the codebase is split into entry points (`cmd/`) and reusable packages (`internal/`):
 
-## 2. Passwordless Database Connections (`internal/store`)
+*   **`cmd/api/main.go`**: The entry point for the HTTP web server. It handles client requests, serves dashboard statistics, and exposes REST endpoints using the **Gin** framework.
+*   **`cmd/worker/main.go`**: A short-lived, background cron process. It wakes up every minute, pings target websites, measures latency, records success/failure, writes to Postgres, and exits.
+*   **`internal/`**: Reusable modules shared by both the API and the Worker:
+    *   `config/`: Manages configuration loading.
+    *   `store/`: Houses database queries, schemas, and connection pools.
+    *   `middleware/`: Handles security and authentication.
+    *   `monitor/`: Packages OpenTelemetry (OTel) metrics and tracing setup.
 
-This is the "Magic" part of the project. Look at `internal/store/postgres.go`.
+---
+
+## 🔑 2. Passwordless Connections (`internal/store/postgres.go`)
+
+Let's look at how the application connects to PostgreSQL without storing a password.
+
+In [postgres.go](file:///mnt/d/Dev/Projects/Healthcheck/internal/store/postgres.go), we parse our database configuration:
 
 ```go
-// The secret sauce: Azure AD Token Authentication
+cfg, err := pgxpool.ParseConfig(databaseURL)
+```
+
+In a standard application, `databaseURL` would look like `postgres://username:PASSWORD@hostname:5432/dbname`. In our cloud environment, the password is left blank. Instead, we use **Azure Active Directory (Entra ID) token-based authentication**:
+
+```go
+cred, err := azidentity.NewDefaultAzureCredential(nil)
+```
+
+`NewDefaultAzureCredential` is a helper from the Azure SDK that automatically scans the host environment to authenticate:
+1. When running in **Azure**, it automatically finds and uses the **User-Assigned Managed Identity** attached to the Container App.
+2. When running in **local development**, it can fall back to environment variables or credentials logged in via the Azure CLI (`az login`).
+
+### The Connection Hook
+Because Entra ID access tokens expire every 60 minutes, we cannot request a token just once when the app starts. Instead, we configure a connection hook:
+
+```go
 cfg.BeforeConnect = func(ctx context.Context, pgc *pgx.ConnConfig) error {
     token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
         Scopes: []string{"https://ossrdbms-aad.database.windows.net/.default"},
@@ -23,41 +49,91 @@ cfg.BeforeConnect = func(ctx context.Context, pgc *pgx.ConnConfig) error {
     if err != nil {
         return fmt.Errorf("failed to get azure ad token: %w", err)
     }
-    pgc.Password = token.Token // We use the TOKEN as the password!
+    pgc.Password = token.Token // We assign the JWT token as the temporary password!
     return nil
 }
 ```
 
-**Why we do this:**
-Normally, you'd put a password in a `.env` file. If that file is leaked, your database is gone. By using **Managed Identity tokens**, the token expires every hour, and it can *only* be requested by a container running inside your specific Azure environment.
-
-## 3. Observability (`internal/monitor`)
-
-We use **OpenTelemetry (OTel)**. Instead of just printing "Error happened," our code sends structured data to **Azure Application Insights**.
-
-- **Metrics**: We track how many requests are happening and how long they take (P95 latency).
-- **Traces**: We can follow a single request as it goes from the Web frontend -> API -> Database.
-
-## 4. Secure Middleware (`internal/middleware`)
-
-The API doesn't trust anyone. Every request coming from the Frontend must have a valid **Entra ID JWT Token**.
-
-In `middleware/auth.go`, we:
-1.  Extract the `Authorization: Bearer <token>` header.
-2.  Validate it against your Azure CIAM tenant.
-3.  Only if the token is valid does the code allow the request to reach the database.
-
-## 5. Embedded API Documentation (Scalar) 📖🔍
-
-To make developer onboarding seamless, the API embeds its own interactive documentation using **Scalar** and the standard OpenAPI 3.1.0 specification.
-
-- **Single-Binary Distribution (`go:embed`)**: The OpenAPI JSON schema (`openapi.json`) is embedded directly into the Go binary at build time. This ensures that the documentation is always packaged with the application and never gets out of sync or lost.
-- **Dynamic Configuration**: The server dynamically rewrites the OpenAPI authorization and token URLs to point to the active Microsoft Entra ID tenant (from the `ENTRA_TENANT_ID` and `ENTRA_CLIENT_ID` environment variables) when served.
-- **Dual Authentication Modes**: Developers can authenticate via the standard Entra ID redirect login flow (pre-filled with the active Client ID) or manually paste a Bearer JWT token directly into the Scalar console.
+*   **How it works:** Every time the connection pool (`pgxpool`) needs to open a new physical connection to Postgres, this function runs. It contacts the Entra ID endpoint, fetches a fresh JWT token, and passes it as the password to PostgreSQL.
+*   **Why this is secure:** If someone gains read-only access to our container logs or files, they won't find a database password. The token is stored purely in memory and expires quickly.
 
 ---
 
-### Key Takeaway
-The Go code is "Identity-Aware." It knows who it is (Managed Identity) and it knows who the user is (Entra ID Token). This creates a solid chain of trust from the browser all the way to the database disk.
+## 🛡️ 3. Token-Based Authentication Middleware (`internal/middleware/auth.go`)
 
-Next: **Lesson 03 — Infrastructure as Code (Terraform)**.
+Our API requires users to authenticate before querying health stats. The Frontend logs the user in via Microsoft Entra ID (CIAM) and sends a JSON Web Token (JWT) in the request header:
+
+`Authorization: Bearer <JWT_TOKEN_HERE>`
+
+Our custom middleware in [auth.go](file:///mnt/d/Dev/Projects/Healthcheck/internal/middleware/auth.go) intercepts the request and validates it:
+
+### Step A: Fetch Signing Keys (JWKS)
+Azure signs JWTs using public/private key pairs. The public keys are published at a standard JSON Web Key Set (JWKS) URL. We use the `keyfunc` library to fetch and cache these keys:
+
+```go
+jwksURL := fmt.Sprintf("https://%s.ciamlogin.com/%s/discovery/v2.0/keys", tenantID, tenantID)
+k, err := keyfunc.NewDefault([]string{jwksURL})
+```
+
+### Step B: Validate the Token Signature
+When a request arrives, we parse the token and verify its cryptographic signature against the cached JWKS:
+
+```go
+token, err := jwt.Parse(tokenString, k.Keyfunc)
+```
+
+### Step C: Verify JWT Claims
+Even if the token signature is cryptographically valid, we must ensure it was generated by our tenant for our app. We check three primary claims:
+1.  **`tid` (Tenant ID)**: Confirms the token was issued by our specific Azure Directory.
+2.  **`aud` (Audience / Client ID)**: Confirms the token was requested specifically for our API client ID.
+3.  **`iss` (Issuer)**: Verifies the issuer matches our tenant's authentication authority.
+
+```go
+// Example checks done in auth.go
+if tid, ok := claims["tid"].(string); !ok || tid != tenantID {
+    c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "unauthorized tenant"})
+    return
+}
+```
+
+---
+
+## 📊 4. Observability & OpenTelemetry (`internal/monitor/otel.go`)
+
+We use **OpenTelemetry (OTel)** to collect telemetry. Instead of using vendor-specific libraries, OTel is a standardized open-source API that allows us to change our backend (e.g., from Prometheus/Jaeger to Azure App Insights) without changing our code.
+
+Look at [otel.go](file:///mnt/d/Dev/Projects/Healthcheck/internal/monitor/otel.go):
+
+### Traces and Metrics Exporters
+We dynamically construct OTLP (OpenTelemetry Protocol) exporters based on our environment configuration:
+
+```go
+connString := os.Getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
+```
+
+*   **In Azure Production:** We parse this connection string to extract the application's telemetry ingestion URL (`IngestionEndpoint=`) and the unique instrumentation key (`InstrumentationKey=`). We configure the OTLP exporter to send traces (`/v2.1/otlp/v1/traces`) and metrics (`/v2.1/otlp/v1/metrics`) directly to Azure Monitor.
+*   **In Local Development:** We fall back to exporting traces to a local **Jaeger** container running on port `4318`, and expose a standard Prometheus scrape endpoint `/metrics` on our HTTP server.
+
+---
+
+## 📖 5. Embedded API Documentation (Scalar)
+
+We embed our API's documentation directly into the Go binary. This prevents code and documentation from going out of sync.
+
+### Single-Binary Compilation (`go:embed`)
+In [internal/handler/docs.go](file:///mnt/d/Dev/Projects/Healthcheck/internal/handler/docs.go), we use Go's built-in compile-time embedding:
+
+```go
+//go:embed openapi.json
+var openapiSchema []byte
+```
+
+This compiles the OpenAPI JSON spec directly inside the resulting compiled machine code. The documentation can never be lost, even when running inside a hardened, empty container.
+
+### Dynamic Tenant Configuration
+Before serving the OpenAPI spec to the browser, the API handler dynamically parses the JSON schema and rewrites the authentication endpoints with the current `ENTRA_TENANT_ID` and `ENTRA_CLIENT_ID` environment variables. This allows developers to log in and test endpoints directly inside the interactive console!
+
+---
+
+### Next Steps 🚀
+Now that you understand the Go backend, let's explore **[Lesson 03: Infrastructure as Code](file:///mnt/d/Dev/Projects/Healthcheck/docs/lessons/03-infrastructure-as-code.md)** to see how we define the cloud resources that host this application.
