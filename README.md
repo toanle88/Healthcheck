@@ -47,10 +47,10 @@ The pipelines are defined for both GitHub Actions (under `.github/workflows/`) a
 
 | Pipeline File | Platform | Trigger | Purpose |
 | :--- | :--- | :--- | :--- |
-| `cicd.yml` | GitHub Actions | PR / push to `main` | **Audit** (lint, test, Trivy), **Build** (Docker images → ACR), **Deploy** (update Container Apps) |
+| `cicd.yml` | GitHub Actions | PR / push to `main` | **Audit** (lint, test, Trivy), **Build** (Docker images → ACR), **Deploy** (Dev deployment & smoke test, Pro deployment with manual approval & smoke test) |
 | `infra.yml` | GitHub Actions | Push to `main` (infra paths) | Terraform plan & apply |
 | `destroy.yml` | GitHub Actions | Manual dispatch | `terraform destroy` for teardown |
-| [.azure-pipelines/cicd.yml](file:///mnt/d/Dev/Projects/Healthcheck/.azure-pipelines/cicd.yml) | Azure DevOps | PR / push to `main` | Mirror of `cicd.yml` (Audit, Build, Deploy, Smoke Test) |
+| [.azure-pipelines/cicd.yml](file:///mnt/d/Dev/Projects/Healthcheck/.azure-pipelines/cicd.yml) | Azure DevOps | PR / push to `main` | Mirror of `cicd.yml` (Audit, Build, Dev deployment & smoke test, Pro deployment with manual approval & smoke test) |
 | [.azure-pipelines/infra.yml](file:///mnt/d/Dev/Projects/Healthcheck/.azure-pipelines/infra.yml) | Azure DevOps | PR / manual trigger | Mirror of `infra.yml` (Checkov, speculative Plan, manual Apply) |
 | [.azure-pipelines/destroy.yml](file:///mnt/d/Dev/Projects/Healthcheck/.azure-pipelines/destroy.yml) | Azure DevOps | Manual trigger | Mirror of `destroy.yml` (manual Destroy with verification) |
 
@@ -259,10 +259,13 @@ source .env.azure    # for terraform
 
 ## 🔄 CI/CD Flow
 
-**`cicd.yml` (PR + push to `main`)** — 3 sequential stages:
+**`cicd.yml` (PR + push to `main`)** — 6 sequential stages:
 1. **Audit**: `gofmt`, `go vet`, `go test -race`, Trivy `fs` scan
 2. **Build** *(push to `main` only)*: Docker build + push API/Worker/Web images to ACR with short Git SHA tag
-3. **Deploy** *(after build)*: `az containerapp update` for API & Web; `az containerapp job update` for Worker
+3. **Dev Deploy**: Deployment to Dev (`ca-healthcheck-api-dev`, `ca-healthcheck-web-dev`, `caj-healthcheck-worker-dev`)
+4. **Dev Smoke Test**: Runs a curl loop check to ensure `/health` returns HTTP 200
+5. **Pro Deploy** *(requires manual approval)*: Deploys to Pro (`ca-healthcheck-api-pro`, `ca-healthcheck-web-pro`, `caj-healthcheck-worker-pro`) after environment manual approval gate is cleared
+6. **Pro Smoke Test**: Runs a curl loop check to ensure Pro `/health` returns HTTP 200
 
 **`infra.yml` (push to `main`, infra paths)**:
 - `terraform fmt -check`, `terraform validate`, `terraform plan`, `terraform apply`

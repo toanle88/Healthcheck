@@ -81,6 +81,19 @@ The environment is now "Identity-Driven."
 
 **Zero secrets are stored in GitHub, Terraform state, or environment variables.**
 
+### Production Environments & Manual Approvals
+
+To ensure safe deployment to production (`pro`), both CI/CD pipelines target the `pro` environment which acts as an approval gate:
+- **GitHub Actions**: The `deploy-pro` job references the `pro` environment. To configure this:
+  1. Go to your GitHub Repository > **Settings** > **Environments**.
+  2. Click **New environment** and name it `pro`.
+  3. Check **Required reviewers** under **Environment protection rules** and select the designated approvers.
+- **Azure DevOps**: The `DeployPro` stage utilizes a deployment job targeting the `pro` environment. To configure this:
+  1. Navigate to your Azure DevOps Project > **Pipelines** > **Environments**.
+  2. Click **New environment** and name it `pro` (select **None** for resource type).
+  3. Click the three dots next to the created environment and choose **Approvals and checks**.
+  4. Click **+** to add **Approvals**, then specify the authorized users/groups.
+
 ---
 
 ## ☢️ The "Fresh Start" Procedure

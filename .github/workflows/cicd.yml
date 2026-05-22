@@ -207,6 +207,7 @@ jobs:
     name: "🚀 Deploy: Pro"
     needs: [build, smoke-test-dev]
     runs-on: ubuntu-latest
+    environment: pro
     outputs:
       api_url: ${{ steps.get_url.outputs.api_url }}
     steps:
