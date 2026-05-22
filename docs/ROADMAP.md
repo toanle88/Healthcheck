@@ -181,6 +181,10 @@ Implement full-stack improvements to make the application highly interactive and
 - [x] **Option 11: Governance — Azure Policy Tag Enforcement**
   - [x] `infra/modules/policy`: Two custom `deny`-effect policy definitions requiring `environment` and `project` tags on every resource.
   - [x] Scoped assignments on the dev resource group (`azurerm_resource_group_policy_assignment`) — blocks untagged resource creates/updates at the ARM API layer without affecting other subscriptions.
+- [x] **Option 12: CI/CD Pipeline Mirroring (Azure DevOps)**
+  - [x] Create `.azure-pipelines/cicd.yml` mirroring the unified `cicd.yml` workflow (Audit, Build, Deploy, and Smoke Test).
+  - [x] Create `.azure-pipelines/infra.yml` mirroring the infrastructure plan/apply workflow (Security Checkov scan, Speculative Plan on PRs, and manual Apply confirmation parameter).
+  - [x] Create `.azure-pipelines/destroy.yml` mirroring the resources teardown workflow (Terraform destroy with manual DELETE confirmation parameter).
 
 ---
 

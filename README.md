@@ -43,13 +43,16 @@ go test -v -race ./...
 
 ### CI/CD Pipelines
 
-The GitHub Actions workflows are consolidated under `.github/workflows/`:
+The pipelines are defined for both GitHub Actions (under `.github/workflows/`) and Azure DevOps (under `.azure-pipelines/`):
 
-| Workflow | Trigger | Purpose |
-| :--- | :--- | :--- |
-| `cicd.yml` | PR / push to `main` | **Audit** (lint, test, Trivy), **Build** (Docker images → ACR), **Deploy** (update Container Apps) |
-| `infra.yml` | Push to `main` (infra paths) | Terraform plan & apply |
-| `destroy.yml` | Manual dispatch | `terraform destroy` for teardown |
+| Pipeline File | Platform | Trigger | Purpose |
+| :--- | :--- | :--- | :--- |
+| `cicd.yml` | GitHub Actions | PR / push to `main` | **Audit** (lint, test, Trivy), **Build** (Docker images → ACR), **Deploy** (update Container Apps) |
+| `infra.yml` | GitHub Actions | Push to `main` (infra paths) | Terraform plan & apply |
+| `destroy.yml` | GitHub Actions | Manual dispatch | `terraform destroy` for teardown |
+| [.azure-pipelines/cicd.yml](file:///mnt/d/Dev/Projects/Healthcheck/.azure-pipelines/cicd.yml) | Azure DevOps | PR / push to `main` | Mirror of `cicd.yml` (Audit, Build, Deploy, Smoke Test) |
+| [.azure-pipelines/infra.yml](file:///mnt/d/Dev/Projects/Healthcheck/.azure-pipelines/infra.yml) | Azure DevOps | PR / manual trigger | Mirror of `infra.yml` (Checkov, speculative Plan, manual Apply) |
+| [.azure-pipelines/destroy.yml](file:///mnt/d/Dev/Projects/Healthcheck/.azure-pipelines/destroy.yml) | Azure DevOps | Manual trigger | Mirror of `destroy.yml` (manual Destroy with verification) |
 
 ```mermaid
 graph TD
@@ -102,7 +105,7 @@ We use a modular Terraform structure for maximum maintainability:
 - **Observability (Local)**: Jaeger (traces), Prometheus (metrics), Grafana (dashboards)
 - **Observability (Cloud)**: Azure Monitor, Application Insights, Log Analytics
 - **Infra**: Terraform ≥1.7
-- **CI/CD**: GitHub Actions with Azure OIDC
+- **CI/CD**: GitHub Actions and Azure DevOps Pipelines with Azure OIDC/Service Connection
 - **Identity (CIAM)**: Entra External ID for customer-facing authentication
 - **Security**: Managed Identity (passwordless), Key Vault RBAC, Trivy scanning, SSRF-hardened HTTP client
 
@@ -139,6 +142,10 @@ We use a modular Terraform structure for maximum maintainability:
 │   ├── cicd.yml        # Unified CI + CD pipeline
 │   ├── infra.yml       # Terraform apply pipeline
 │   └── destroy.yml     # Terraform destroy pipeline
+├── .azure-pipelines/
+│   ├── cicd.yml        # Azure DevOps CI/CD pipeline
+│   ├── infra.yml       # Azure DevOps Terraform plan/apply pipeline
+│   └── destroy.yml     # Azure DevOps Terraform destroy pipeline
 ├── prometheus.yml      # Prometheus scrape config
 ├── Dockerfile.api
 ├── Dockerfile.worker

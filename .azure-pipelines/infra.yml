@@ -1,0 +1,131 @@
+trigger: none
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - infra/*
+
+parameters:
+  - name: confirm_apply
+    displayName: 'Type "yes" to apply infrastructure changes'
+    type: string
+    default: 'no'
+
+variables:
+  # Reference your Azure DevOps Service Connection (ARM)
+  azureServiceConnection: 'sc-healthcheck-dev'
+  # Name of your Azure Container Registry (ACR)
+  acrName: 'crhealthcheckdev'
+  # Entra/Azure AD Client ID
+  entraClientId: 'your-entra-client-id'
+  # Terraform backend storage account
+  storageAccountName: 'sahealthchecktfstate'
+  storageContainerName: 'tfstate'
+  tfstateKey: 'dev.terraform.tfstate'
+  resourceGroupName: 'rg-healthcheck-bootstrap'
+
+stages:
+  # ==========================================
+  # STAGE 1: SECURITY AUDIT
+  # ==========================================
+  - stage: SecurityScan
+    displayName: '🛡️ Security: Checkov Scan'
+    jobs:
+      - job: RunCheckov
+        displayName: 'Checkov Static Analysis'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+          - script: |
+              pip install checkov
+              checkov -d infra/ --framework terraform --output cli
+            displayName: '🔍 Run Checkov Scan'
+
+  # ==========================================
+  # STAGE 2: TERRAFORM PLAN (PR only)
+  # ==========================================
+  - stage: TerraformPlan
+    displayName: '📋 Terraform: Plan'
+    dependsOn: SecurityScan
+    condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - job: Plan
+        displayName: 'Run Speculative Plan'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+          
+          - task: AzureCLI@2
+            displayName: '🛠️ Terraform Init & Plan'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              addSpnToEnvironment: true
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                export ARM_CLIENT_ID="$servicePrincipalId"
+                export ARM_CLIENT_SECRET="$servicePrincipalKey"
+                export ARM_TENANT_ID="$tenantId"
+                export ARM_SUBSCRIPTION_ID="$(subscriptionId)"
+                export ARM_USE_OIDC=true
+
+                cd infra/envs/dev
+                
+                terraform init -upgrade \
+                  -backend-config="resource_group_name=$(resourceGroupName)" \
+                  -backend-config="storage_account_name=$(storageAccountName)" \
+                  -backend-config="container_name=$(storageContainerName)" \
+                  -backend-config="key=$(tfstateKey)"
+
+                terraform plan -no-color \
+                  -var="acr_name=$(acrName)" \
+                  -var="entra_client_id=$(entraClientId)"
+
+  # ==========================================
+  # STAGE 3: THE DEPLOYER (manual apply only)
+  # ==========================================
+  - stage: TerraformApply
+    displayName: '🏗️ Terraform: Apply'
+    dependsOn: SecurityScan
+    condition: and(succeeded(), eq('${{ parameters.confirm_apply }}', 'yes'))
+    jobs:
+      - job: Apply
+        displayName: 'Apply Infrastructure Changes'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+          
+          - task: AzureCLI@2
+            displayName: '🏗️ Apply Infrastructure Changes'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              addSpnToEnvironment: true
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                export ARM_CLIENT_ID="$servicePrincipalId"
+                export ARM_CLIENT_SECRET="$servicePrincipalKey"
+                export ARM_TENANT_ID="$tenantId"
+                export ARM_SUBSCRIPTION_ID="$(subscriptionId)"
+                export ARM_USE_OIDC=true
+
+                cd infra/envs/dev
+                
+                terraform init -upgrade \
+                  -backend-config="resource_group_name=$(resourceGroupName)" \
+                  -backend-config="storage_account_name=$(storageAccountName)" \
+                  -backend-config="container_name=$(storageContainerName)" \
+                  -backend-config="key=$(tfstateKey)"
+
+                terraform version
+                terraform providers
+
+                terraform apply -auto-approve \
+                  -var="acr_name=$(acrName)" \
+                  -var="entra_client_id=$(entraClientId)"

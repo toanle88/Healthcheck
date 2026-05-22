@@ -1,0 +1,62 @@
+trigger: none
+pr: none
+
+parameters:
+  - name: confirm_destroy
+    displayName: 'Type "DELETE" to confirm destruction of all Azure resources'
+    type: string
+    default: 'no'
+
+variables:
+  # Reference your Azure DevOps Service Connection (ARM)
+  azureServiceConnection: 'sc-healthcheck-dev'
+  # Name of your Azure Container Registry (ACR)
+  acrName: 'crhealthcheckdev'
+  # Entra/Azure AD Client ID
+  entraClientId: 'your-entra-client-id'
+  # Terraform backend storage account
+  storageAccountName: 'sahealthchecktfstate'
+  storageContainerName: 'tfstate'
+  tfstateKey: 'dev.terraform.tfstate'
+  resourceGroupName: 'rg-healthcheck-bootstrap'
+
+stages:
+  # ==========================================
+  # STAGE 1: DANGER ZONE - DESTROY RESOURCES
+  # ==========================================
+  - stage: TerraformDestroy
+    displayName: '🚨 Danger Zone: Wipe All Resources'
+    condition: eq('${{ parameters.confirm_destroy }}', 'DELETE')
+    jobs:
+      - job: Destroy
+        displayName: 'Terraform Destroy'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+          
+          - task: AzureCLI@2
+            displayName: '🧨 Destroy All Resources'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              addSpnToEnvironment: true
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                export ARM_CLIENT_ID="$servicePrincipalId"
+                export ARM_CLIENT_SECRET="$servicePrincipalKey"
+                export ARM_TENANT_ID="$tenantId"
+                export ARM_SUBSCRIPTION_ID="$(subscriptionId)"
+                export ARM_USE_OIDC=true
+
+                cd infra/envs/dev
+                
+                terraform init \
+                  -backend-config="resource_group_name=$(resourceGroupName)" \
+                  -backend-config="storage_account_name=$(storageAccountName)" \
+                  -backend-config="container_name=$(storageContainerName)" \
+                  -backend-config="key=$(tfstateKey)"
+
+                terraform destroy -auto-approve \
+                  -var="acr_name=$(acrName)" \
+                  -var="entra_client_id=$(entraClientId)"
