@@ -7,7 +7,7 @@ import { MsalProvider } from "@azure/msal-react";
 import { msalInstance } from "./authConfig";
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ToastProvider } from './components/common/ToastContext';
+import { ToastProvider } from './components/common/ToastProvider';
 
 const queryClient = new QueryClient({
     defaultOptions: {

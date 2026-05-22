@@ -3,7 +3,7 @@ import { render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MsalProvider } from "@azure/msal-react";
 import { PublicClientApplication } from "@azure/msal-browser";
-import { ToastProvider } from '../components/common/ToastContext';
+import { ToastProvider } from '../components/common/ToastProvider';
 
 const createTestQueryClient = () => new QueryClient({
   defaultOptions: {

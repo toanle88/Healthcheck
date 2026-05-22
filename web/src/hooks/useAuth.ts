@@ -102,7 +102,7 @@ export const useAuth = () => {
       return role === "Healthcheck.Admin";
     }
     if (!realUser) return false;
-    const claims = realUser.account.idTokenClaims as Record<string, any> | undefined;
+    const claims = realUser.account.idTokenClaims as { roles?: string | string[] } | undefined;
     const roles = claims?.roles;
     if (Array.isArray(roles)) {
       return roles.includes("Healthcheck.Admin");

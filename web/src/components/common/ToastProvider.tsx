@@ -1,23 +1,6 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
-
-export type ToastType = 'success' | 'error' | 'info';
-
-export interface Toast {
-  id: string;
-  message: string;
-  type: ToastType;
-}
-
-interface ToastContextType {
-  toast: {
-    success: (message: string) => void;
-    error: (message: string) => void;
-    info: (message: string) => void;
-  };
-}
-
-const ToastContext = createContext<ToastContextType | undefined>(undefined);
+import { ToastContext, type Toast, type ToastType } from './ToastContext';
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -29,7 +12,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const addToast = useCallback((message: string, type: ToastType) => {
     const id = Math.random().toString(36).substring(2, 9);
     setToasts((prev) => [...prev, { id, message, type }]);
-    
+
     // Auto-remove after 4 seconds
     setTimeout(() => {
       removeToast(id);
@@ -59,9 +42,9 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             {t.type === 'success' && <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />}
             {t.type === 'error' && <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />}
             {t.type === 'info' && <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />}
-            
+
             <div className="flex-1 text-sm font-medium pr-2">{t.message}</div>
-            
+
             <button
               onClick={() => removeToast(t.id)}
               className="p-1 hover:bg-white/10 dark:hover:bg-black/10 rounded-lg text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
@@ -73,12 +56,4 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       </div>
     </ToastContext.Provider>
   );
-};
-
-export const useToast = () => {
-  const context = useContext(ToastContext);
-  if (!context) {
-    throw new Error('useToast must be used within a ToastProvider');
-  }
-  return context.toast;
 };

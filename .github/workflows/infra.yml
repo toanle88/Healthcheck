@@ -1,16 +1,23 @@
 name: "🏗️ Infrastructure: Core Setup & Maintenance"
 
 on:
+  # Manual full apply (requires explicit confirmation)
   workflow_dispatch:
     inputs:
       confirm_apply:
         description: 'Type "yes" to apply infrastructure changes'
         required: true
         default: 'no'
+  # Auto-plan on every PR that touches infra code
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'infra/**'
 
 permissions:
   id-token: write
   contents: read
+  pull-requests: write   # Required for posting terraform plan comments
 
 env:
   ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -38,12 +45,118 @@ jobs:
           output_format: cli
 
   # ==========================================
-  # STAGE 2: THE DEPLOYER
+  # STAGE 2: TERRAFORM PLAN (PR only)
+  # Runs a speculative plan and posts the diff
+  # as a PR comment so reviewers can see what
+  # will change before they approve a merge.
+  # ==========================================
+  terraform_plan:
+    name: "📋 Terraform: Plan & Comment"
+    needs: security_scan
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./infra/envs/dev
+    steps:
+      - name: "📂 Checkout Code"
+        uses: actions/checkout@v4
+
+      - name: "🔑 Login to Azure (OIDC)"
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: "🛠️ Setup Terraform"
+        uses: hashicorp/setup-terraform@v3
+
+      - name: "📦 Terraform Init"
+        run: |
+          terraform init -upgrade \
+            -backend-config="resource_group_name=rg-healthcheck-bootstrap" \
+            -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.AZURE_STORAGE_CONTAINER }}" \
+            -backend-config="key=dev.terraform.tfstate"
+
+      - name: "📋 Terraform Plan"
+        id: plan
+        # continue-on-error so the comment step always runs, even on plan failure
+        continue-on-error: true
+        run: |
+          terraform plan -no-color \
+            -var="acr_name=${{ secrets.AZURE_ACR_NAME }}" \
+            -var="entra_client_id=${{ secrets.ENTRA_CLIENT_ID }}" \
+            2>&1 | tee /tmp/plan_output.txt
+
+      - name: "💬 Post Plan as PR Comment"
+        uses: actions/github-script@v7
+        env:
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const planOutput = fs.readFileSync('/tmp/plan_output.txt', 'utf8');
+            const outcome   = process.env.PLAN_OUTCOME;
+            const status    = outcome === 'success' ? '✅ Success' : '❌ Failed';
+            const maxLen    = 65000;
+
+            const body = planOutput.length > maxLen
+              ? planOutput.slice(0, maxLen) + '\n\n> ⚠️ Output truncated — see full log in Actions.'
+              : planOutput;
+
+            const comment = `## 🏗️ Terraform Plan — ${status}
+
+            <details>
+            <summary>Click to expand plan output</summary>
+
+            \`\`\`hcl
+            ${body}
+            \`\`\`
+
+            </details>
+
+            > Run: \`${{ github.run_id }}\` | Triggered by @${{ github.actor }}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner:        context.repo.owner,
+              repo:         context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('🏗️ Terraform Plan')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner:      context.repo.owner,
+                repo:       context.repo.repo,
+                comment_id: botComment.id,
+                body:       comment,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner:        context.repo.owner,
+                repo:         context.repo.repo,
+                issue_number: context.issue.number,
+                body:         comment,
+              });
+            }
+
+            if (outcome !== 'success') {
+              core.setFailed('Terraform plan failed — see PR comment for details.');
+            }
+
+  # ==========================================
+  # STAGE 3: THE DEPLOYER (manual apply only)
   # ==========================================
   terraform:
     name: "🏗️ Terraform Apply"
     needs: security_scan # <--- ONLY RUN IF SECURITY SCAN PASSES!
-    if: github.event.inputs.confirm_apply == 'yes'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.confirm_apply == 'yes'
     runs-on: ubuntu-latest
     defaults:
       run:

@@ -9,7 +9,7 @@ import IncidentLogModal from '../components/dashboard/IncidentLogModal';
 import { useHealthQuery } from '../hooks/useHealthQuery';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
-import { useToast } from '../components/common/ToastContext';
+import { useToast } from '../hooks/useToast';
 import { healthService } from '../services/healthService';
 import { Settings, Plus, Trash2, Globe, Sparkles } from 'lucide-react';
 import { getEnv } from '../config/env';
