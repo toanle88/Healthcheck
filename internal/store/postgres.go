@@ -131,9 +131,12 @@ func (s *Store) InsertCheck(ctx context.Context, target, status string, latencyM
 	// pgx handles the mapping of Go types to Postgres types.
 	_, err := s.DB.Exec(ctx, `
 		INSERT INTO checks (target, status, latency_ms)
-		VALUES ($1, $2, $3);
-		NOTIFY checks_channel;
+		VALUES ($1, $2, $3)
 	`, target, status, latencyMs)
+
+	if err == nil {
+		_, _ = s.DB.Exec(ctx, "NOTIFY checks_channel")
+	}
 
 	return err
 }
