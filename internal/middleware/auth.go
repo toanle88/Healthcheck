@@ -40,6 +40,11 @@ func AuthMiddleware(tenantID, clientID, environment string) gin.HandlerFunc {
 		// 2b. E2E / Development mock token bypass (MFA / redirect automation support)
 		isLocalDev := environment == "local"
 		if tokenString == "mocked-e2e-token" && isLocalDev {
+			mockClaims := jwt.MapClaims{
+				"roles": []interface{}{"Healthcheck.Admin"},
+				"scp":   "Healthcheck.Write Healthcheck.Read",
+			}
+			c.Set("claims", mockClaims)
 			c.Next()
 			return
 		}
@@ -81,6 +86,78 @@ func AuthMiddleware(tenantID, clientID, environment string) gin.HandlerFunc {
 		}
 
 		// Token is valid!
+		c.Set("claims", claims)
+		c.Next()
+	}
+}
+
+// RequireRoleOrScope checks if the authenticated user has at least one of the specified roles or scopes.
+func RequireRoleOrScope(allowedRoles []string, allowedScopes []string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		claimsVal, exists := c.Get("claims")
+		if !exists {
+			// Auth middleware not run (e.g. disabled in local dev). Allow.
+			c.Next()
+			return
+		}
+
+		claims, ok := claimsVal.(jwt.MapClaims)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Invalid claims structure"})
+			return
+		}
+
+		hasRole := false
+		if len(allowedRoles) > 0 {
+			if rolesClaim, ok := claims["roles"]; ok {
+				if rolesList, ok := rolesClaim.([]interface{}); ok {
+					for _, r := range rolesList {
+						if rStr, ok := r.(string); ok {
+							for _, allowed := range allowedRoles {
+								if rStr == allowed {
+									hasRole = true
+									break
+								}
+							}
+						}
+						if hasRole {
+							break
+						}
+					}
+				} else if rStr, ok := rolesClaim.(string); ok {
+					for _, allowed := range allowedRoles {
+						if rStr == allowed {
+							hasRole = true
+							break
+						}
+					}
+				}
+			}
+		}
+
+		hasScope := false
+		if len(allowedScopes) > 0 {
+			if scpClaim, ok := claims["scp"].(string); ok {
+				scopes := strings.Fields(scpClaim)
+				for _, s := range scopes {
+					for _, allowed := range allowedScopes {
+						if s == allowed {
+							hasScope = true
+							break
+						}
+					}
+					if hasScope {
+						break
+					}
+				}
+			}
+		}
+
+		if (len(allowedRoles) > 0 || len(allowedScopes) > 0) && !hasRole && !hasScope {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "insufficient permissions"})
+			return
+		}
+
 		c.Next()
 	}
 }

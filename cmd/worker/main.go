@@ -91,6 +91,26 @@ func newSafeHTTPClient(env string) *http.Client {
 	return &http.Client{
 		Transport: transport,
 		Timeout:   10 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 3 {
+				return fmt.Errorf("stopped after 3 redirects")
+			}
+			if !isDev {
+				host, _, err := net.SplitHostPort(req.URL.Host)
+				if err != nil {
+					host = req.URL.Host
+				}
+				ips, err := net.DefaultResolver.LookupIP(req.Context(), "ip", host)
+				if err == nil {
+					for _, ip := range ips {
+						if isPrivateIP(ip) {
+							return fmt.Errorf("SSRF prevention: redirect to private/loopback address %s is blocked", ip)
+						}
+					}
+				}
+			}
+			return nil
+		},
 	}
 }
 

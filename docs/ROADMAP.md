@@ -161,6 +161,10 @@ Implement full-stack improvements to make the application highly interactive and
   - [x] Support customizing failure thresholds in React dashboard creation form and list view
   - [x] Introduce randomized worker ping jitter (0–15s) in batch scheduling
   - [x] Implement consecutive failure threshold-based webhook alerting to eliminate false positives from transient network flapping
+- [x] **Option 7: Security & RBAC Hardening**
+  - [x] Configure custom `CheckRedirect` on the worker's HTTP client to prevent SSRF by blocking redirects to internal/private IPs and limiting redirect hops (max 3).
+  - [x] Enhance the API auth middleware to propagate JWT claims via the Gin context and implement a new `RequireRoleOrScope` role/scope validation middleware.
+  - [x] Secure `POST /api/targets` and `DELETE /api/targets/:id` by requiring the `Healthcheck.Admin` role.
 
 ---
 

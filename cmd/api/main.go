@@ -124,8 +124,10 @@ func main() {
 		api.GET("/status", h.Status)
 		api.GET("/history", h.History)
 		api.GET("/targets", h.GetTargets)
-		api.POST("/targets", h.CreateTarget)
-		api.DELETE("/targets/:id", h.DeleteTarget)
+
+		adminRequired := middleware.RequireRoleOrScope([]string{"Healthcheck.Admin"}, nil)
+		api.POST("/targets", adminRequired, h.CreateTarget)
+		api.DELETE("/targets/:id", adminRequired, h.DeleteTarget)
 	}
 
 	// --- TEST ROUTES (UNPROTECTED FOR CHAOS TESTING) ---
