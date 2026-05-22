@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,11 +28,12 @@ type Storer interface {
 }
 
 type Handler struct {
-	store Storer
+	store  Storer
+	broker *Broker
 }
 
-func New(s Storer) *Handler {
-	return &Handler{store: s}
+func New(s Storer, b *Broker) *Handler {
+	return &Handler{store: s, broker: b}
 }
 
 // CreateTargetInput defines the schema for target creation request body.
@@ -79,6 +82,62 @@ func (h *Handler) Status(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"checks": checks, "count": len(checks)})
+}
+
+// StreamStatus godoc
+// @Summary Stream latest checks status in real-time
+// @Description Establishes a Server-Sent Events (SSE) connection to receive real-time health check updates.
+// @Tags Status
+// @Produce text/event-stream
+// @Success 200 {object} map[string]interface{}
+// @Router /api/status/stream [get]
+// @Security EntraID
+// @Security BearerAuth
+func (h *Handler) StreamStatus(c *gin.Context) {
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("Transfer-Encoding", "chunked")
+
+	// If broker is not initialized (e.g., in unit tests), abort early.
+	if h.broker == nil {
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "SSE streaming not configured"})
+		return
+	}
+
+	clientChan := make(chan []store.Check, 10)
+	h.broker.register <- clientChan
+	defer func() {
+		h.broker.unregister <- clientChan
+	}()
+
+	// Send initial payload immediately
+	initialChecks, err := h.store.GetLatestChecks(c.Request.Context())
+	if err != nil {
+		slog.Error("failed to get initial checks for stream", "err", err)
+	} else {
+		c.SSEvent("message", gin.H{
+			"checks": initialChecks,
+			"count":  len(initialChecks),
+		})
+		c.Writer.Flush()
+	}
+
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case <-c.Request.Context().Done():
+			return false
+		case checks, ok := <-clientChan:
+			if !ok {
+				return false
+			}
+			c.SSEvent("message", gin.H{
+				"checks": checks,
+				"count":  len(checks),
+			})
+			return true
+		}
+	})
 }
 
 // History godoc

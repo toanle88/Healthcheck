@@ -22,20 +22,23 @@ func AuthMiddleware(tenantID, clientID, environment string) gin.HandlerFunc {
 	}
 
 	return func(c *gin.Context) {
-		// 2. Extract the token from the Authorization header
+		// 2. Extract the token from the Authorization header or query parameter
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
-			return
+		tokenString := ""
+		if authHeader != "" {
+			bearerToken := strings.Split(authHeader, " ")
+			if len(bearerToken) != 2 || strings.ToLower(bearerToken[0]) != "bearer" {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
+				return
+			}
+			tokenString = bearerToken[1]
+		} else {
+			tokenString = c.Query("token")
+			if tokenString == "" {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header or token query parameter is required"})
+				return
+			}
 		}
-
-		bearerToken := strings.Split(authHeader, " ")
-		if len(bearerToken) != 2 || strings.ToLower(bearerToken[0]) != "bearer" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
-			return
-		}
-
-		tokenString := bearerToken[1]
 
 		// 2b. E2E / Development mock token bypass (MFA / redirect automation support)
 		isLocalDev := environment == "local"

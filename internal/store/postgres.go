@@ -131,7 +131,8 @@ func (s *Store) InsertCheck(ctx context.Context, target, status string, latencyM
 	// pgx handles the mapping of Go types to Postgres types.
 	_, err := s.DB.Exec(ctx, `
 		INSERT INTO checks (target, status, latency_ms)
-		VALUES ($1, $2, $3)
+		VALUES ($1, $2, $3);
+		NOTIFY checks_channel;
 	`, target, status, latencyMs)
 
 	return err
@@ -317,6 +318,9 @@ func (s *Store) InsertTarget(ctx context.Context, name, url, method, headers str
 	`, name, url, method, headersVal, expectedStatus, responseContainsVal, failureThreshold).Scan(
 		&t.ID, &t.Name, &t.URL, &t.Method, &t.Headers, &t.ExpectedStatus, &t.ResponseContains, &t.FailureThreshold, &t.ConsecutiveFailures, &t.LastAlertStatus, &t.IsActive, &t.CreatedAt, &t.UpdatedAt,
 	)
+	if err == nil {
+		_, _ = s.DB.Exec(ctx, "NOTIFY checks_channel")
+	}
 	return t, err
 }
 
@@ -346,6 +350,7 @@ func (s *Store) DeleteTarget(ctx context.Context, id int) error {
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
+	_, _ = s.DB.Exec(ctx, "NOTIFY checks_channel")
 	return nil
 }
 

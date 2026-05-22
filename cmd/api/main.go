@@ -99,7 +99,67 @@ func main() {
 		c.Next()
 	})
 
-	h := handler.New(st)
+	broker := handler.NewBroker()
+	go broker.Start(ctx)
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			// We need a dedicated connection for LISTEN/NOTIFY.
+			conn, err := st.DB.Acquire(ctx)
+			if err != nil {
+				slog.Error("failed to acquire connection for LISTEN", "err", err)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(2 * time.Second):
+					continue
+				}
+			}
+
+			_, err = conn.Exec(ctx, "LISTEN checks_channel")
+			if err != nil {
+				slog.Error("failed to listen on checks_channel", "err", err)
+				conn.Release()
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(2 * time.Second):
+					continue
+				}
+			}
+
+			slog.Info("successfully subscribed to postgres checks_channel")
+
+			for {
+				// WaitForNotification blocks until a notification is received or connection fails
+				_, err := conn.Conn().WaitForNotification(ctx)
+				if err != nil {
+					slog.Warn("postgres notification connection lost, reconnecting...", "err", err)
+					break
+				}
+
+				// Query the latest status of all targets
+				checks, err := st.GetLatestChecks(ctx)
+				if err != nil {
+					slog.Error("failed to fetch latest checks after notification", "err", err)
+					continue
+				}
+
+				// Broadcast to all connected SSE clients
+				broker.Broadcast(checks)
+			}
+
+			conn.Release()
+		}
+	}()
+
+	h := handler.New(st, broker)
 
 	// --- PUBLIC ROUTES ---
 	r.GET("/health", h.Health)
@@ -122,6 +182,7 @@ func main() {
 
 	{
 		api.GET("/status", h.Status)
+		api.GET("/status/stream", h.StreamStatus)
 		api.GET("/history", h.History)
 		api.GET("/targets", h.GetTargets)
 

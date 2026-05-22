@@ -169,6 +169,10 @@ Implement full-stack improvements to make the application highly interactive and
   - [x] Implement Distributed Tracing (W3C Context Propagation) in `main.go` and `worker` to link worker pings to API trace spans in Jaeger.
   - [x] Optimize 24h SLA Calculation performance by caching it in-memory with a 10s TTL and invalidating cache on writes.
   - [x] Add a Grafana dashboard and Prometheus datasource configuration in root, integrated with `docker-compose.yml`.
+- [x] **Option 9: Frontend & UX Enhancements**
+  - [x] Implement real-time status updates using Server-Sent Events (SSE) and PostgreSQL NOTIFY, eliminating frontend client polling.
+  - [x] Design a class-based Light/Dark Theme toggle using Tailwind CSS v4 CSS variables.
+  - [x] Build a detailed SRE Incident Log modal showing incident duration timelines, binned latency histograms, check tables, and authenticated links to raw JSON database logs.
 
 ---
 

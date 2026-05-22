@@ -46,7 +46,7 @@ func TestHealth(t *testing.T) {
 	// Set Gin to test mode
 	gin.SetMode(gin.TestMode)
 
-	h := New(&mockStore{})
+	h := New(&mockStore{}, nil)
 	r := gin.New()
 	r.GET("/health", h.Health)
 
@@ -72,7 +72,7 @@ func TestStatus(t *testing.T) {
 		{Target: "test.com", Status: "up", LatencyMs: 100, CheckedAt: time.Now()},
 	}
 
-	h := New(&mockStore{checks: expectedChecks})
+	h := New(&mockStore{checks: expectedChecks}, nil)
 	r := gin.New()
 	r.GET("/api/status", h.Status)
 
@@ -97,7 +97,7 @@ func TestStatus(t *testing.T) {
 func TestDocs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	h := New(&mockStore{})
+	h := New(&mockStore{}, nil)
 	r := gin.New()
 	r.GET("/openapi.json", h.OpenAPISpec)
 	r.GET("/docs", h.Docs)

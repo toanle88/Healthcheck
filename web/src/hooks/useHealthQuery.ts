@@ -10,7 +10,6 @@ export const useHealthQuery = () => {
     queryKey: ['healthStatus'],
     queryFn: () => healthService.getHealthStatus(),
     enabled: isAuthenticated,
-    refetchInterval: 10000,
     retry: 2,
   });
 };
