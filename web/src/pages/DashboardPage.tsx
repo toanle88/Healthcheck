@@ -28,6 +28,10 @@ const DashboardPage: React.FC = () => {
   const [showManage, setShowManage] = useState(false);
   const [newName, setNewName] = useState('');
   const [newUrl, setNewUrl] = useState('');
+  const [method, setMethod] = useState('GET');
+  const [headers, setHeaders] = useState('');
+  const [expectedStatus, setExpectedStatus] = useState<number>(200);
+  const [responseContains, setResponseContains] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Query to fetch all targets
@@ -39,12 +43,30 @@ const DashboardPage: React.FC = () => {
 
   // Mutation to add a target
   const addTargetMutation = useMutation({
-    mutationFn: ({ name, url }: { name: string; url: string }) => healthService.createTarget(name, url),
+    mutationFn: ({ 
+      name, 
+      url, 
+      method, 
+      headers, 
+      expectedStatus, 
+      responseContains 
+    }: { 
+      name: string; 
+      url: string; 
+      method: string; 
+      headers?: string; 
+      expectedStatus: number; 
+      responseContains?: string; 
+    }) => healthService.createTarget(name, url, method, headers || undefined, expectedStatus, responseContains || undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['targets'] });
       queryClient.invalidateQueries({ queryKey: ['healthStatus'] });
       setNewName('');
       setNewUrl('');
+      setMethod('GET');
+      setHeaders('');
+      setExpectedStatus(200);
+      setResponseContains('');
       setErrorMsg(null);
     },
     onError: (err: unknown) => {
@@ -109,22 +131,58 @@ const DashboardPage: React.FC = () => {
                   <form onSubmit={(e) => {
                     e.preventDefault();
                     if (!newName || !newUrl) return;
-                    addTargetMutation.mutate({ name: newName, url: newUrl });
+
+                    if (headers.trim() !== '') {
+                      try {
+                        JSON.parse(headers);
+                      } catch {
+                        setErrorMsg('Custom Headers must be valid JSON (e.g. {"Key": "Value"})');
+                        return;
+                      }
+                    }
+
+                    addTargetMutation.mutate({ 
+                      name: newName, 
+                      url: newUrl, 
+                      method, 
+                      headers: headers.trim() !== '' ? headers : undefined, 
+                      expectedStatus: Number(expectedStatus), 
+                      responseContains: responseContains.trim() !== '' ? responseContains : undefined 
+                    });
                   }} className="space-y-4">
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Add New Endpoint</h3>
                     
                     <div className="space-y-3">
-                      <div>
-                        <label className="block text-[10px] font-semibold text-slate-500 mb-1" htmlFor="target-name">Service Name</label>
-                        <input
-                          id="target-name"
-                          type="text"
-                          placeholder="e.g. Google Search"
-                          value={newName}
-                          onChange={(e) => setNewName(e.target.value)}
-                          className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
-                          required
-                        />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-1" htmlFor="target-name">Service Name</label>
+                          <input
+                            id="target-name"
+                            type="text"
+                            placeholder="e.g. Google Search"
+                            value={newName}
+                            onChange={(e) => setNewName(e.target.value)}
+                            className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-1" htmlFor="target-method">HTTP Method</label>
+                          <select
+                            id="target-method"
+                            value={method}
+                            onChange={(e) => setMethod(e.target.value)}
+                            className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+                          >
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="DELETE">DELETE</option>
+                            <option value="HEAD">HEAD</option>
+                            <option value="PATCH">PATCH</option>
+                            <option value="OPTIONS">OPTIONS</option>
+                          </select>
+                        </div>
                       </div>
                       <div>
                         <label className="block text-[10px] font-semibold text-slate-500 mb-1" htmlFor="target-url">HTTP(S) Endpoint URL</label>
@@ -136,6 +194,43 @@ const DashboardPage: React.FC = () => {
                           onChange={(e) => setNewUrl(e.target.value)}
                           className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors font-mono"
                           required
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-1" htmlFor="target-status">Expected Status</label>
+                          <input
+                            id="target-status"
+                            type="number"
+                            placeholder="200"
+                            value={expectedStatus}
+                            onChange={(e) => setExpectedStatus(Number(e.target.value))}
+                            className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+                            min="100"
+                            max="599"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-1" htmlFor="target-contains">Response Body Match</label>
+                          <input
+                            id="target-contains"
+                            type="text"
+                            placeholder="e.g. success"
+                            value={responseContains}
+                            onChange={(e) => setResponseContains(e.target.value)}
+                            className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-1" htmlFor="target-headers">Custom Headers (JSON)</label>
+                        <textarea
+                          id="target-headers"
+                          placeholder='e.g. {"Authorization": "Bearer token", "X-Custom": "Value"}'
+                          value={headers}
+                          onChange={(e) => setHeaders(e.target.value)}
+                          className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors font-mono h-16 resize-none"
                         />
                       </div>
                     </div>
@@ -165,7 +260,11 @@ const DashboardPage: React.FC = () => {
                                   <Globe className="w-4 h-4" />
                                 </div>
                                 <div className="truncate">
-                                  <h4 className="text-sm font-semibold text-slate-200">{target.name}</h4>
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="text-sm font-semibold text-slate-200">{target.name}</h4>
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">{target.method || 'GET'}</span>
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{target.expected_status || 200}</span>
+                                  </div>
                                   <p className="text-xs text-slate-500 font-mono truncate">{target.url}</p>
                                 </div>
                               </div>

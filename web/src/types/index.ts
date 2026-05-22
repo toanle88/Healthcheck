@@ -16,6 +16,10 @@ export interface Target {
   id: number;
   name: string;
   url: string;
+  method: string;
+  headers?: string;
+  expected_status: number;
+  response_contains?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;

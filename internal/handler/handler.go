@@ -2,9 +2,11 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -17,7 +19,7 @@ import (
 type Storer interface {
 	GetLatestChecks(ctx context.Context) ([]store.Check, error)
 	GetTargets(ctx context.Context) ([]store.Target, error)
-	InsertTarget(ctx context.Context, name, url string) (store.Target, error)
+	InsertTarget(ctx context.Context, name, url, method, headers string, expectedStatus int, responseContains string) (store.Target, error)
 	DeleteTarget(ctx context.Context, id int) error
 	GetHistoricalChecks(ctx context.Context, target string, limit int) ([]store.Check, error)
 	GetPreviousCheckStatus(ctx context.Context, target string) (string, error)
@@ -33,8 +35,12 @@ func New(s Storer) *Handler {
 
 // CreateTargetInput defines the schema for target creation request body.
 type CreateTargetInput struct {
-	Name string `json:"name" binding:"required" example:"Google"`
-	URL  string `json:"url" binding:"required,url" example:"https://google.com"`
+	Name             string `json:"name" binding:"required" example:"Google"`
+	URL              string `json:"url" binding:"required,url" example:"https://google.com"`
+	Method           string `json:"method" example:"GET"`
+	Headers          string `json:"headers" example:"{\"Authorization\": \"Bearer token\"}"`
+	ExpectedStatus   int    `json:"expected_status" example:"200"`
+	ResponseContains string `json:"response_contains" example:"search"`
 }
 
 // Health godoc
@@ -145,8 +151,38 @@ func (h *Handler) CreateTarget(c *gin.Context) {
 		return
 	}
 
+	// Validate method
+	if input.Method == "" {
+		input.Method = "GET"
+	}
+	input.Method = strings.ToUpper(input.Method)
+	allowedMethods := map[string]bool{
+		"GET": true, "POST": true, "PUT": true, "DELETE": true, "HEAD": true, "PATCH": true, "OPTIONS": true,
+	}
+	if !allowedMethods[input.Method] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported HTTP method"})
+		return
+	}
+
+	// Validate headers format (should be valid JSON if provided)
+	if input.Headers != "" {
+		var js map[string]interface{}
+		if err := json.Unmarshal([]byte(input.Headers), &js); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "headers must be a valid JSON object"})
+			return
+		}
+	}
+
+	// Validate expected status code
+	if input.ExpectedStatus == 0 {
+		input.ExpectedStatus = 200
+	} else if input.ExpectedStatus < 100 || input.ExpectedStatus > 599 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "expected status must be a valid HTTP status code (100-599)"})
+		return
+	}
+
 	ctx := c.Request.Context()
-	target, err := h.store.InsertTarget(ctx, input.Name, input.URL)
+	target, err := h.store.InsertTarget(ctx, input.Name, input.URL, input.Method, input.Headers, input.ExpectedStatus, input.ResponseContains)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

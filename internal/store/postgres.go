@@ -88,6 +88,11 @@ func (s *Store) InitSchema(ctx context.Context) error {
 		updated_at TIMESTAMPTZ DEFAULT NOW()
 	);
 
+	ALTER TABLE targets ADD COLUMN IF NOT EXISTS method TEXT NOT NULL DEFAULT 'GET';
+	ALTER TABLE targets ADD COLUMN IF NOT EXISTS headers TEXT;
+	ALTER TABLE targets ADD COLUMN IF NOT EXISTS expected_status INT NOT NULL DEFAULT 200;
+	ALTER TABLE targets ADD COLUMN IF NOT EXISTS response_contains TEXT;
+
 	INSERT INTO targets (name, url) VALUES
 		('Httpbin', 'http://httpbin.org/get'),
 		('GitHub', 'https://github.com'),
@@ -133,12 +138,16 @@ type Check struct {
 
 // Target represents a monitored URL/endpoint.
 type Target struct {
-	ID        int       `json:"id"`
-	Name      string    `json:"name"`
-	URL       string    `json:"url"`
-	IsActive  bool      `json:"is_active"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID               int       `json:"id"`
+	Name             string    `json:"name"`
+	URL              string    `json:"url"`
+	Method           string    `json:"method"`
+	Headers          string    `json:"headers"`
+	ExpectedStatus   int       `json:"expected_status"`
+	ResponseContains string    `json:"response_contains"`
+	IsActive         bool      `json:"is_active"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 // TargetSLA represents calculated uptime percentage.
@@ -199,7 +208,7 @@ func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
 // GetTargets retrieves all monitored targets.
 func (s *Store) GetTargets(ctx context.Context) ([]Target, error) {
 	rows, err := s.DB.Query(ctx, `
-		SELECT id, name, url, is_active, created_at, updated_at 
+		SELECT id, name, url, method, headers, expected_status, response_contains, is_active, created_at, updated_at 
 		FROM targets 
 		ORDER BY id
 	`)
@@ -211,8 +220,17 @@ func (s *Store) GetTargets(ctx context.Context) ([]Target, error) {
 	var targets []Target
 	for rows.Next() {
 		var t Target
-		if err := rows.Scan(&t.ID, &t.Name, &t.URL, &t.IsActive, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		var headersPtr, responseContainsPtr *string
+		if err := rows.Scan(
+			&t.ID, &t.Name, &t.URL, &t.Method, &headersPtr, &t.ExpectedStatus, &responseContainsPtr, &t.IsActive, &t.CreatedAt, &t.UpdatedAt,
+		); err != nil {
 			return nil, err
+		}
+		if headersPtr != nil {
+			t.Headers = *headersPtr
+		}
+		if responseContainsPtr != nil {
+			t.ResponseContains = *responseContainsPtr
 		}
 		targets = append(targets, t)
 	}
@@ -223,13 +241,25 @@ func (s *Store) GetTargets(ctx context.Context) ([]Target, error) {
 }
 
 // InsertTarget saves a new target.
-func (s *Store) InsertTarget(ctx context.Context, name, url string) (Target, error) {
+func (s *Store) InsertTarget(ctx context.Context, name, url, method, headers string, expectedStatus int, responseContains string) (Target, error) {
 	var t Target
+
+	var headersVal *string
+	if headers != "" {
+		headersVal = &headers
+	}
+	var responseContainsVal *string
+	if responseContains != "" {
+		responseContainsVal = &responseContains
+	}
+
 	err := s.DB.QueryRow(ctx, `
-		INSERT INTO targets (name, url) 
-		VALUES ($1, $2)
-		RETURNING id, name, url, is_active, created_at, updated_at
-	`, name, url).Scan(&t.ID, &t.Name, &t.URL, &t.IsActive, &t.CreatedAt, &t.UpdatedAt)
+		INSERT INTO targets (name, url, method, headers, expected_status, response_contains) 
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, name, url, method, COALESCE(headers, ''), expected_status, COALESCE(response_contains, ''), is_active, created_at, updated_at
+	`, name, url, method, headersVal, expectedStatus, responseContainsVal).Scan(
+		&t.ID, &t.Name, &t.URL, &t.Method, &t.Headers, &t.ExpectedStatus, &t.ResponseContains, &t.IsActive, &t.CreatedAt, &t.UpdatedAt,
+	)
 	return t, err
 }
 

@@ -26,7 +26,7 @@ func (m *mockStore) GetTargets(ctx context.Context) ([]store.Target, error) {
 	return nil, nil
 }
 
-func (m *mockStore) InsertTarget(ctx context.Context, name, url string) (store.Target, error) {
+func (m *mockStore) InsertTarget(ctx context.Context, name, url, method, headers string, expectedStatus int, responseContains string) (store.Target, error) {
 	return store.Target{}, nil
 }
 

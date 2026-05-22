@@ -15,8 +15,22 @@ export const healthService = {
     return data;
   },
 
-  createTarget: async (name: string, url: string): Promise<Target> => {
-    const { data } = await api.post<Target>('/api/targets', { name, url });
+  createTarget: async (
+    name: string,
+    url: string,
+    method?: string,
+    headers?: string,
+    expectedStatus?: number,
+    responseContains?: string
+  ): Promise<Target> => {
+    const { data } = await api.post<Target>('/api/targets', {
+      name,
+      url,
+      method,
+      headers,
+      expected_status: expectedStatus,
+      response_contains: responseContains,
+    });
     return data;
   },
 

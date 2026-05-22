@@ -151,6 +151,11 @@ Implement full-stack improvements to make the application highly interactive and
 - [x] **Option 4: 24h SLA & Uptime Percentages**
   - [x] Write SQL calculation logic for 24h/7d uptime percentages
   - [x] Display SLA progress meters/percentage badges on the React frontend
+- [x] **Option 5: Hardened Synthetic Monitoring Features**
+  - [x] Database schema extension (method, headers, expected_status, response_contains)
+  - [x] API validator and creator support in backend handlers
+  - [x] Worker ping engine supporting dynamic methods, HTTP header injection, expected status validation, and body substring matching
+  - [x] Expanded React dashboard creation form UI and current targets list configuration view
 
 
 ---

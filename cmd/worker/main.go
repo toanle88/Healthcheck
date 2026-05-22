@@ -101,9 +101,9 @@ func runBatch(ctx context.Context, client *http.Client, st *store.Store, tracer 
 
 	for _, target := range dbTargets {
 		if target.IsActive {
-			tURL := target.URL
+			t := target // shadow loop variable for goroutine safety
 			g.Go(func() error {
-				runPingAndCheck(batchCtx, client, st, tracer, tURL)
+				runPingAndCheck(batchCtx, client, st, tracer, t)
 				return nil
 			})
 		}
@@ -260,45 +260,90 @@ func main() {
 	slog.Info("worker stopped cleanly")
 }
 
-// pingTarget performs an HTTP GET request to the URL and returns the status ("up"/"down") and latency.
-func pingTarget(ctx context.Context, client *http.Client, url string) (string, time.Duration) {
+// pingTarget performs an HTTP request to the URL using custom method/headers/expected status/body contains and returns the status ("up"/"down") and latency.
+func pingTarget(ctx context.Context, client *http.Client, target store.Target) (string, time.Duration) {
 	start := time.Now()
 
+	method := target.Method
+	if method == "" {
+		method = http.MethodGet
+	}
+
 	// Create a new HTTP request with the context (for timeout support)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, method, target.URL, nil)
 	if err != nil {
+		slog.Error("failed to create request", "target", target.URL, "err", err)
 		return "down", time.Since(start)
+	}
+
+	// Parse and set headers
+	if target.Headers != "" {
+		var headersMap map[string]string
+		if err := json.Unmarshal([]byte(target.Headers), &headersMap); err == nil {
+			for k, v := range headersMap {
+				req.Header.Set(k, v)
+			}
+		} else {
+			slog.Warn("failed to parse headers JSON", "target", target.URL, "headers", target.Headers, "err", err)
+		}
 	}
 
 	// Execute the request
 	resp, err := client.Do(req)
 	if err != nil {
+		slog.Warn("ping request failed", "target", target.URL, "err", err)
 		return "down", time.Since(start)
 	}
 	defer resp.Body.Close()
 
-	// Drain body to enable connection reuse
-	_, _ = io.Copy(io.Discard, resp.Body)
-
-	// If we get a 2xx status code, we consider it "up"
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return "up", time.Since(start)
+	// Read body for response contains check
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		slog.Warn("failed to read response body", "target", target.URL, "err", err)
+		return "down", time.Since(start)
 	}
 
-	return "down", time.Since(start)
+	// Verify status code
+	expectedStatus := target.ExpectedStatus
+	if expectedStatus <= 0 {
+		expectedStatus = 200
+	}
+
+	statusMatches := false
+	if expectedStatus == 200 {
+		statusMatches = resp.StatusCode >= 200 && resp.StatusCode < 300
+	} else {
+		statusMatches = resp.StatusCode == expectedStatus
+	}
+
+	if !statusMatches {
+		slog.Info("ping status mismatch", "target", target.URL, "expected", expectedStatus, "actual", resp.StatusCode)
+		return "down", time.Since(start)
+	}
+
+	// Verify response body if configured
+	if target.ResponseContains != "" {
+		if !bytes.Contains(bodyBytes, []byte(target.ResponseContains)) {
+			slog.Info("ping body search match failed", "target", target.URL, "substring", target.ResponseContains)
+			return "down", time.Since(start)
+		}
+	}
+
+	return "up", time.Since(start)
 }
 
-func runPingAndCheck(ctx context.Context, client *http.Client, st *store.Store, tracer trace.Tracer, url string) {
+func runPingAndCheck(ctx context.Context, client *http.Client, st *store.Store, tracer trace.Tracer, target store.Target) {
 	var childSpan trace.Span
 	var pingCtx context.Context = ctx
 	if tracer != nil {
 		pingCtx, childSpan = tracer.Start(ctx, "PingTarget", trace.WithAttributes(
-			attribute.String("http.url", url),
+			attribute.String("http.url", target.URL),
+			attribute.String("http.method", target.Method),
 		))
 	}
 
 	runCtx, cancel := context.WithTimeout(pingCtx, 10*time.Second)
-	status, latency := pingTarget(runCtx, client, url)
+	status, latency := pingTarget(runCtx, client, target)
 	cancel()
 
 	if childSpan != nil {
@@ -310,33 +355,33 @@ func runPingAndCheck(ctx context.Context, client *http.Client, st *store.Store, 
 
 	// Record metrics in Prometheus
 	monitor.CheckCounter.Add(ctx, 1, metric.WithAttributes(
-		attribute.String("target", url),
+		attribute.String("target", target.URL),
 		attribute.String("status", status),
 	))
 	monitor.LatencyHistogram.Record(ctx, latency.Seconds(), metric.WithAttributes(
-		attribute.String("target", url),
+		attribute.String("target", target.URL),
 	))
 
 	// Get previous status to check for transitions
-	prevStatus, err := st.GetPreviousCheckStatus(ctx, url)
+	prevStatus, err := st.GetPreviousCheckStatus(ctx, target.URL)
 	if err == nil && prevStatus != "" && prevStatus != status {
 		// State transitioned! Alert!
-		slog.Info("status transition detected, sending alert", "target", url, "old_status", prevStatus, "new_status", status)
+		slog.Info("status transition detected, sending alert", "target", target.URL, "old_status", prevStatus, "new_status", status)
 		alertsWG.Add(1)
 		go func() {
 			defer alertsWG.Done()
-			sendWebhookAlert(context.Background(), client, url, prevStatus, status, latency)
+			sendWebhookAlert(context.Background(), client, target.URL, prevStatus, status, latency)
 		}()
 	}
 
 	// Record the result in the database
-	if err := st.InsertCheck(ctx, url, status, int(latency.Milliseconds())); err != nil {
-		slog.Error("failed to save check", "target", url, "err", err)
+	if err := st.InsertCheck(ctx, target.URL, status, int(latency.Milliseconds())); err != nil {
+		slog.Error("failed to save check", "target", target.URL, "err", err)
 		if childSpan != nil {
 			childSpan.RecordError(err)
 		}
 	} else {
-		slog.Info("check recorded", "target", url, "status", status, "latency_ms", latency.Milliseconds())
+		slog.Info("check recorded", "target", target.URL, "status", status, "latency_ms", latency.Milliseconds())
 	}
 
 	if childSpan != nil {
