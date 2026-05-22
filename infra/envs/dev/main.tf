@@ -175,6 +175,15 @@ module "monitor" {
   alert_email                  = "toanle88@outlook.com"
 }
 
+# 10. POLICY MODULE — enforce required tags on all resources in this resource group
+module "policy" {
+  source              = "../../modules/policy"
+  resource_group_name = azurerm_resource_group.dev.name
+  resource_group_id   = azurerm_resource_group.dev.id
+  environment         = var.environment
+  project             = "healthcheck"
+}
+
 # Store the DB password in Key Vault for later use by the App
 resource "azurerm_key_vault_secret" "db_password" {
   name         = "database-password"

@@ -178,6 +178,9 @@ Implement full-stack improvements to make the application highly interactive and
   - [x] Add a dedicated `terraform-plan` job in `cicd.yml` that runs on PRs, posts the full speculative plan diff as a collapsible PR comment (via `actions/github-script`), and updates the comment on re-push instead of creating duplicates.
   - [x] Mirror the same `terraform_plan` job and PR trigger (`paths: infra/**`) in `infra.yml` so infra-only PRs also surface plan output.
   - [x] Add a `smoke-test` job that runs after `deploy`, fetches the live Container App FQDN, and retries `curl $URL/health` for up to 90 s — exits 0 on HTTP 200, exits 1 (fails pipeline) otherwise.
+- [x] **Option 11: Governance — Azure Policy Tag Enforcement**
+  - [x] `infra/modules/policy`: Two custom `deny`-effect policy definitions requiring `environment` and `project` tags on every resource.
+  - [x] Scoped assignments on the dev resource group (`azurerm_resource_group_policy_assignment`) — blocks untagged resource creates/updates at the ARM API layer without affecting other subscriptions.
 
 ---
 
