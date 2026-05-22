@@ -17,6 +17,7 @@ describe('LoginPage', () => {
       logout: vi.fn(),
       getAccessToken: vi.fn(),
       isProcessing: false,
+      isAdmin: false,
     });
 
     render(<LoginPage />);

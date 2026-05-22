@@ -3,6 +3,7 @@ import { render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MsalProvider } from "@azure/msal-react";
 import { PublicClientApplication } from "@azure/msal-browser";
+import { ToastProvider } from '../components/common/ToastContext';
 
 const createTestQueryClient = () => new QueryClient({
   defaultOptions: {
@@ -24,7 +25,9 @@ export function renderWithProviders(ui: React.ReactElement) {
   return render(
     <MsalProvider instance={msalInstance}>
       <QueryClientProvider client={queryClient}>
-        {ui}
+        <ToastProvider>
+          {ui}
+        </ToastProvider>
       </QueryClientProvider>
     </MsalProvider>
   );
@@ -42,7 +45,9 @@ export function createWrapper() {
   return ({ children }: { children: React.ReactNode }) => (
     <MsalProvider instance={msalInstance}>
       <QueryClientProvider client={queryClient}>
-        {children}
+        <ToastProvider>
+          {children}
+        </ToastProvider>
       </QueryClientProvider>
     </MsalProvider>
   );

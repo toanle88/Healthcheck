@@ -33,6 +33,7 @@ describe('App', () => {
       isProcessing: true,
       isAuthenticated: false,
       user: null,
+      isAdmin: false,
       login: vi.fn(),
       logout: vi.fn(),
       getAccessToken: vi.fn(),
@@ -57,6 +58,7 @@ describe('App', () => {
           localAccountId: '' 
         } 
       },
+      isAdmin: true,
       login: vi.fn(),
       logout: vi.fn(),
       getAccessToken: vi.fn(),
@@ -72,6 +74,7 @@ describe('App', () => {
       isProcessing: false,
       isAuthenticated: false,
       user: null,
+      isAdmin: false,
       login: vi.fn(),
       logout: vi.fn(),
       getAccessToken: vi.fn(),

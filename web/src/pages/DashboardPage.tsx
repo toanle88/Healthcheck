@@ -9,6 +9,7 @@ import IncidentLogModal from '../components/dashboard/IncidentLogModal';
 import { useHealthQuery } from '../hooks/useHealthQuery';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../components/common/ToastContext';
 import { healthService } from '../services/healthService';
 import { Settings, Plus, Trash2, Globe, Sparkles } from 'lucide-react';
 import { getEnv } from '../config/env';
@@ -29,7 +30,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ theme, toggleTheme }) => 
     refetch 
   } = useHealthQuery();
 
-  const { isAuthenticated, getAccessToken } = useAuth();
+  const { isAuthenticated, getAccessToken, isAdmin } = useAuth();
+  const toast = useToast();
   const queryClient = useQueryClient();
 
   const [showManage, setShowManage] = useState(false);
@@ -47,7 +49,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ theme, toggleTheme }) => 
   const { data: targetsList } = useQuery({
     queryKey: ['targets'],
     queryFn: () => healthService.getTargets(),
-    enabled: isAuthenticated && showManage,
+    enabled: isAuthenticated && showManage && isAdmin,
   });
 
   // Mutation to add a target
@@ -80,10 +82,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ theme, toggleTheme }) => 
       setResponseContains(''); 
       setFailureThreshold(3); 
       setErrorMsg(null); 
+      toast.success('Target added successfully');
     },
     onError: (err: unknown) => {
       const error = err as { response?: { data?: { error?: string } }; message?: string };
-      setErrorMsg(error?.response?.data?.error || error.message || 'Failed to add target');
+      const msg = error?.response?.data?.error || error.message || 'Failed to add target';
+      setErrorMsg(msg);
+      toast.error(msg);
     }
   });
 
@@ -93,10 +98,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ theme, toggleTheme }) => 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['targets'] });
       queryClient.invalidateQueries({ queryKey: ['healthStatus'] });
+      toast.success('Target deleted successfully');
     },
     onError: (err: unknown) => {
       const error = err as { response?: { data?: { error?: string } }; message?: string };
-      alert(error?.response?.data?.error || error.message || 'Failed to delete target');
+      toast.error(error?.response?.data?.error || error.message || 'Failed to delete target');
     }
   });
 
@@ -162,20 +168,22 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ theme, toggleTheme }) => 
           <div className="space-y-8">
             <div className="flex items-center justify-between">
               <TargetsHeader count={data?.count || 0} />
-              <button
-                onClick={() => setShowManage(!showManage)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 active:scale-95 border cursor-pointer ${
-                  showManage 
-                    ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' 
-                    : 'bg-bg-card/50 text-text-secondary border-border-primary hover:border-indigo-500/50 hover:text-text-primary'
-                }`}
-              >
-                <Settings className={`w-4 h-4 ${showManage ? 'rotate-45' : ''} transition-transform duration-500`} />
-                <span>{showManage ? 'Hide Settings' : 'Manage Targets'}</span>
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => setShowManage(!showManage)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 active:scale-95 border cursor-pointer ${
+                    showManage 
+                      ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' 
+                      : 'bg-bg-card/50 text-text-secondary border-border-primary hover:border-indigo-500/50 hover:text-text-primary'
+                  }`}
+                >
+                  <Settings className={`w-4 h-4 ${showManage ? 'rotate-45' : ''} transition-transform duration-500`} />
+                  <span>{showManage ? 'Hide Settings' : 'Manage Targets'}</span>
+                </button>
+              )}
             </div>
 
-            {showManage && (
+            {showManage && isAdmin && (
               <div className="bg-bg-card/40 border border-border-primary rounded-3xl p-6 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-300 space-y-6">
                 <div className="flex items-center gap-2 pb-4 border-b border-border-primary/50">
                   <Sparkles className="w-5 h-5 text-indigo-400" />
@@ -192,7 +200,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ theme, toggleTheme }) => 
                       try {
                         JSON.parse(headers);
                       } catch {
-                        setErrorMsg('Custom Headers must be valid JSON (e.g. {"Key": "Value"})');
+                        const msg = 'Custom Headers must be valid JSON (e.g. {"Key": "Value"})';
+                        setErrorMsg(msg);
+                        toast.error(msg);
                         return;
                       }
                     }

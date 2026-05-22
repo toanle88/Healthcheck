@@ -7,6 +7,7 @@ import { MsalProvider } from "@azure/msal-react";
 import { msalInstance } from "./authConfig";
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ToastProvider } from './components/common/ToastContext';
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -41,7 +42,9 @@ msalInstance.initialize().then(() => {
             <React.StrictMode>
                 <MsalProvider instance={msalInstance}>
                     <QueryClientProvider client={queryClient}>
-                        <App />
+                        <ToastProvider>
+                            <App />
+                        </ToastProvider>
                     </QueryClientProvider>
                 </MsalProvider>
             </React.StrictMode>,

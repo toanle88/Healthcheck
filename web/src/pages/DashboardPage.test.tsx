@@ -10,6 +10,7 @@ vi.mock('../hooks/useAuth', () => ({
     getAccessToken: vi.fn().mockResolvedValue('fake-token'),
     user: { name: 'Test User' },
     isProcessing: false,
+    isAdmin: true,
   }),
 }));
 

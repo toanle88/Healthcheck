@@ -94,10 +94,30 @@ export const useAuth = () => {
     return realGetAccessToken();
   }, [isE2E, realGetAccessToken]);
 
+  const isAdmin = useMemo(() => {
+    if (isE2E) {
+      const mockRole = typeof window !== 'undefined' && localStorage.getItem("playwright-mock-role");
+      const windowMockRole = typeof window !== 'undefined' && (window as unknown as { playwrightMockRole?: string }).playwrightMockRole;
+      const role = windowMockRole || mockRole || "Healthcheck.Admin";
+      return role === "Healthcheck.Admin";
+    }
+    if (!realUser) return false;
+    const claims = realUser.account.idTokenClaims as Record<string, any> | undefined;
+    const roles = claims?.roles;
+    if (Array.isArray(roles)) {
+      return roles.includes("Healthcheck.Admin");
+    }
+    if (typeof roles === 'string') {
+      return roles === "Healthcheck.Admin";
+    }
+    return false;
+  }, [isE2E, realUser]);
+
   return {
     user,
     isAuthenticated: isE2E ? true : accounts.length > 0,
     isProcessing: isE2E ? false : inProgress !== "none",
+    isAdmin,
     login,
     logout,
     getAccessToken,
