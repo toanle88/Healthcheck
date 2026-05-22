@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
@@ -304,6 +305,9 @@ func pingTarget(ctx context.Context, client *http.Client, target store.Target) (
 		slog.Error("failed to create request", "target", target.URL, "err", err)
 		return "down", time.Since(start)
 	}
+
+	// Inject trace context headers (W3C propagation)
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
 
 	// Parse and set headers
 	if target.Headers != "" {

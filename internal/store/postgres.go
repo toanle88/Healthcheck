@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -14,7 +15,10 @@ import (
 
 // Store holds all database connections and methods.
 type Store struct {
-	DB *pgxpool.Pool
+	DB             *pgxpool.Pool
+	slaCache       map[string]float64
+	slaCacheExpiry time.Time
+	slaMutex       sync.Mutex
 }
 
 // New creates a new database connection pool with hybrid auth support.
@@ -119,6 +123,10 @@ func (s *Store) InitSchema(ctx context.Context) error {
 // InsertCheck saves a new health check result into the database.
 // This is used by the worker to record the status of various targets.
 func (s *Store) InsertCheck(ctx context.Context, target, status string, latencyMs int) error {
+	s.slaMutex.Lock()
+	s.slaCacheExpiry = time.Time{}
+	s.slaMutex.Unlock()
+
 	// We use $1, $2, $3 as placeholders for parameters to prevent SQL injection.
 	// pgx handles the mapping of Go types to Postgres types.
 	_, err := s.DB.Exec(ctx, `
@@ -167,22 +175,48 @@ type TargetSLA struct {
 
 // GetLatestChecks retrieves the most recent check result for each active target, including 24h SLA.
 func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
-	rows, err := s.DB.Query(ctx, `
-		WITH sla AS (
+	// 1. Get SLA cache or populate it
+	s.slaMutex.Lock()
+	if s.slaCache == nil || time.Now().After(s.slaCacheExpiry) {
+		rows, err := s.DB.Query(ctx, `
 			SELECT 
 				target,
 				ROUND(100.0 * COUNT(CASE WHEN status = 'up' THEN 1 END) / COUNT(*), 2) as uptime_percentage
 			FROM checks
 			WHERE checked_at >= NOW() - INTERVAL '24 hours'
 			GROUP BY target
-		)
+		`)
+		if err != nil {
+			s.slaMutex.Unlock()
+			return nil, fmt.Errorf("failed to query SLA percentages: %w", err)
+		}
+
+		cache := make(map[string]float64)
+		for rows.Next() {
+			var target string
+			var percentage float64
+			if err := rows.Scan(&target, &percentage); err != nil {
+				rows.Close()
+				s.slaMutex.Unlock()
+				return nil, fmt.Errorf("failed to scan SLA percentage: %w", err)
+			}
+			cache[target] = percentage
+		}
+		rows.Close()
+		s.slaCache = cache
+		s.slaCacheExpiry = time.Now().Add(10 * time.Second)
+	}
+	cache := s.slaCache
+	s.slaMutex.Unlock()
+
+	// 2. Fetch the latest status for active targets (fast query)
+	rows, err := s.DB.Query(ctx, `
 		SELECT 
 			t.name as name,
 			t.url as target, 
 			COALESCE(l.status, 'pending') as status, 
 			COALESCE(l.latency_ms, 0) as latency_ms, 
 			COALESCE(l.checked_at, t.created_at) as checked_at,
-			COALESCE(s.uptime_percentage, 100.0) as uptime_sla,
 			t.failure_threshold,
 			t.consecutive_failures,
 			t.last_alert_status
@@ -194,7 +228,6 @@ func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
 			ORDER BY checked_at DESC 
 			LIMIT 1
 		) l ON TRUE
-		LEFT JOIN sla s ON t.url = s.target
 		WHERE t.is_active = TRUE
 		ORDER BY t.id
 	`)
@@ -207,10 +240,17 @@ func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
 	for rows.Next() {
 		var ck Check
 		if err := rows.Scan(
-			&ck.Name, &ck.Target, &ck.Status, &ck.LatencyMs, &ck.CheckedAt, &ck.UptimeSLA,
+			&ck.Name, &ck.Target, &ck.Status, &ck.LatencyMs, &ck.CheckedAt,
 			&ck.FailureThreshold, &ck.ConsecutiveFailures, &ck.LastAlertStatus,
 		); err != nil {
 			return nil, err
+		}
+		// Look up SLA from the immutable cache copy
+		slaVal, exists := cache[ck.Target]
+		if exists {
+			ck.UptimeSLA = slaVal
+		} else {
+			ck.UptimeSLA = 100.0 // Default to 100% for new targets
 		}
 		checks = append(checks, ck)
 	}
@@ -282,6 +322,10 @@ func (s *Store) InsertTarget(ctx context.Context, name, url, method, headers str
 
 // DeleteTarget removes a target and its associated check history.
 func (s *Store) DeleteTarget(ctx context.Context, id int) error {
+	s.slaMutex.Lock()
+	s.slaCacheExpiry = time.Time{}
+	s.slaMutex.Unlock()
+
 	tx, err := s.DB.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)

@@ -165,6 +165,10 @@ Implement full-stack improvements to make the application highly interactive and
   - [x] Configure custom `CheckRedirect` on the worker's HTTP client to prevent SSRF by blocking redirects to internal/private IPs and limiting redirect hops (max 3).
   - [x] Enhance the API auth middleware to propagate JWT claims via the Gin context and implement a new `RequireRoleOrScope` role/scope validation middleware.
   - [x] Secure `POST /api/targets` and `DELETE /api/targets/:id` by requiring the `Healthcheck.Admin` role.
+- [x] **Option 8: Observability & Performance Optimizations**
+  - [x] Implement Distributed Tracing (W3C Context Propagation) in `main.go` and `worker` to link worker pings to API trace spans in Jaeger.
+  - [x] Optimize 24h SLA Calculation performance by caching it in-memory with a 10s TTL and invalidating cache on writes.
+  - [x] Add a Grafana dashboard and Prometheus datasource configuration in root, integrated with `docker-compose.yml`.
 
 ---
 
