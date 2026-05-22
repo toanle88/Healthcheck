@@ -11,6 +11,9 @@ const mockCheck: Check = {
   latency_ms: 150,
   checked_at: new Date().toISOString(),
   uptime_sla: 100.0,
+  failure_threshold: 3,
+  consecutive_failures: 0,
+  last_alert_status: 'up',
 };
 
 describe('HealthCard', () => {
@@ -23,11 +26,29 @@ describe('HealthCard', () => {
     expect(screen.getByText('150ms')).toBeInTheDocument();
   });
 
-  it('renders down status with correct colors', () => {
-    const downCheck = { ...mockCheck, status: 'down' };
+  it('renders transient failure warning with correct colors', () => {
+    const transientCheck: Check = {
+      ...mockCheck,
+      status: 'down',
+      consecutive_failures: 1,
+      failure_threshold: 3,
+    };
+    renderWithProviders(<HealthCard check={transientCheck} />);
+    
+    const statusBadge = screen.getByText('FAILING (1/3)');
+    expect(statusBadge).toHaveClass('text-amber-400');
+  });
+
+  it('renders confirmed down alert with correct colors', () => {
+    const downCheck: Check = {
+      ...mockCheck,
+      status: 'down',
+      consecutive_failures: 3,
+      failure_threshold: 3,
+    };
     renderWithProviders(<HealthCard check={downCheck} />);
     
-    const statusBadge = screen.getByText('down');
+    const statusBadge = screen.getByText('DOWN (3)');
     expect(statusBadge).toHaveClass('text-red-400');
   });
 });

@@ -156,7 +156,11 @@ Implement full-stack improvements to make the application highly interactive and
   - [x] API validator and creator support in backend handlers
   - [x] Worker ping engine supporting dynamic methods, HTTP header injection, expected status validation, and body substring matching
   - [x] Expanded React dashboard creation form UI and current targets list configuration view
-
+- [x] **Option 6: Worker Robustness & Alert De-noising**
+  - [x] Database schema extension for consecutive failure thresholds and alert state tracking
+  - [x] Support customizing failure thresholds in React dashboard creation form and list view
+  - [x] Introduce randomized worker ping jitter (0–15s) in batch scheduling
+  - [x] Implement consecutive failure threshold-based webhook alerting to eliminate false positives from transient network flapping
 
 ---
 

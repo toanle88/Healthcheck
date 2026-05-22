@@ -92,6 +92,9 @@ func (s *Store) InitSchema(ctx context.Context) error {
 	ALTER TABLE targets ADD COLUMN IF NOT EXISTS headers TEXT;
 	ALTER TABLE targets ADD COLUMN IF NOT EXISTS expected_status INT NOT NULL DEFAULT 200;
 	ALTER TABLE targets ADD COLUMN IF NOT EXISTS response_contains TEXT;
+	ALTER TABLE targets ADD COLUMN IF NOT EXISTS failure_threshold INT NOT NULL DEFAULT 3;
+	ALTER TABLE targets ADD COLUMN IF NOT EXISTS consecutive_failures INT NOT NULL DEFAULT 0;
+	ALTER TABLE targets ADD COLUMN IF NOT EXISTS last_alert_status TEXT NOT NULL DEFAULT 'up';
 
 	INSERT INTO targets (name, url) VALUES
 		('Httpbin', 'http://httpbin.org/get'),
@@ -128,26 +131,32 @@ func (s *Store) InsertCheck(ctx context.Context, target, status string, latencyM
 
 // Check represents a single health check record in the database.
 type Check struct {
-	Name      string    `json:"name"`
-	Target    string    `json:"target"`
-	Status    string    `json:"status"`
-	LatencyMs int       `json:"latency_ms"`
-	CheckedAt time.Time `json:"checked_at"`
-	UptimeSLA float64   `json:"uptime_sla"`
+	Name                string    `json:"name"`
+	Target              string    `json:"target"`
+	Status              string    `json:"status"`
+	LatencyMs           int       `json:"latency_ms"`
+	CheckedAt           time.Time `json:"checked_at"`
+	UptimeSLA           float64   `json:"uptime_sla"`
+	FailureThreshold    int       `json:"failure_threshold"`
+	ConsecutiveFailures int       `json:"consecutive_failures"`
+	LastAlertStatus     string    `json:"last_alert_status"`
 }
 
 // Target represents a monitored URL/endpoint.
 type Target struct {
-	ID               int       `json:"id"`
-	Name             string    `json:"name"`
-	URL              string    `json:"url"`
-	Method           string    `json:"method"`
-	Headers          string    `json:"headers"`
-	ExpectedStatus   int       `json:"expected_status"`
-	ResponseContains string    `json:"response_contains"`
-	IsActive         bool      `json:"is_active"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ID                  int       `json:"id"`
+	Name                string    `json:"name"`
+	URL                 string    `json:"url"`
+	Method              string    `json:"method"`
+	Headers             string    `json:"headers"`
+	ExpectedStatus      int       `json:"expected_status"`
+	ResponseContains    string    `json:"response_contains"`
+	FailureThreshold    int       `json:"failure_threshold"`
+	ConsecutiveFailures int       `json:"consecutive_failures"`
+	LastAlertStatus     string    `json:"last_alert_status"`
+	IsActive            bool      `json:"is_active"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 // TargetSLA represents calculated uptime percentage.
@@ -173,7 +182,10 @@ func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
 			COALESCE(l.status, 'pending') as status, 
 			COALESCE(l.latency_ms, 0) as latency_ms, 
 			COALESCE(l.checked_at, t.created_at) as checked_at,
-			COALESCE(s.uptime_percentage, 100.0) as uptime_sla
+			COALESCE(s.uptime_percentage, 100.0) as uptime_sla,
+			t.failure_threshold,
+			t.consecutive_failures,
+			t.last_alert_status
 		FROM targets t
 		LEFT JOIN LATERAL (
 			SELECT status, latency_ms, checked_at 
@@ -194,7 +206,10 @@ func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
 	var checks []Check
 	for rows.Next() {
 		var ck Check
-		if err := rows.Scan(&ck.Name, &ck.Target, &ck.Status, &ck.LatencyMs, &ck.CheckedAt, &ck.UptimeSLA); err != nil {
+		if err := rows.Scan(
+			&ck.Name, &ck.Target, &ck.Status, &ck.LatencyMs, &ck.CheckedAt, &ck.UptimeSLA,
+			&ck.FailureThreshold, &ck.ConsecutiveFailures, &ck.LastAlertStatus,
+		); err != nil {
 			return nil, err
 		}
 		checks = append(checks, ck)
@@ -208,7 +223,7 @@ func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
 // GetTargets retrieves all monitored targets.
 func (s *Store) GetTargets(ctx context.Context) ([]Target, error) {
 	rows, err := s.DB.Query(ctx, `
-		SELECT id, name, url, method, headers, expected_status, response_contains, is_active, created_at, updated_at 
+		SELECT id, name, url, method, headers, expected_status, response_contains, failure_threshold, consecutive_failures, last_alert_status, is_active, created_at, updated_at 
 		FROM targets 
 		ORDER BY id
 	`)
@@ -222,7 +237,9 @@ func (s *Store) GetTargets(ctx context.Context) ([]Target, error) {
 		var t Target
 		var headersPtr, responseContainsPtr *string
 		if err := rows.Scan(
-			&t.ID, &t.Name, &t.URL, &t.Method, &headersPtr, &t.ExpectedStatus, &responseContainsPtr, &t.IsActive, &t.CreatedAt, &t.UpdatedAt,
+			&t.ID, &t.Name, &t.URL, &t.Method, &headersPtr, &t.ExpectedStatus, &responseContainsPtr,
+			&t.FailureThreshold, &t.ConsecutiveFailures, &t.LastAlertStatus,
+			&t.IsActive, &t.CreatedAt, &t.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -241,7 +258,7 @@ func (s *Store) GetTargets(ctx context.Context) ([]Target, error) {
 }
 
 // InsertTarget saves a new target.
-func (s *Store) InsertTarget(ctx context.Context, name, url, method, headers string, expectedStatus int, responseContains string) (Target, error) {
+func (s *Store) InsertTarget(ctx context.Context, name, url, method, headers string, expectedStatus int, responseContains string, failureThreshold int) (Target, error) {
 	var t Target
 
 	var headersVal *string
@@ -254,11 +271,11 @@ func (s *Store) InsertTarget(ctx context.Context, name, url, method, headers str
 	}
 
 	err := s.DB.QueryRow(ctx, `
-		INSERT INTO targets (name, url, method, headers, expected_status, response_contains) 
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, name, url, method, COALESCE(headers, ''), expected_status, COALESCE(response_contains, ''), is_active, created_at, updated_at
-	`, name, url, method, headersVal, expectedStatus, responseContainsVal).Scan(
-		&t.ID, &t.Name, &t.URL, &t.Method, &t.Headers, &t.ExpectedStatus, &t.ResponseContains, &t.IsActive, &t.CreatedAt, &t.UpdatedAt,
+		INSERT INTO targets (name, url, method, headers, expected_status, response_contains, failure_threshold) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, name, url, method, COALESCE(headers, ''), expected_status, COALESCE(response_contains, ''), failure_threshold, consecutive_failures, last_alert_status, is_active, created_at, updated_at
+	`, name, url, method, headersVal, expectedStatus, responseContainsVal, failureThreshold).Scan(
+		&t.ID, &t.Name, &t.URL, &t.Method, &t.Headers, &t.ExpectedStatus, &t.ResponseContains, &t.FailureThreshold, &t.ConsecutiveFailures, &t.LastAlertStatus, &t.IsActive, &t.CreatedAt, &t.UpdatedAt,
 	)
 	return t, err
 }
@@ -342,4 +359,64 @@ func (s *Store) CleanupOldChecks(ctx context.Context, olderThan time.Duration) (
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+// UpdateTargetAlertState updates consecutive failures and determines if a status transition alert should trigger.
+func (s *Store) UpdateTargetAlertState(ctx context.Context, url string, currentStatus string) (bool, string, string, error) {
+	tx, err := s.DB.Begin(ctx)
+	if err != nil {
+		return false, "", "", err
+	}
+	defer tx.Rollback(ctx)
+
+	var consecutiveFailures int
+	var lastAlertStatus string
+	var failureThreshold int
+
+	err = tx.QueryRow(ctx, `
+		SELECT consecutive_failures, last_alert_status, failure_threshold 
+		FROM targets 
+		WHERE url = $1
+	`, url).Scan(&consecutiveFailures, &lastAlertStatus, &failureThreshold)
+	if err != nil {
+		return false, "", "", err
+	}
+
+	shouldAlert := false
+	oldAlertStatus := lastAlertStatus
+	newAlertStatus := lastAlertStatus
+
+	if currentStatus == "up" {
+		consecutiveFailures = 0
+		if lastAlertStatus == "down" {
+			shouldAlert = true
+			newAlertStatus = "up"
+			lastAlertStatus = "up"
+		}
+	} else { // "down"
+		consecutiveFailures++
+		if consecutiveFailures >= failureThreshold {
+			if lastAlertStatus == "up" {
+				shouldAlert = true
+				newAlertStatus = "down"
+				lastAlertStatus = "down"
+			}
+		}
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE targets 
+		SET consecutive_failures = $1, last_alert_status = $2 
+		WHERE url = $3
+	`, consecutiveFailures, lastAlertStatus, url)
+	if err != nil {
+		return false, "", "", err
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return false, "", "", err
+	}
+
+	return shouldAlert, oldAlertStatus, newAlertStatus, nil
 }

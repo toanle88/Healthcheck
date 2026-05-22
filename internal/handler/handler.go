@@ -19,7 +19,7 @@ import (
 type Storer interface {
 	GetLatestChecks(ctx context.Context) ([]store.Check, error)
 	GetTargets(ctx context.Context) ([]store.Target, error)
-	InsertTarget(ctx context.Context, name, url, method, headers string, expectedStatus int, responseContains string) (store.Target, error)
+	InsertTarget(ctx context.Context, name, url, method, headers string, expectedStatus int, responseContains string, failureThreshold int) (store.Target, error)
 	DeleteTarget(ctx context.Context, id int) error
 	GetHistoricalChecks(ctx context.Context, target string, limit int) ([]store.Check, error)
 	GetPreviousCheckStatus(ctx context.Context, target string) (string, error)
@@ -41,6 +41,7 @@ type CreateTargetInput struct {
 	Headers          string `json:"headers" example:"{\"Authorization\": \"Bearer token\"}"`
 	ExpectedStatus   int    `json:"expected_status" example:"200"`
 	ResponseContains string `json:"response_contains" example:"search"`
+	FailureThreshold int    `json:"failure_threshold" example:"3"`
 }
 
 // Health godoc
@@ -181,8 +182,12 @@ func (h *Handler) CreateTarget(c *gin.Context) {
 		return
 	}
 
+	if input.FailureThreshold <= 0 {
+		input.FailureThreshold = 3
+	}
+
 	ctx := c.Request.Context()
-	target, err := h.store.InsertTarget(ctx, input.Name, input.URL, input.Method, input.Headers, input.ExpectedStatus, input.ResponseContains)
+	target, err := h.store.InsertTarget(ctx, input.Name, input.URL, input.Method, input.Headers, input.ExpectedStatus, input.ResponseContains, input.FailureThreshold)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

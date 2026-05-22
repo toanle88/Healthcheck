@@ -21,7 +21,8 @@ export const healthService = {
     method?: string,
     headers?: string,
     expectedStatus?: number,
-    responseContains?: string
+    responseContains?: string,
+    failureThreshold?: number
   ): Promise<Target> => {
     const { data } = await api.post<Target>('/api/targets', {
       name,
@@ -30,6 +31,7 @@ export const healthService = {
       headers,
       expected_status: expectedStatus,
       response_contains: responseContains,
+      failure_threshold: failureThreshold,
     });
     return data;
   },

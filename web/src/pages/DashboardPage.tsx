@@ -32,6 +32,7 @@ const DashboardPage: React.FC = () => {
   const [headers, setHeaders] = useState('');
   const [expectedStatus, setExpectedStatus] = useState<number>(200);
   const [responseContains, setResponseContains] = useState('');
+  const [failureThreshold, setFailureThreshold] = useState<number>(3);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Query to fetch all targets
@@ -42,14 +43,15 @@ const DashboardPage: React.FC = () => {
   });
 
   // Mutation to add a target
-  const addTargetMutation = useMutation({
+  const addTargetMutation = useMutation({ 
     mutationFn: ({ 
       name, 
       url, 
       method, 
       headers, 
       expectedStatus, 
-      responseContains 
+      responseContains, 
+      failureThreshold 
     }: { 
       name: string; 
       url: string; 
@@ -57,17 +59,19 @@ const DashboardPage: React.FC = () => {
       headers?: string; 
       expectedStatus: number; 
       responseContains?: string; 
-    }) => healthService.createTarget(name, url, method, headers || undefined, expectedStatus, responseContains || undefined),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['targets'] });
-      queryClient.invalidateQueries({ queryKey: ['healthStatus'] });
-      setNewName('');
-      setNewUrl('');
-      setMethod('GET');
-      setHeaders('');
-      setExpectedStatus(200);
-      setResponseContains('');
-      setErrorMsg(null);
+      failureThreshold: number; 
+    }) => healthService.createTarget(name, url, method, headers || undefined, expectedStatus, responseContains || undefined, failureThreshold), 
+    onSuccess: () => { 
+      queryClient.invalidateQueries({ queryKey: ['targets'] }); 
+      queryClient.invalidateQueries({ queryKey: ['healthStatus'] }); 
+      setNewName(''); 
+      setNewUrl(''); 
+      setMethod('GET'); 
+      setHeaders(''); 
+      setExpectedStatus(200); 
+      setResponseContains(''); 
+      setFailureThreshold(3); 
+      setErrorMsg(null); 
     },
     onError: (err: unknown) => {
       const error = err as { response?: { data?: { error?: string } }; message?: string };
@@ -147,7 +151,8 @@ const DashboardPage: React.FC = () => {
                       method, 
                       headers: headers.trim() !== '' ? headers : undefined, 
                       expectedStatus: Number(expectedStatus), 
-                      responseContains: responseContains.trim() !== '' ? responseContains : undefined 
+                      responseContains: responseContains.trim() !== '' ? responseContains : undefined, 
+                      failureThreshold: Number(failureThreshold) 
                     });
                   }} className="space-y-4">
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Add New Endpoint</h3>
@@ -196,7 +201,7 @@ const DashboardPage: React.FC = () => {
                           required
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
                           <label className="block text-[10px] font-semibold text-slate-500 mb-1" htmlFor="target-status">Expected Status</label>
                           <input
@@ -208,6 +213,20 @@ const DashboardPage: React.FC = () => {
                             className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
                             min="100"
                             max="599"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-1" htmlFor="target-threshold">Failure Threshold</label>
+                          <input
+                            id="target-threshold"
+                            type="number"
+                            placeholder="3"
+                            value={failureThreshold}
+                            onChange={(e) => setFailureThreshold(Number(e.target.value))}
+                            className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+                            min="1"
+                            max="10"
                             required
                           />
                         </div>
@@ -264,6 +283,7 @@ const DashboardPage: React.FC = () => {
                                     <h4 className="text-sm font-semibold text-slate-200">{target.name}</h4>
                                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">{target.method || 'GET'}</span>
                                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{target.expected_status || 200}</span>
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20" title="Failure threshold">Threshold: {target.failure_threshold || 3}</span>
                                   </div>
                                   <p className="text-xs text-slate-500 font-mono truncate">{target.url}</p>
                                 </div>

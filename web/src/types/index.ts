@@ -5,6 +5,9 @@ export interface Check {
   latency_ms: number;
   checked_at: string;
   uptime_sla: number;
+  failure_threshold: number;
+  consecutive_failures: number;
+  last_alert_status: string;
 }
 
 export interface ApiResponse {
@@ -20,6 +23,9 @@ export interface Target {
   headers?: string;
   expected_status: number;
   response_contains?: string;
+  failure_threshold: number;
+  consecutive_failures: number;
+  last_alert_status: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;

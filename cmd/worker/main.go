@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"os"
@@ -103,6 +104,14 @@ func runBatch(ctx context.Context, client *http.Client, st *store.Store, tracer 
 		if target.IsActive {
 			t := target // shadow loop variable for goroutine safety
 			g.Go(func() error {
+				// Introduce a randomized jitter of 0-15 seconds per target check to spread workload over the minute
+				jitter := rand.N(15 * time.Second)
+				select {
+				case <-batchCtx.Done():
+					return batchCtx.Err()
+				case <-time.After(jitter):
+				}
+
 				runPingAndCheck(batchCtx, client, st, tracer, t)
 				return nil
 			})
@@ -362,15 +371,16 @@ func runPingAndCheck(ctx context.Context, client *http.Client, st *store.Store, 
 		attribute.String("target", target.URL),
 	))
 
-	// Get previous status to check for transitions
-	prevStatus, err := st.GetPreviousCheckStatus(ctx, target.URL)
-	if err == nil && prevStatus != "" && prevStatus != status {
-		// State transitioned! Alert!
-		slog.Info("status transition detected, sending alert", "target", target.URL, "old_status", prevStatus, "new_status", status)
+	// Update alert state and check if we should alert
+	shouldAlert, oldAlertStatus, newAlertStatus, err := st.UpdateTargetAlertState(ctx, target.URL, status)
+	if err != nil {
+		slog.Error("failed to update target alert state", "target", target.URL, "err", err)
+	} else if shouldAlert {
+		slog.Info("alert status transition detected, sending alert", "target", target.URL, "old_status", oldAlertStatus, "new_status", newAlertStatus)
 		alertsWG.Add(1)
 		go func() {
 			defer alertsWG.Done()
-			sendWebhookAlert(context.Background(), client, target.URL, prevStatus, status, latency)
+			sendWebhookAlert(context.Background(), client, target.URL, oldAlertStatus, newAlertStatus, latency)
 		}()
 	}
 

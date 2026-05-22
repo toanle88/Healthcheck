@@ -8,27 +8,50 @@ interface HealthCardProps {
 }
 
 const HealthCard: React.FC<HealthCardProps> = ({ check }) => {
+  const isDown = check.status === 'down';
+  const isUp = check.status === 'up';
+
+  const isTransient = isDown && check.consecutive_failures < (check.failure_threshold || 3);
+
+  // Icon container class
+  const iconContainerClass = `p-2.5 rounded-xl ${
+    isUp ? 'bg-emerald-500/10' : 
+    isTransient ? 'bg-amber-500/10' :
+    isDown ? 'bg-red-500/10' : 'bg-amber-500/10'
+  }`;
+
+  // Status badge class
+  const badgeClass = `text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-md ${
+    isUp ? 'text-emerald-400 bg-emerald-400/10' : 
+    isTransient ? 'text-amber-400 bg-amber-400/10' :
+    isDown ? 'text-red-400 bg-red-400/10' : 'text-amber-400 bg-amber-400/10'
+  }`;
+
+  // Badge label text
+  let badgeText = check.status;
+  if (isTransient) {
+    badgeText = `FAILING (${check.consecutive_failures}/${check.failure_threshold || 3})`;
+  } else if (isDown) {
+    badgeText = `DOWN (${check.consecutive_failures})`;
+  }
+
   return (
     <div className="group bg-slate-900/50 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 hover:bg-slate-800/50 transition-all duration-300 hover:shadow-2xl hover:shadow-indigo-500/5">
       <div className="flex items-start justify-between mb-4">
-        <div className={`p-2.5 rounded-xl ${
-          check.status === 'up' ? 'bg-emerald-500/10' : 
-          check.status === 'down' ? 'bg-red-500/10' : 'bg-amber-500/10'
-        }`}>
-          {check.status === 'up' ? (
+        <div className={iconContainerClass}>
+          {isUp ? (
             <ShieldCheck className="w-6 h-6 text-emerald-400" />
-          ) : check.status === 'down' ? (
+          ) : isTransient ? (
+            <ShieldAlert className="w-6 h-6 text-amber-400" />
+          ) : isDown ? (
             <ShieldAlert className="w-6 h-6 text-red-400" />
           ) : (
             <HelpCircle className="w-6 h-6 text-amber-400 animate-pulse" />
           )}
         </div>
         <div className="flex flex-col items-end">
-          <span className={`text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-md ${
-            check.status === 'up' ? 'text-emerald-400 bg-emerald-400/10' : 
-            check.status === 'down' ? 'text-red-400 bg-red-400/10' : 'text-amber-400 bg-amber-400/10'
-          }`}>
-            {check.status}
+          <span className={badgeClass}>
+            {badgeText}
           </span>
           <span className="text-[10px] text-slate-500 mt-2 font-mono">{new Date(check.checked_at).toLocaleTimeString()}</span>
         </div>
