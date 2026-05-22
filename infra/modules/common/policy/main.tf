@@ -18,11 +18,11 @@ resource "azurerm_policy_definition" "require_environment_tag" {
   description  = "Denies creation or update of any resource that is missing the 'environment' tag."
 
   policy_rule = jsonencode({
-    if = {
+    "if" = {
       field  = "tags['environment']"
       exists = "false"
     }
-    then = {
+    "then" = {
       effect = "deny"
     }
   })
@@ -38,11 +38,11 @@ resource "azurerm_policy_definition" "require_project_tag" {
   description  = "Denies creation or update of any resource that is missing the 'project' tag."
 
   policy_rule = jsonencode({
-    if = {
+    "if" = {
       field  = "tags['project']"
       exists = "false"
     }
-    then = {
+    "then" = {
       effect = "deny"
     }
   })

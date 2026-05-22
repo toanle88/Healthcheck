@@ -8,6 +8,14 @@ on:
         description: 'Type "yes" to apply infrastructure changes'
         required: true
         default: 'no'
+      environment:
+        description: 'Environment to deploy'
+        type: choice
+        required: true
+        default: 'dev'
+        options:
+          - dev
+          - pro
   # Auto-plan on every PR that touches infra code
   pull_request:
     branches: [ main ]
@@ -36,28 +44,37 @@ jobs:
       - name: "📂 Checkout Code"
         uses: actions/checkout@v4
 
-      - name: "🔍 Run Checkov"
+      - name: "🔍 Run Checkov Dev"
         uses: bridgecrewio/checkov-action@master
         with:
-          directory: infra/
-          # soft_fail: true # Uncomment this if you want to see errors without breaking the build
+          directory: infra/envs/dev
+          config_file: infra/.checkov.yaml
+          framework: terraform
+          output_format: cli
+
+      - name: "🔍 Run Checkov Pro"
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: infra/envs/pro
           framework: terraform
           output_format: cli
 
   # ==========================================
   # STAGE 2: TERRAFORM PLAN (PR only)
   # Runs a speculative plan and posts the diff
-  # as a PR comment so reviewers can see what
-  # will change before they approve a merge.
   # ==========================================
   terraform_plan:
-    name: "📋 Terraform: Plan & Comment"
+    name: "📋 Terraform: Plan & Comment (${{ matrix.environment }})"
     needs: security_scan
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, pro]
     defaults:
       run:
-        working-directory: ./infra/envs/dev
+        working-directory: ./infra/envs/${{ matrix.environment }}
     steps:
       - name: "📂 Checkout Code"
         uses: actions/checkout@v4
@@ -78,7 +95,7 @@ jobs:
             -backend-config="resource_group_name=rg-healthcheck-bootstrap" \
             -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT }}" \
             -backend-config="container_name=${{ secrets.AZURE_STORAGE_CONTAINER }}" \
-            -backend-config="key=dev.terraform.tfstate"
+            -backend-config="key=${{ matrix.environment }}.terraform.tfstate"
 
       - name: "📋 Terraform Plan"
         id: plan
@@ -107,7 +124,7 @@ jobs:
               ? planOutput.slice(0, maxLen) + '\n\n> ⚠️ Output truncated — see full log in Actions.'
               : planOutput;
 
-            const comment = `## 🏗️ Terraform Plan — ${status}
+            const comment = `## 🏗️ Terraform Plan (${{ matrix.environment }}) — ${status}
 
             <details>
             <summary>Click to expand plan output</summary>
@@ -127,7 +144,7 @@ jobs:
             });
 
             const botComment = comments.find(c =>
-              c.user.type === 'Bot' && c.body.includes('🏗️ Terraform Plan')
+              c.user.type === 'Bot' && c.body.includes(`🏗️ Terraform Plan (${{ matrix.environment }})`)
             );
 
             if (botComment) {
@@ -154,13 +171,13 @@ jobs:
   # STAGE 3: THE DEPLOYER (manual apply only)
   # ==========================================
   terraform:
-    name: "🏗️ Terraform Apply"
+    name: "🏗️ Terraform Apply (${{ github.event.inputs.environment }})"
     needs: security_scan # <--- ONLY RUN IF SECURITY SCAN PASSES!
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.confirm_apply == 'yes'
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./infra/envs/dev
+        working-directory: ./infra/envs/${{ github.event.inputs.environment }}
     steps:
       - name: "📂 Checkout Code"
         uses: actions/checkout@v4
@@ -181,7 +198,7 @@ jobs:
             -backend-config="resource_group_name=rg-healthcheck-bootstrap" \
             -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT }}" \
             -backend-config="container_name=${{ secrets.AZURE_STORAGE_CONTAINER }}" \
-            -backend-config="key=dev.terraform.tfstate"
+            -backend-config="key=${{ github.event.inputs.environment }}.terraform.tfstate"
 
       - name: "🔍 Diagnostic: Check Versions"
         run: |

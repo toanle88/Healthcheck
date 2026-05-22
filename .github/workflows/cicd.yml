@@ -35,19 +35,15 @@ jobs:
         with:
           go-version: '1.26'
 
-      # -------------------------------------------------
       # Cache Go module downloads (~/.cache/go/mod) and
       # the build cache (~/.cache/go/build) so subsequent
       # runs skip re-downloading dependencies.
-      # -------------------------------------------------
       - name: "📦 Cache Go Modules"
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go/mod
             ~/.cache/go/build
-          # Key is based on OS + go.sum so the cache is invalidated
-          # whenever a dependency changes.
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
@@ -70,12 +66,12 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
   # ==========================================
-  # STAGE 3: THE FACTORY (Build & Push)
+  # STAGE 2: BUILD & PUSH
   # ==========================================
   build:
     name: "📦 Build: Docker Images"
-    needs: audit # <--- ONLY RUN IF AUDIT PASSES!
-    if: github.event_name != 'pull_request' # Don't build/push on PRs, only on push/manual
+    needs: audit
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.vars.outputs.sha_short }}
@@ -124,13 +120,12 @@ jobs:
           tags: ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/web:${{ steps.vars.outputs.sha_short }}
 
   # ==========================================
-  # STAGE 4: THE DEPLOYER (Fast Update)
+  # STAGE 3: DEV DEPLOYMENT
   # ==========================================
-  deploy:
-    name: "🚀 Deploy: Fast CLI Update"
-    needs: build # <--- ONLY RUN IF BUILD PASSES!
+  deploy-dev:
+    name: "🚀 Deploy: Dev"
+    needs: build
     runs-on: ubuntu-latest
-    # Expose the API URL so the smoke-test job can consume it
     outputs:
       api_url: ${{ steps.get_url.outputs.api_url }}
     steps:
@@ -163,7 +158,6 @@ jobs:
             --resource-group rg-healthcheck-dev \
             --image ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/worker:${{ needs.build.outputs.image_tag }}
 
-      # Fetch the live FQDN after update so the smoke-test job can use it
       - name: "🔍 Get API URL"
         id: get_url
         run: |
@@ -175,21 +169,99 @@ jobs:
           echo "api_url=https://${FQDN}" >> $GITHUB_OUTPUT
 
   # ==========================================
-  # STAGE 5: POST-DEPLOY SMOKE TEST
-  # Hits /health and fails the pipeline if the
-  # live endpoint is not responding correctly.
+  # STAGE 4: DEV SMOKE TEST
   # ==========================================
-  smoke-test:
-    name: "🔥 Smoke Test: /health Check"
-    needs: deploy # <--- ONLY RUN AFTER SUCCESSFUL DEPLOY
+  smoke-test-dev:
+    name: "🔥 Smoke Test: Dev /health Check"
+    needs: deploy-dev
     runs-on: ubuntu-latest
     steps:
       - name: "🌡️ Hit /health Endpoint"
         run: |
-          API_URL="${{ needs.deploy.outputs.api_url }}"
+          API_URL="${{ needs.deploy-dev.outputs.api_url }}"
           echo "Smoke-testing: ${API_URL}/health"
 
-          # Retry for up to 90 s to let the new revision warm up
+          for attempt in $(seq 1 9); do
+            HTTP_STATUS=$(curl --silent --output /dev/null \
+              --write-out "%{http_code}" \
+              --max-time 10 \
+              "${API_URL}/health")
+
+            echo "Attempt ${attempt}/9 → HTTP ${HTTP_STATUS}"
+
+            if [ "${HTTP_STATUS}" -eq 200 ]; then
+              echo "✅ Smoke test passed (HTTP 200)"
+              exit 0
+            fi
+
+            sleep 10
+          done
+
+          echo "❌ Smoke test failed — /health did not return 200 after 90 s"
+          exit 1
+
+  # ==========================================
+  # STAGE 5: PRO DEPLOYMENT (Sequential)
+  # ==========================================
+  deploy-pro:
+    name: "🚀 Deploy: Pro"
+    needs: [build, smoke-test-dev]
+    runs-on: ubuntu-latest
+    outputs:
+      api_url: ${{ steps.get_url.outputs.api_url }}
+    steps:
+      - name: "🔑 Login to Azure (OIDC)"
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: "⚡ Update API Container"
+        run: |
+          az containerapp update \
+            --name ca-healthcheck-api-pro \
+            --resource-group rg-healthcheck-pro \
+            --image ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/api:${{ needs.build.outputs.image_tag }}
+
+      - name: "⚡ Update Web Container"
+        run: |
+          az containerapp update \
+            --name ca-healthcheck-web-pro \
+            --resource-group rg-healthcheck-pro \
+            --image ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/web:${{ needs.build.outputs.image_tag }} \
+            --set-env-vars VITE_APP_VERSION=${{ needs.build.outputs.image_tag }}
+
+      - name: "⚡ Update Worker Job"
+        run: |
+          az containerapp job update \
+            --name caj-healthcheck-worker-pro \
+            --resource-group rg-healthcheck-pro \
+            --image ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/worker:${{ needs.build.outputs.image_tag }}
+
+      - name: "🔍 Get API URL"
+        id: get_url
+        run: |
+          FQDN=$(az containerapp show \
+            --name ca-healthcheck-api-pro \
+            --resource-group rg-healthcheck-pro \
+            --query "properties.configuration.ingress.fqdn" \
+            --output tsv)
+          echo "api_url=https://${FQDN}" >> $GITHUB_OUTPUT
+
+  # ==========================================
+  # STAGE 6: PRO SMOKE TEST
+  # ==========================================
+  smoke-test-pro:
+    name: "🔥 Smoke Test: Pro /health Check"
+    needs: deploy-pro
+    runs-on: ubuntu-latest
+    steps:
+      - name: "🌡️ Hit /health Endpoint"
+        run: |
+          API_URL="${{ needs.deploy-pro.outputs.api_url }}"
+          echo "Smoke-testing: ${API_URL}/health"
+
           for attempt in $(seq 1 9); do
             HTTP_STATUS=$(curl --silent --output /dev/null \
               --write-out "%{http_code}" \

@@ -16,7 +16,7 @@ terraform {
   backend "azurerm" {
     resource_group_name = "rg-healthcheck-bootstrap"
     container_name      = "tfstate"
-    key                 = "dev.terraform.tfstate"
+    key                 = "pro.terraform.tfstate"
   }
 }
 
@@ -29,25 +29,17 @@ provider "azurerm" {
   use_oidc = true
 }
 
-# REFACTORING: Move the identity state from containerapp to identity module
-moved {
-  from = module.containerapp.azurerm_user_assigned_identity.apps
-  to   = module.identity.azurerm_user_assigned_identity.apps
-}
-
-# No azuread provider needed here - we use a variable for the Client ID
-
 # 1. Variables
 variable "github_org_or_user" { default = "toanle88" }
 variable "github_repo_name" { default = "Healthcheck" }
 variable "location" { default = "East Asia" }
-variable "environment" { default = "dev" }
+variable "environment" { default = "pro" }
 variable "api_image" { default = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" }
 variable "worker_image" { default = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" }
 variable "web_image" { default = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" }
 
 # 2. Resource Group
-resource "azurerm_resource_group" "dev" {
+resource "azurerm_resource_group" "pro" {
   name     = "rg-healthcheck-${var.environment}"
   location = var.location
 }
@@ -55,19 +47,19 @@ resource "azurerm_resource_group" "dev" {
 # 3. IDENTITY MODULE (The "Security Passports")
 module "identity" {
   source              = "../../modules/common/identity"
-  location            = azurerm_resource_group.dev.location
-  resource_group_name = azurerm_resource_group.dev.name
-  resource_group_id   = azurerm_resource_group.dev.id
+  location            = azurerm_resource_group.pro.location
+  resource_group_name = azurerm_resource_group.pro.name
+  resource_group_id   = azurerm_resource_group.pro.id
   environment         = var.environment
   github_org_or_user  = var.github_org_or_user
   github_repo_name    = var.github_repo_name
 }
 
-# 4. NETWORK MODULE (Day 6)
+# 4. NETWORK MODULE (PRO network module)
 module "network" {
-  source              = "../../modules/common/network"
-  location            = azurerm_resource_group.dev.location
-  resource_group_name = azurerm_resource_group.dev.name
+  source              = "../../modules/pro/network"
+  location            = azurerm_resource_group.pro.location
+  resource_group_name = azurerm_resource_group.pro.name
   environment         = var.environment
 }
 
@@ -79,16 +71,16 @@ data "azurerm_container_registry" "main" {
   resource_group_name = "rg-healthcheck-bootstrap"
 }
 
-# 6. POSTGRES MODULE (Day 7)
+# 6. POSTGRES MODULE (PRO postgres module)
 resource "random_password" "db_password" {
   length  = 16
   special = false # Remove complex symbols to avoid URL encoding issues
 }
 
 module "postgres" {
-  source              = "../../modules/common/postgres"
-  location            = azurerm_resource_group.dev.location
-  resource_group_name = azurerm_resource_group.dev.name
+  source              = "../../modules/pro/postgres"
+  location            = azurerm_resource_group.pro.location
+  resource_group_name = azurerm_resource_group.pro.name
   environment         = var.environment
   vnet_id             = module.network.vnet_id
   subnet_id           = module.network.db_subnet_id
@@ -97,12 +89,13 @@ module "postgres" {
   aad_admin_name      = module.identity.app_identity_name
 }
 
-# 7. KEY VAULT MODULE (Day 7)
+# 7. KEY VAULT MODULE (PRO keyvault module)
 module "keyvault" {
-  source              = "../../modules/common/keyvault"
-  location            = azurerm_resource_group.dev.location
-  resource_group_name = azurerm_resource_group.dev.name
+  source              = "../../modules/pro/keyvault"
+  location            = azurerm_resource_group.pro.location
+  resource_group_name = azurerm_resource_group.pro.name
   environment         = var.environment
+  subnet_id           = module.network.endpoints_subnet_id
 }
 
 # 9. ENTRA ID CONFIG (Clean Split Pattern)
@@ -127,8 +120,8 @@ variable "alert_webhook_url" {
 # 8. CONTAINER APPS MODULE (Day 8)
 module "containerapp" {
   source              = "../../modules/common/containerapp"
-  location            = azurerm_resource_group.dev.location
-  resource_group_name = azurerm_resource_group.dev.name
+  location            = azurerm_resource_group.pro.location
+  resource_group_name = azurerm_resource_group.pro.name
   environment         = var.environment
   subnet_id           = module.network.apps_subnet_id
   acr_id              = data.azurerm_container_registry.main.id
@@ -165,9 +158,9 @@ module "containerapp" {
 # 9. MONITORING MODULE (Day 12)
 module "monitor" {
   source                       = "../../modules/common/monitor"
-  location                     = azurerm_resource_group.dev.location
-  resource_group_name          = azurerm_resource_group.dev.name
-  resource_group_id            = azurerm_resource_group.dev.id
+  location                     = azurerm_resource_group.pro.location
+  resource_group_name          = azurerm_resource_group.pro.name
+  resource_group_id            = azurerm_resource_group.pro.id
   environment                  = var.environment
   container_app_environment_id = module.containerapp.container_app_environment_id
   api_container_app_id         = module.containerapp.api_app_id
@@ -178,8 +171,8 @@ module "monitor" {
 # 10. POLICY MODULE — enforce required tags on all resources in this resource group
 module "policy" {
   source              = "../../modules/common/policy"
-  resource_group_name = azurerm_resource_group.dev.name
-  resource_group_id   = azurerm_resource_group.dev.id
+  resource_group_name = azurerm_resource_group.pro.name
+  resource_group_id   = azurerm_resource_group.pro.id
   environment         = var.environment
   project             = "healthcheck"
 }

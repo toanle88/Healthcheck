@@ -23,11 +23,6 @@ variables:
   azureServiceConnection: 'sc-healthcheck-dev'
   # Name of your Azure Container Registry (ACR)
   acrName: 'crhealthcheckdev'
-  # Azure Container App and Job resource names
-  containerAppApi: 'ca-healthcheck-api-dev'
-  containerAppWeb: 'ca-healthcheck-web-dev'
-  containerAppJobWorker: 'caj-healthcheck-worker-dev'
-  resourceGroup: 'rg-healthcheck-dev'
   # Go settings
   GOPATH: '$(Pipeline.Workspace)/go'
 
@@ -135,30 +130,34 @@ stages:
                 docker push $(acrName).azurecr.io/web:$TAG
 
   # ==========================================
-  # STAGE 3: THE DEPLOYER (Update Container Apps)
+  # STAGE 3: DEV DEPLOYMENT
   # ==========================================
-  - stage: Deploy
-    displayName: '🚀 Deploy: Fast CLI Update'
+  - stage: DeployDev
+    displayName: '🚀 Deploy: Dev'
     dependsOn: Build
     variables:
       # Retrieve the image tag from the Build stage's output variable
       image_tag: $[ stageDependencies.Build.BuildAndPush.outputs['vars.sha_short'] ]
+      containerAppApi: 'ca-healthcheck-api-dev'
+      containerAppWeb: 'ca-healthcheck-web-dev'
+      containerAppJobWorker: 'caj-healthcheck-worker-dev'
+      resourceGroup: 'rg-healthcheck-dev'
     jobs:
       - job: DeployContainers
-        displayName: 'Deploy Container Apps'
+        displayName: 'Deploy Container Apps (Dev)'
         pool:
           vmImage: 'ubuntu-latest'
         steps:
           - task: AzureCLI@2
             name: deploy_step
-            displayName: '⚡ Update Container Apps & Job'
+            displayName: '⚡ Update Container Apps & Job (Dev)'
             inputs:
               azureSubscription: '$(azureServiceConnection)'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
                 TAG="$(image_tag)"
-                echo "Deploying with tag: $TAG"
+                echo "Deploying to Dev with tag: $TAG"
                 
                 # Update API App
                 az containerapp update \
@@ -189,17 +188,17 @@ stages:
                 echo "##vso[task.setvariable variable=api_url;isOutput=true]https://$FQDN"
 
   # ==========================================
-  # STAGE 4: POST-DEPLOY SMOKE TEST
+  # STAGE 4: DEV SMOKE TEST
   # ==========================================
-  - stage: SmokeTest
-    displayName: '🔥 Smoke Test: /health Check'
-    dependsOn: Deploy
+  - stage: SmokeTestDev
+    displayName: '🔥 Smoke Test: Dev /health Check'
+    dependsOn: DeployDev
     variables:
-      # Retrieve the live API URL from the Deploy stage
-      api_url: $[ stageDependencies.Deploy.DeployContainers.outputs['deploy_step.api_url'] ]
+      # Retrieve the live API URL from the DeployDev stage
+      api_url: $[ stageDependencies.DeployDev.DeployContainers.outputs['deploy_step.api_url'] ]
     jobs:
       - job: RunSmokeTest
-        displayName: 'Verify Live Endpoint'
+        displayName: 'Verify Live Endpoint (Dev)'
         pool:
           vmImage: 'ubuntu-latest'
         steps:
@@ -207,7 +206,105 @@ stages:
               API_URL="$(api_url)"
               echo "Smoke-testing: ${API_URL}/health"
               
-              # Retry for up to 90 seconds (9 attempts, 10s sleep)
+              for attempt in $(seq 1 9); do
+                HTTP_STATUS=$(curl --silent --output /dev/null \
+                  --write-out "%{http_code}" \
+                  --max-time 10 \
+                  "${API_URL}/health")
+                
+                echo "Attempt ${attempt}/9 → HTTP ${HTTP_STATUS}"
+                
+                if [ "${HTTP_STATUS}" -eq 200 ]; then
+                  echo "✅ Smoke test passed (HTTP 200)"
+                  exit 0
+                fi
+                
+                sleep 10
+              done
+              
+              echo "❌ Smoke test failed — /health did not return 200 after 90 s"
+              exit 1
+            displayName: '🌡️ Hit /health Endpoint'
+
+  # ==========================================
+  # STAGE 5: PRO DEPLOYMENT
+  # ==========================================
+  - stage: DeployPro
+    displayName: '🚀 Deploy: Pro'
+    dependsOn:
+      - Build
+      - SmokeTestDev
+    variables:
+      # Retrieve the image tag from the Build stage's output variable
+      image_tag: $[ stageDependencies.Build.BuildAndPush.outputs['vars.sha_short'] ]
+      containerAppApi: 'ca-healthcheck-api-pro'
+      containerAppWeb: 'ca-healthcheck-web-pro'
+      containerAppJobWorker: 'caj-healthcheck-worker-pro'
+      resourceGroup: 'rg-healthcheck-pro'
+    jobs:
+      - job: DeployContainers
+        displayName: 'Deploy Container Apps (Pro)'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: AzureCLI@2
+            name: deploy_step
+            displayName: '⚡ Update Container Apps & Job (Pro)'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                TAG="$(image_tag)"
+                echo "Deploying to Pro with tag: $TAG"
+                
+                # Update API App
+                az containerapp update \
+                  --name $(containerAppApi) \
+                  --resource-group $(resourceGroup) \
+                  --image $(acrName).azurecr.io/api:$TAG
+                
+                # Update Web App
+                az containerapp update \
+                  --name $(containerAppWeb) \
+                  --resource-group $(resourceGroup) \
+                  --image $(acrName).azurecr.io/web:$TAG \
+                  --set-env-vars VITE_APP_VERSION=$TAG
+                
+                # Update Worker Job
+                az containerapp job update \
+                  --name $(containerAppJobWorker) \
+                  --resource-group $(resourceGroup) \
+                  --image $(acrName).azurecr.io/worker:$TAG
+                  
+                # Fetch FQDN of the API Container App
+                FQDN=$(az containerapp show \
+                  --name $(containerAppApi) \
+                  --resource-group $(resourceGroup) \
+                  --query "properties.configuration.ingress.fqdn" \
+                  --output tsv)
+                
+                echo "##vso[task.setvariable variable=api_url;isOutput=true]https://$FQDN"
+
+  # ==========================================
+  # STAGE 6: PRO SMOKE TEST
+  # ==========================================
+  - stage: SmokeTestPro
+    displayName: '🔥 Smoke Test: Pro /health Check'
+    dependsOn: DeployPro
+    variables:
+      # Retrieve the live API URL from the DeployPro stage
+      api_url: $[ stageDependencies.DeployPro.DeployContainers.outputs['deploy_step.api_url'] ]
+    jobs:
+      - job: RunSmokeTest
+        displayName: 'Verify Live Endpoint (Pro)'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              API_URL="$(api_url)"
+              echo "Smoke-testing: ${API_URL}/health"
+              
               for attempt in $(seq 1 9); do
                 HTTP_STATUS=$(curl --silent --output /dev/null \
                   --write-out "%{http_code}" \

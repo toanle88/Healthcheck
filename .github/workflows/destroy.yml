@@ -7,6 +7,14 @@ on:
         description: 'Type "DELETE" to confirm destruction of all Azure resources'
         required: true
         default: 'no'
+      environment:
+        description: 'Environment to destroy'
+        type: choice
+        required: true
+        default: 'dev'
+        options:
+          - dev
+          - pro
 
 permissions:
   id-token: write
@@ -20,12 +28,12 @@ env:
 
 jobs:
   destroy:
-    name: "🧨 Terraform Destroy"
+    name: "🧨 Terraform Destroy (${{ github.event.inputs.environment }})"
     if: github.event.inputs.confirm_destroy == 'DELETE'
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./infra/envs/dev
+        working-directory: ./infra/envs/${{ github.event.inputs.environment }}
     steps:
       - name: "📂 Checkout Code"
         uses: actions/checkout@v4
@@ -46,7 +54,7 @@ jobs:
             -backend-config="resource_group_name=rg-healthcheck-bootstrap" \
             -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT }}" \
             -backend-config="container_name=${{ secrets.AZURE_STORAGE_CONTAINER }}" \
-            -backend-config="key=dev.terraform.tfstate"
+            -backend-config="key=${{ github.event.inputs.environment }}.terraform.tfstate"
 
       - name: "🧨 DESTROY ALL RESOURCES"
         run: terraform destroy -auto-approve -var="acr_name=${{ secrets.AZURE_ACR_NAME }}" -var="entra_client_id=${{ secrets.ENTRA_CLIENT_ID }}"

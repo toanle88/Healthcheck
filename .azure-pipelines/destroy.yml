@@ -6,6 +6,13 @@ parameters:
     displayName: 'Type "DELETE" to confirm destruction of all Azure resources'
     type: string
     default: 'no'
+  - name: environment
+    displayName: 'Environment to destroy'
+    type: string
+    default: 'dev'
+    values:
+      - dev
+      - pro
 
 variables:
   # Reference your Azure DevOps Service Connection (ARM)
@@ -17,7 +24,6 @@ variables:
   # Terraform backend storage account
   storageAccountName: 'sahealthchecktfstate'
   storageContainerName: 'tfstate'
-  tfstateKey: 'dev.terraform.tfstate'
   resourceGroupName: 'rg-healthcheck-bootstrap'
 
 stages:
@@ -29,14 +35,14 @@ stages:
     condition: eq('${{ parameters.confirm_destroy }}', 'DELETE')
     jobs:
       - job: Destroy
-        displayName: 'Terraform Destroy'
+        displayName: 'Terraform Destroy (${{ parameters.environment }})'
         pool:
           vmImage: 'ubuntu-latest'
         steps:
           - checkout: self
           
           - task: AzureCLI@2
-            displayName: '🧨 Destroy All Resources'
+            displayName: '🧨 Destroy All Resources (${{ parameters.environment }})'
             inputs:
               azureSubscription: '$(azureServiceConnection)'
               addSpnToEnvironment: true
@@ -49,13 +55,13 @@ stages:
                 export ARM_SUBSCRIPTION_ID="$(subscriptionId)"
                 export ARM_USE_OIDC=true
 
-                cd infra/envs/dev
+                cd infra/envs/${{ parameters.environment }}
                 
                 terraform init \
                   -backend-config="resource_group_name=$(resourceGroupName)" \
                   -backend-config="storage_account_name=$(storageAccountName)" \
                   -backend-config="container_name=$(storageContainerName)" \
-                  -backend-config="key=$(tfstateKey)"
+                  -backend-config="key=${{ parameters.environment }}.terraform.tfstate"
 
                 terraform destroy -auto-approve \
                   -var="acr_name=$(acrName)" \

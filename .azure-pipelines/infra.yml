@@ -13,6 +13,13 @@ parameters:
     displayName: 'Type "yes" to apply infrastructure changes'
     type: string
     default: 'no'
+  - name: environment
+    displayName: 'Environment to apply'
+    type: string
+    default: 'dev'
+    values:
+      - dev
+      - pro
 
 variables:
   # Reference your Azure DevOps Service Connection (ARM)
@@ -24,7 +31,6 @@ variables:
   # Terraform backend storage account
   storageAccountName: 'sahealthchecktfstate'
   storageContainerName: 'tfstate'
-  tfstateKey: 'dev.terraform.tfstate'
   resourceGroupName: 'rg-healthcheck-bootstrap'
 
 stages:
@@ -42,8 +48,11 @@ stages:
           - checkout: self
           - script: |
               pip install checkov
-              checkov -d infra/ --framework terraform --output cli
-            displayName: '🔍 Run Checkov Scan'
+              echo "=== Scanning Dev Environment ==="
+              checkov -d infra/envs/dev --config-file infra/.checkov.yaml --framework terraform --output cli
+              echo "=== Scanning Pro Environment ==="
+              checkov -d infra/envs/pro --framework terraform --output cli
+            displayName: '🔍 Run Checkov Scan (Dev & Pro)'
 
   # ==========================================
   # STAGE 2: TERRAFORM PLAN (PR only)
@@ -57,11 +66,17 @@ stages:
         displayName: 'Run Speculative Plan'
         pool:
           vmImage: 'ubuntu-latest'
+        strategy:
+          matrix:
+            dev:
+              envName: 'dev'
+            pro:
+              envName: 'pro'
         steps:
           - checkout: self
           
           - task: AzureCLI@2
-            displayName: '🛠️ Terraform Init & Plan'
+            displayName: '🛠️ Terraform Init & Plan ($(envName))'
             inputs:
               azureSubscription: '$(azureServiceConnection)'
               addSpnToEnvironment: true
@@ -74,13 +89,13 @@ stages:
                 export ARM_SUBSCRIPTION_ID="$(subscriptionId)"
                 export ARM_USE_OIDC=true
 
-                cd infra/envs/dev
+                cd infra/envs/$(envName)
                 
                 terraform init -upgrade \
                   -backend-config="resource_group_name=$(resourceGroupName)" \
                   -backend-config="storage_account_name=$(storageAccountName)" \
                   -backend-config="container_name=$(storageContainerName)" \
-                  -backend-config="key=$(tfstateKey)"
+                  -backend-config="key=$(envName).terraform.tfstate"
 
                 terraform plan -no-color \
                   -var="acr_name=$(acrName)" \
@@ -95,14 +110,14 @@ stages:
     condition: and(succeeded(), eq('${{ parameters.confirm_apply }}', 'yes'))
     jobs:
       - job: Apply
-        displayName: 'Apply Infrastructure Changes'
+        displayName: 'Apply Infrastructure Changes (${{ parameters.environment }})'
         pool:
           vmImage: 'ubuntu-latest'
         steps:
           - checkout: self
           
           - task: AzureCLI@2
-            displayName: '🏗️ Apply Infrastructure Changes'
+            displayName: '🏗️ Apply Infrastructure Changes (${{ parameters.environment }})'
             inputs:
               azureSubscription: '$(azureServiceConnection)'
               addSpnToEnvironment: true
@@ -115,13 +130,13 @@ stages:
                 export ARM_SUBSCRIPTION_ID="$(subscriptionId)"
                 export ARM_USE_OIDC=true
 
-                cd infra/envs/dev
+                cd infra/envs/${{ parameters.environment }}
                 
                 terraform init -upgrade \
                   -backend-config="resource_group_name=$(resourceGroupName)" \
                   -backend-config="storage_account_name=$(storageAccountName)" \
                   -backend-config="container_name=$(storageContainerName)" \
-                  -backend-config="key=$(tfstateKey)"
+                  -backend-config="key=${{ parameters.environment }}.terraform.tfstate"
 
                 terraform version
                 terraform providers
