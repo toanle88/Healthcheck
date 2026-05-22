@@ -39,7 +39,7 @@ sequenceDiagram
 
 ## 🧐 2. Automated IaC Security Auditing (Checkov)
 
-We integrate **Checkov** directly into our Pull Request (`ci.yml`) pipeline. Checkov is an open-source static code analysis tool that scans Terraform files to catch security misconfigurations *before* they are applied to cloud resources.
+We integrate **Checkov** directly into our infrastructure pipeline (`infra.yml`) that runs on pushes that change the `infra/` directory. Checkov is an open-source static code analysis tool that scans Terraform files to catch security misconfigurations *before* they are applied to cloud resources.
 
 ### Handling Exemptions (`.checkov.yaml`)
 In a real enterprise, we cannot always pass every security check. For example, Checkov warns us if we don't enable geo-redundant storage for our database. However, this is too expensive for development.
@@ -76,6 +76,31 @@ If an attacker exploits a code vulnerability in your Go API (e.g., finding a rem
 Even with Distroless images, dependencies can introduce bugs or security flaws over time.
 Our CI workflow integrates **Trivy**, an open-source vulnerability scanner. Trivy scans our Go dependencies and compiled container images for known CVEs (Common Vulnerabilities and Exposures) and secrets.
 *   If Trivy finds a `HIGH` or `CRITICAL` vulnerability, it fails the build, preventing insecure code from ever reaching the container registry.
+
+---
+
+## 🚧 5. SSRF Hardening (Worker HTTP Client)
+
+The worker pings arbitrary URLs that operators configure through the UI. Without restrictions, an attacker could register an internal URL (e.g., `http://169.254.169.254/` — the AWS/Azure metadata endpoint) and trick the worker into leaking cloud credentials.
+
+We harden the worker's HTTP client with a custom `CheckRedirect` function:
+
+```go
+client := &http.Client{
+    CheckRedirect: func(req *http.Request, via []*http.Request) error {
+        if len(via) >= 3 {
+            return errors.New("too many redirects (max 3)")
+        }
+        // Block redirects to private / loopback / link-local IP ranges
+        if isPrivateIP(req.URL.Hostname()) {
+            return fmt.Errorf("redirect to private IP blocked: %s", req.URL.Hostname())
+        }
+        return nil
+    },
+}
+```
+
+*   **Why it matters:** Even if a malicious target URL initially resolves to a public IP, the server could redirect to an internal address. The `CheckRedirect` hook intercepts every hop and blocks any redirect that resolves to a private, loopback, or link-local address.
 
 ---
 

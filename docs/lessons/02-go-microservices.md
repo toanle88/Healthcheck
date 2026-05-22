@@ -96,9 +96,40 @@ if tid, ok := claims["tid"].(string); !ok || tid != tenantID {
 }
 ```
 
+### Step D: Role & Scope Enforcement (`RequireRoleOrScope`)
+Beyond validating *who* a user is, certain endpoints require specific **permissions**. The `RequireRoleOrScope` middleware reads the JWT `roles` and `scp` claims injected by `AuthMiddleware` and checks them against an allowlist:
+
+```go
+// Only users with the "Healthcheck.Admin" role can create or delete targets
+adminRequired := middleware.RequireRoleOrScope([]string{"Healthcheck.Admin"}, nil)
+api.POST("/targets", adminRequired, h.CreateTarget)
+api.DELETE("/targets/:id", adminRequired, h.DeleteTarget)
+```
+
+*   **Why it matters:** Even authenticated users cannot mutate monitoring targets unless they hold the `Healthcheck.Admin` app role. This prevents privilege escalation with a single, reusable middleware.
+
 ---
 
-## 📊 4. Observability & OpenTelemetry (`internal/monitor/otel.go`)
+## 🔴 5. Real-Time Streaming (`internal/handler/broker.go`)
+
+Instead of polling `GET /api/status` every few seconds, the frontend subscribes to a **Server-Sent Events (SSE)** stream at `GET /api/status/stream`.
+
+### Architecture
+*   **PostgreSQL `LISTEN/NOTIFY`**: When the worker writes a new health check, it issues `NOTIFY checks_channel`. The API server maintains a dedicated connection that calls `WaitForNotification()` in a loop.
+*   **SSE Broker**: The `Broker` struct manages a registry of connected HTTP clients (each represented by a `chan []store.Check`). When a Postgres notification arrives, `broker.Broadcast(checks)` fans out the latest check results to every connected client instantly.
+*   **Zero-Polling**: The frontend receives an event the moment the worker finishes — no wasted requests, no staleness.
+
+```go
+// In cmd/api/main.go: subscribe to Postgres notifications and broadcast
+_, err = conn.Exec(ctx, "LISTEN checks_channel")
+// ...
+checks, _ := st.GetLatestChecks(ctx)
+broker.Broadcast(checks)
+```
+
+---
+
+## 📊 6. Observability & OpenTelemetry (`internal/monitor/otel.go`)
 
 We use **OpenTelemetry (OTel)** to collect telemetry. Instead of using vendor-specific libraries, OTel is a standardized open-source API that allows us to change our backend (e.g., from Prometheus/Jaeger to Azure App Insights) without changing our code.
 
@@ -116,7 +147,7 @@ connString := os.Getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
 
 ---
 
-## 📖 5. Embedded API Documentation (Scalar)
+## 📖 7. Embedded API Documentation (Scalar)
 
 We embed our API's documentation directly into the Go binary. This prevents code and documentation from going out of sync.
 

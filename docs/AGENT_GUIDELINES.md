@@ -13,23 +13,27 @@ The repository follows a clean, modular structure. Any new code should fit into 
 ├── .agents/            # Agent custom instructions and skill sets
 ├── cmd/                # Entry points for binaries
 │   ├── api/            # Go REST API server
-│   └── worker/         # Go background health check runner
+│   ├── worker/         # Go background health check runner
+│   └── healthcheck/    # Minimal binary used by Docker HEALTHCHECK instruction
 ├── docs/               # Project documentation and learning paths
 ├── internal/           # Private Go packages (not importable by other apps)
 │   ├── config/         # Environment and Key Vault configuration
-│   ├── handler/        # Gin HTTP handlers
-│   ├── middleware/     # Gin middleware (CORS, Auth, etc.)
+│   ├── handler/        # Gin HTTP handlers, SSE Broker, and embedded OpenAPI docs
+│   ├── middleware/     # Gin middleware (JWT auth, RequireRoleOrScope RBAC)
 │   ├── monitor/        # OpenTelemetry instrumentation
 │   └── store/          # Database access layer (PostgreSQL + pgx)
 ├── web/                # React frontend (Vite + TypeScript)
 │   ├── src/
 │   │   ├── components/ # React components (layout, dashboard, common)
-│   │   ├── hooks/      # Custom React hooks (e.g., useAuth)
+│   │   ├── hooks/      # Custom React hooks (e.g., useAuth, useSSE)
+│   │   ├── lib/        # Shared utilities and helper functions
 │   │   ├── pages/      # View pages (e.g., DashboardPage, LoginPage)
 │   │   ├── services/   # API communication clients (Axios)
 │   │   └── types/      # TypeScript interfaces and types
 │   └── e2e/            # Playwright end-to-end tests
+├── grafana/            # Grafana provisioning config (datasources & dashboards)
 └── infra/              # Terraform Infrastructure-as-Code
+    ├── bootstrap/      # One-time ACR + Managed Identity + OIDC setup
     ├── envs/dev/       # Root development environment configuration
     └── modules/        # Reusable infrastructure modules
 ```
@@ -80,6 +84,12 @@ The repository follows a clean, modular structure. Any new code should fit into 
 - The underlying OpenAPI 3.1.0 specification is stored in `docs/openapi.json`.
 - The validation scripts (`check.sh` and `check.ps1`) automatically synchronize this file to `internal/handler/openapi.json` for binary embedding and serving at `/openapi.json`.
 - Developers and agents modifying API routes or payloads should update `docs/openapi.json` and run the validation script to automatically synchronize and test the updates.
+
+### 7. SSE Broker (`internal/handler/broker.go`)
+- Real-time push updates are delivered to the frontend via **Server-Sent Events (SSE)** on `GET /api/status/stream`.
+- The `Broker` struct (`handler/broker.go`) manages client registration/unregistration channels and broadcasts new check results to all connected clients.
+- The API server listens on the Postgres `checks_channel` via `LISTEN/NOTIFY` and calls `broker.Broadcast()` on each notification.
+- Do **not** use polling-based refresh in the frontend — consume the SSE stream instead.
 
 ---
 
