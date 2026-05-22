@@ -28,13 +28,10 @@ resource "azurerm_postgresql_flexible_server" "main" {
   # SECURITY: This ensures the database is NOT reachable from the internet.
   public_network_access_enabled = false
 
-  administrator_login    = "psqladmin"
-  administrator_password = var.admin_password
-
-  # THE MASTER SWITCH: Enable both Password and Azure AD Auth
+  # THE MASTER SWITCH: Enable Active Directory Auth and disable Password Auth
   authentication {
     active_directory_auth_enabled = true
-    password_auth_enabled         = true
+    password_auth_enabled         = false
   }
 
   # SKU: B1ms is the "Burstable" tier, perfect for dev/learning at ~$0.017/hour.
