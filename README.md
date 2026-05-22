@@ -79,18 +79,23 @@ graph TD
 ```
 
 ### Infrastructure as Code (Terraform)
-We use a modular Terraform structure for maximum maintainability:
+We use a modular Terraform structure split into environments and reusable modules:
 
-| Module | Purpose |
-| :--- | :--- |
-| `modules/identity` | OIDC federation and User-Assigned Managed Identity. |
-| `modules/network` | VNet, Subnets, and Private DNS for network isolation. |
-| `modules/postgres` | Flexible Server with Azure AD Authentication (Passwordless). |
-| `modules/containerapp` | API, Web, and Worker Job with Scale-to-Zero and Blue-Green. |
-| `modules/keyvault` | Secure secret storage for app configuration. |
-| `modules/monitor` | Log Analytics and App Insights for full observability. |
-| `modules/acr` | Azure Container Registry. |
-| `modules/auth` | Entra ID / CIAM authentication configuration. |
+- **Baseline Modules (`infra/modules/common/`)**: Shared modules across all environments.
+- **Production Overrides (`infra/modules/pro/`)**: Hardened versions of modules overriding dev behavior to meet strict compliance/security requirements (scanned and verified with Checkov).
+- **Environments (`infra/envs/`)**:
+  - `dev/`: Development configuration utilizing common baseline modules.
+  - `pro/`: Production configuration utilizing common modules but overriding with `pro/` hardened modules.
+
+#### Environment Configuration Comparison
+
+| Component | Dev Setup (`infra/envs/dev`) | Production Setup (`infra/envs/pro`) | Checkov / Security Standards |
+| :--- | :--- | :--- | :--- |
+| **Network** | VNet + Subnets (`snet-apps`, `snet-db`). NSG allows HTTP (80) & HTTPS (443) from Internet. | VNet + Subnets (`snet-apps`, `snet-db`, **`snet-endpoints`**). NSG **denies HTTP (80)**, allows HTTPS (443). | `CKV_AZURE_160` (HTTP Denied), `CKV2_AZURE_31` (Subnet NSG association) |
+| **PostgreSQL** | Flexible Server in private subnet, public network access disabled. | Flexible Server in private subnet, public network access disabled, **Geo-redundant backups enabled**. | `CKV_AZURE_136` (Geo-redundant Backup) |
+| **Key Vault** | Purge protection disabled, Network ACL default action Allow, no Private Endpoint. | **Purge protection enabled**, **Public network access disabled**, **Default ACL Deny**, **Private Endpoint enabled** in `snet-endpoints`. | `CKV_AZURE_189` (Public disabled), `CKV_AZURE_109` (Default Deny), `CKV2_AZURE_32` (Private Endpoint), `CKV_AZURE_115` (Purge Protection) |
+| **Container Apps** | API, Web, and Worker in private apps subnet. | Same as Dev (`modules/common/containerapp`). | `CKV_AZURE_227` (Private Endpoint / VNet Integration) |
+| **Identity & OIDC** | Federated OIDC for deployer, User-Assigned Managed Identity for runtime (passwordless). | Same as Dev (`modules/common/identity`). | Zero-Secret architecture, RBAC least privilege |
 
 ---
 
@@ -127,16 +132,12 @@ We use a modular Terraform structure for maximum maintainability:
 │   └── e2e/            # Playwright end-to-end tests
 ├── infra/
 │   ├── bootstrap/      # One-time ACR + Managed Identity + OIDC bootstrap
-│   ├── modules/
-│   │   ├── identity/
-│   │   ├── network/
-│   │   ├── containerapp/
-│   │   ├── postgres/
-│   │   ├── keyvault/
-│   │   ├── monitor/
-│   │   ├── acr/
-│   │   └── auth/
-│   └── envs/dev/
+│   ├── envs/
+│   │   ├── dev/        # Development environment configuration
+│   │   └── pro/        # Production environment configuration
+│   └── modules/
+│       ├── common/     # Shared baseline infrastructure modules (acr, auth, containerapp, identity, keyvault, monitor, network, policy, postgres)
+│       └── pro/        # Production-specific hardened module overrides (keyvault, network, postgres)
 ├── grafana/            # Grafana provisioning (datasources + dashboards)
 ├── .github/workflows/
 │   ├── cicd.yml        # Unified CI + CD pipeline
@@ -221,8 +222,13 @@ pnpm run dev
    - Configure your GitHub repository with the `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID`.
 
 3. **Deploy Infrastructure**:
+   Deploy either environment (e.g., `dev` or `pro`):
    ```bash
+   # For Dev
    cd infra/envs/dev
+   # For Pro
+   # cd infra/envs/pro
+
    terraform init
    terraform plan
    terraform apply
@@ -309,12 +315,18 @@ source .env.azure    # for terraform
 
 ## 🧹 Cleanup
 
-Estimated cost if left running: $5-12/month in dev.
+Estimated cost if left running: $5-12/month in dev, $20-40/month in prod (due to geo-redundant backups/endpoints).
 
 ```bash
 source .env.azure
+
+# To destroy Dev
 cd infra/envs/dev
 terraform destroy -auto-approve
+
+# To destroy Pro
+# cd infra/envs/pro
+# terraform destroy -auto-approve
 ```
 
 ## 🤖 Using an AI Assistant

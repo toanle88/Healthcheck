@@ -34,8 +34,12 @@ The repository follows a clean, modular structure. Any new code should fit into 
 ├── grafana/            # Grafana provisioning config (datasources & dashboards)
 └── infra/              # Terraform Infrastructure-as-Code
     ├── bootstrap/      # One-time ACR + Managed Identity + OIDC setup
-    ├── envs/dev/       # Root development environment configuration
+    ├── envs/
+    │   ├── dev/        # Development environment configuration
+    │   └── pro/        # Production environment configuration
     └── modules/        # Reusable infrastructure modules
+        ├── common/     # Baseline configurations (acr, auth, containerapp, etc.)
+        └── pro/        # Production-specific overrides (hardened network, postgres, keyvault)
 ```
 
 ---
@@ -122,7 +126,7 @@ The repository follows a clean, modular structure. Any new code should fit into 
 
 ## ☁️ Infrastructure Standards (Terraform)
 
-- **Modularity**: Infrastructure must be partitioned into functional modules located in `infra/modules/`.
+- **Modularity**: Infrastructure must be partitioned into functional modules located under `infra/modules/common/` (shared baseline configs) or `infra/modules/pro/` (production-hardened overrides).
 - **Zero-Secret Architecture**:
   - Never commit credentials, passwords, or connection strings.
   - Utilize **Azure Managed Identities** (User-Assigned Managed Identity) for secure resource access (Key Vault, PostgreSQL).

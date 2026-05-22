@@ -28,7 +28,7 @@ Since CIAM exists in a separate directory, we configure it manually in the Azure
 ### 1. Create the App Registration
 1. Log into the [Azure Portal](https://portal.azure.com) and switch to your **CIAM Directory**.
 2. Navigate to **Microsoft Entra ID** > **App registrations** > **New registration**.
-3. **Name**: `Healthcheck-Dashboard-dev`
+3. **Name**: `Healthcheck-Dashboard-dev` (or `Healthcheck-Dashboard-pro` for production)
 4. **Supported account types**: "Accounts in this organizational directory only".
 5. **Redirect URI**: Select **SPA (Single-page application)** and enter `http://localhost:5173/`.
 6. Click **Register**.
@@ -87,8 +87,9 @@ The environment is now "Identity-Driven."
 If you have manually deleted your Resource Group and State, follow these steps to rebuild:
 
 1. **Re-Initialize Locally (One-time)**:
+   Navigate to the desired environment directory:
    ```powershell
-   cd infra/envs/dev
+   cd infra/envs/dev # or cd infra/envs/pro
    terraform init -reconfigure -backend-config="storage_account_name=<STORAGE_NAME>"
    ```
 2. **Push to Main**: Simply push your code to GitHub. The updated `infra.yml` will detect the empty state and rebuild the entire environment.

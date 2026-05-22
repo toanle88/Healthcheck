@@ -13,21 +13,30 @@ This is the foundational layer. It creates the resources that *store* our infras
 *   **Why it's split:** You only run this once. We build the registry first so we have a place to upload our Docker images *before* we deploy our container apps.
 
 ### B. Reusable Modules (`infra/modules/`)
-These are our reusable "LEGO bricks." They do not declare environments directly; instead, they define parameterized components:
-*   `network/`: Builds the Virtual Network (VNet), subnets, and Network Security Groups (NSGs).
-*   `postgres/`: Provisions the PostgreSQL Flexible Server database.
-*   `identity/`: Manages user-assigned identities and role mappings.
-*   `keyvault/`: Sets up a hardened Key Vault.
-*   `containerapp/`: Configures container app clusters and job processes.
+These are our reusable "LEGO bricks." They do not declare environments directly; instead, they define parameterized components, split by compliance and hardening requirements:
+*   **Common Baseline Modules (`infra/modules/common/`)**: Shared modules across all environments.
+    *   `acr/`: Azure Container Registry (ACR) configuration.
+    *   `auth/`: Entra ID/CIAM authorization setup.
+    *   `containerapp/`: Configures container app environments, API/Web apps, and worker jobs.
+    *   `identity/`: Manages federated OIDC credentials and user-assigned managed identities.
+    *   `monitor/`: Sets up Log Analytics, Application Insights, and monitoring alerts.
+    *   `policy/`: Enforces required Azure tags.
+    *   `network/`, `postgres/`, `keyvault/`: Default dev configurations (cost-optimized, public/HTTP accessible).
+*   **Production Hardened Overrides (`infra/modules/pro/`)**:
+    *   `network/`: Builds the VNet with an additional private endpoint subnet (`snet-endpoints`), NSG blocking public HTTP (port 80) access (`CKV_AZURE_160`), and NSG isolating endpoints to container app subnet traffic only (`CKV2_AZURE_31`).
+    *   `postgres/`: Provisions PostgreSQL Flexible Server with geo-redundant backups enabled (`CKV_AZURE_136`).
+    *   `keyvault/`: Provisions a Key Vault with purge protection enabled (`CKV_AZURE_115`), public network access disabled (`CKV_AZURE_189`), default network rules set to Deny (`CKV_AZURE_109`), and a **Private Endpoint** (`pe-kv-pro`) in the endpoints subnet (`CKV2_AZURE_32`).
 
-### C. The Environments (`infra/envs/dev/`)
-This is where we combine our modules to build a specific environment (like Dev, Staging, or Prod). It acts as a configuration file, passing specific inputs (like smaller machine sizes for dev, or custom environment names) to our modules.
+### C. The Environments (`infra/envs/`)
+This is where we combine our modules to build a specific environment. It acts as a configuration file, passing environment-specific inputs (like different subnets or backups) to our modules:
+*   `dev/`: Dev configuration utilizing `common/` modules for all components (optimized for cost and simplicity).
+*   `pro/`: Production configuration utilizing `common/` modules for identity, apps, and monitoring, but overriding them with the hardened `pro/` modules for network, postgres, and keyvault.
 
 ---
 
 ## 🛡️ 2. Deep Dive: Networking & Subnets
 
-The network module (`modules/network/main.tf`) is our primary defense. It constructs our private virtual space:
+The network module (baseline `infra/modules/common/network/main.tf` and production `infra/modules/pro/network/main.tf`) is our primary defense. It constructs our private virtual space:
 
 ```hcl
 resource "azurerm_virtual_network" "main" {
@@ -59,7 +68,11 @@ delegation {
 ### Network Security Groups (NSGs)
 NSGs act as network firewalls at the subnet level. We use them to enforce the principle of **Least Privilege**:
 1.  **Database Subnet Security (`nsg-db`)**: We add a rule that only allows inbound traffic on port `5432` (Postgres) if it originates from our apps subnet IP range (`10.0.1.0/24`). All other traffic is blocked.
-2.  **Apps Subnet Security (`nsg-apps`)**: We block all incoming SSH traffic on port `22` to satisfy Checkov policy audits (`CKV_AZURE_10`).
+2.  **Apps Subnet Security (`nsg-apps`)**:
+    *   **In Dev**: Allows HTTP (80) and HTTPS (443) from the Internet, and blocks incoming SSH traffic on port `22` to satisfy Checkov policy audits (`CKV_AZURE_10`).
+    *   **In Production**: **Denies HTTP (80)** to comply with Checkov policy audits (`CKV_AZURE_160`), allowing only HTTPS (443) from the Internet, and blocks incoming SSH on port `22`.
+3.  **Endpoints Subnet Security (`nsg-endpoints` - Production Only)**:
+    *   Restricts inbound traffic on port `443`, allowing it **only** if it originates from our apps subnet (`10.0.1.0/24`) to reach the endpoints subnet (`10.0.3.0/24`), denying all other inbound to satisfy Checkov policy audits (`CKV2_AZURE_31`).
 
 ---
 
@@ -78,7 +91,7 @@ Instead of using credentials, we split our system into two distinct active ident
 
 ---
 
-## 🐘 4. VNet Database Isolation (`modules/postgres/main.tf`)
+## 🐘 4. VNet Database Isolation (baseline `modules/common/postgres/main.tf` / pro `modules/pro/postgres/main.tf`)
 
 Because our PostgreSQL server has no public IP address, we must address two problems: how does the app find it, and how does the database authenticate users?
 
@@ -107,9 +120,15 @@ authentication {
 }
 ```
 
+### Geo-Redundant Backups (Production Only)
+To satisfy production disaster recovery audits (`CKV_AZURE_136`), the production PostgreSQL database module enables geo-redundant backups:
+```hcl
+geo_redundant_backup_enabled = true
+```
+
 ---
 
-## 🔑 5. Secure Configurations (`modules/keyvault/main.tf`)
+## 🔑 5. Secure Configurations (baseline `modules/common/keyvault/main.tf` / pro `modules/pro/keyvault/main.tf`)
 
 Key Vault is where we store application configurations (like API keys or endpoints). We configure it to use modern **Role-Based Access Control (RBAC)** instead of legacy access policies:
 
@@ -124,6 +143,13 @@ resource "azurerm_key_vault" "main" {
 
 ### Access Isolation
 By setting `rbac_authorization_enabled = true`, access to the vault is managed using standard Azure role assignments. Even the user who created the subscription cannot read secrets inside the Key Vault unless they are explicitly assigned the **Key Vault Secrets Officer** or **Key Vault Secrets User** role!
+
+### Production-Hardened Security (Production Only)
+To comply with enterprise security and Checkov compliance, the production Key Vault overrides the default configuration as follows:
+1. **Purge Protection**: Enabled (`purge_protection_enabled = true`) to prevent accidental permanent deletion (`CKV_AZURE_115`).
+2. **Public Network Access**: Disabled (`public_network_access_enabled = false`) to enforce private routing (`CKV_AZURE_189`).
+3. **Default Network Action**: Set to Deny (`default_action = "Deny"`) to block all unauthorized network access (`CKV_AZURE_109`).
+4. **Private Endpoint**: Provisions a private endpoint (`azurerm_private_endpoint.kv`) on the dedicated `snet-endpoints` subnet so that container apps in `snet-apps` can securely access the vault via private Azure routing (`CKV2_AZURE_32`).
 
 ---
 
