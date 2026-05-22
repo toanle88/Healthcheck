@@ -57,10 +57,6 @@ func main() {
 	}
 	defer st.Close()
 
-	if err := st.InitSchema(ctx); err != nil {
-		slog.Error("schema init failed", "err", err)
-	}
-
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(otelgin.Middleware("healthcheck-api"))

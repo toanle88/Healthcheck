@@ -303,6 +303,79 @@ resource "azurerm_container_app" "web" {
   }
 }
 
+# 8. THE MIGRATION JOB (Run manually before container updates)
+resource "azurerm_container_app_job" "migrate" {
+  name                         = "caj-healthcheck-migrate-${var.environment}"
+  container_app_environment_id = azurerm_container_app_environment.main.id
+  resource_group_name          = var.resource_group_name
+  location                     = var.location
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [var.app_identity_id]
+  }
+
+  depends_on = [time_sleep.wait_for_rbac]
+
+  registry {
+    server   = var.acr_login_server
+    identity = var.app_identity_id
+  }
+
+  manual_trigger_config {
+    parallelism              = 1
+    replica_completion_count = 1
+  }
+
+  replica_timeout_in_seconds = 180
+  replica_retry_limit        = 0 # No retry for migration jobs, fail immediately if it fails
+
+  template {
+    container {
+      name   = "migrate"
+      image  = var.migrate_image
+      cpu    = 0.25
+      memory = "0.5Gi"
+
+      env {
+        name  = "ENV"
+        value = var.environment
+      }
+
+      env {
+        name  = "DB_HOST"
+        value = var.db_host
+      }
+
+      env {
+        name  = "DB_NAME"
+        value = var.db_name
+      }
+
+      env {
+        name  = "DB_USER"
+        value = var.db_user
+      }
+
+      env {
+        name  = "AZURE_CLIENT_ID"
+        value = var.app_identity_client_id
+      }
+
+      env {
+        name  = "APPLICATIONINSIGHTS_CONNECTION_STRING"
+        value = var.app_insights_connection_string
+      }
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      template[0].container[0].image
+    ]
+  }
+}
+
 output "default_domain" {
   value = azurerm_container_app_environment.main.default_domain
 }
@@ -325,5 +398,9 @@ output "api_app_id" {
 
 output "worker_job_id" {
   value = azurerm_container_app_job.worker.id
+}
+
+output "migrate_job_name" {
+  value = azurerm_container_app_job.migrate.name
 }
 

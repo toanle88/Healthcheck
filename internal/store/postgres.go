@@ -78,48 +78,6 @@ func (s *Store) Close() {
 	}
 }
 
-// InitSchema creates tables if they don't exist yet.
-// This is "auto-migration" for Day 1. In production you'd use a real migration tool.
-func (s *Store) InitSchema(ctx context.Context) error {
-	// Exec runs SQL that doesn't return rows, like CREATE TABLE
-	_, err := s.DB.Exec(ctx, `
-	CREATE TABLE IF NOT EXISTS targets (
-		id SERIAL PRIMARY KEY,
-		name TEXT NOT NULL,
-		url TEXT UNIQUE NOT NULL,
-		is_active BOOLEAN DEFAULT TRUE,
-		created_at TIMESTAMPTZ DEFAULT NOW(),
-		updated_at TIMESTAMPTZ DEFAULT NOW()
-	);
-
-	ALTER TABLE targets ADD COLUMN IF NOT EXISTS method TEXT NOT NULL DEFAULT 'GET';
-	ALTER TABLE targets ADD COLUMN IF NOT EXISTS headers TEXT;
-	ALTER TABLE targets ADD COLUMN IF NOT EXISTS expected_status INT NOT NULL DEFAULT 200;
-	ALTER TABLE targets ADD COLUMN IF NOT EXISTS response_contains TEXT;
-	ALTER TABLE targets ADD COLUMN IF NOT EXISTS failure_threshold INT NOT NULL DEFAULT 3;
-	ALTER TABLE targets ADD COLUMN IF NOT EXISTS consecutive_failures INT NOT NULL DEFAULT 0;
-	ALTER TABLE targets ADD COLUMN IF NOT EXISTS last_alert_status TEXT NOT NULL DEFAULT 'up';
-
-	INSERT INTO targets (name, url) VALUES
-		('Httpbin', 'http://httpbin.org/get'),
-		('GitHub', 'https://github.com'),
-		('Azure Status', 'https://azure.microsoft.com/en-us/status/')
-	ON CONFLICT (url) DO NOTHING;
-
-	CREATE TABLE IF NOT EXISTS checks (
-		id SERIAL PRIMARY KEY,                    -- Auto-incrementing ID
-		target TEXT NOT NULL,                     -- What URL/service we checked, like "https://google.com"
-		status TEXT NOT NULL,                     -- "up" or "down" 
-		latency_ms INT NOT NULL,                  -- How long the check took, in milliseconds
-		checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()  -- When we ran the check, with timezone
-	);
-
-	CREATE INDEX IF NOT EXISTS idx_checks_target_checked_at ON checks(target, checked_at DESC);
-	CREATE INDEX IF NOT EXISTS idx_checks_checked_at_target ON checks(checked_at DESC, target);
-	`)
-	return err // Return nil if table created/exists, or error if SQL failed
-}
-
 // InsertCheck saves a new health check result into the database.
 // This is used by the worker to record the status of various targets.
 func (s *Store) InsertCheck(ctx context.Context, target, status string, latencyMs int) error {

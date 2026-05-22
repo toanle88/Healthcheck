@@ -61,7 +61,9 @@ graph LR
 We run two distinct compute models inside Azure Container Apps:
 
 *   **`azurerm_container_app` (The API/Web)**: A long-running service that listens on an HTTP port. It stays active to serve requests and scales up/down dynamically based on traffic concurrency.
-*   **`azurerm_container_app_job` (The Worker)**: A process designed for short-lived, run-to-completion tasks. It does not expose a port or listen for requests. Instead, it is triggered on a **Cron Schedule** (`cron_expression`), boots up, pings our target sites, logs the check in PostgreSQL, and immediately terminates.
+*   **`azurerm_container_app_job` (The Worker & Migration Runner)**: A process designed for short-lived, run-to-completion tasks. It does not expose a public HTTP port or listen for requests. We use two different trigger models for our container jobs:
+    1. **Scheduled Triggers (The Worker)**: Triggered automatically on a **Cron Schedule** (`cron_expression`). It boots up, pings our target sites, logs the check in PostgreSQL, and immediately terminates.
+    2. **On-Demand Triggers (The Migration Runner)**: Triggered manually (`manual` trigger type) by our CI/CD pipeline on every deployment. It boots up, runs our database migrations, and exits. If it exits with a non-zero status (failure), the pipeline detects this and stops the deployment immediately.
 
 ---
 

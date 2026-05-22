@@ -96,6 +96,27 @@ To ensure safe deployment to production (`pro`), both CI/CD pipelines target the
 
 ---
 
+---
+
+## 🛢️ Step 3: Database Migrations
+Rather than running database schema setup automatically when the API starts up (which can cause locks and race conditions under multi-replica environments), migrations are managed as an independent step.
+
+### 1. Local Development (Docker Compose)
+When you run `docker-compose up --build`:
+* The `migrate` container builds using [Dockerfile.migrate](file:///mnt/d/Dev/Projects/Healthcheck/Dockerfile.migrate), connecting to PostgreSQL using local credentials.
+* The `api` and `worker` containers use the `service_completed_successfully` condition to block startup until the `migrate` container completes all `up` migration scripts.
+
+### 2. Cloud Environments (GitHub Actions & Azure DevOps)
+In the dev/production pipelines:
+* **Build Phase**: The pipeline compiles and builds the `migrate` image alongside `api`, `web`, and `worker`, pushing it to ACR.
+* **Deploy Phase**:
+  1. The pipeline updates/provisions a dedicated **Azure Container App Job** named `caj-healthcheck-migrate-[dev/pro]`.
+  2. The pipeline triggers the job to run. Since it runs as a container within our VNet subnet and inherits the same User-Assigned Managed Identity, it authenticates passwordlessly to PostgreSQL using Azure Entra ID.
+  3. The pipeline polls the job status every 10 seconds.
+  4. If the migration job fails (exits non-zero), the deployment halts immediately. This prevents a bad schema modification or database connection failure from affecting the live API/Web Container Apps.
+
+---
+
 ## ☢️ The "Fresh Start" Procedure
 If you have manually deleted your Resource Group and State, follow these steps to rebuild:
 

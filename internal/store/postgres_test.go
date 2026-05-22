@@ -5,6 +5,12 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/golang-migrate/migrate/v4"
+	pgxmigrate "github.com/golang-migrate/migrate/v4/database/pgx/v5"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/toanle88/healthcheck/internal/migrations"
 )
 
 func TestStoreIntegration(t *testing.T) {
@@ -27,9 +33,28 @@ func TestStoreIntegration(t *testing.T) {
 	// 3. Clear existing data for a clean test
 	_, _ = st.DB.Exec(ctx, "DELETE FROM checks")
 
-	// 4. Test InitSchema
-	if err := st.InitSchema(ctx); err != nil {
-		t.Fatalf("InitSchema failed: %v", err)
+	// 4. Test Migrations
+	db := stdlib.OpenDBFromPool(st.DB)
+	defer db.Close()
+
+	driver, err := pgxmigrate.WithInstance(db, &pgxmigrate.Config{})
+	if err != nil {
+		t.Fatalf("Failed to create migration driver: %v", err)
+	}
+
+	sourceDriver, err := iofs.New(migrations.FS, ".")
+	if err != nil {
+		t.Fatalf("Failed to create source driver: %v", err)
+	}
+
+	m, err := migrate.NewWithInstance("iofs", sourceDriver, "postgres", driver)
+	if err != nil {
+		t.Fatalf("Failed to initialize migrate: %v", err)
+	}
+	defer m.Close()
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		t.Fatalf("Migrations failed: %v", err)
 	}
 
 	// 5. Test InsertCheck

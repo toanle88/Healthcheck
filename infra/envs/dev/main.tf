@@ -45,6 +45,7 @@ variable "environment" { default = "dev" }
 variable "api_image" { default = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" }
 variable "worker_image" { default = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" }
 variable "web_image" { default = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" }
+variable "migrate_image" { default = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" }
 
 # 2. Resource Group
 resource "azurerm_resource_group" "dev" {
@@ -138,6 +139,7 @@ module "containerapp" {
   api_image           = var.api_image
   worker_image        = var.worker_image
   web_image           = var.web_image
+  migrate_image        = var.migrate_image
   app_version         = var.api_image
   db_host             = module.postgres.host
   db_name             = "healthcheck"

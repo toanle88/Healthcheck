@@ -121,11 +121,13 @@ We use a modular Terraform structure split into environments and reusable module
 ├── cmd/
 │   ├── api/            # HTTP server (Gin + OTel + SSE broker)
 │   ├── worker/         # Cron worker (pings targets, sends webhooks)
+│   ├── migrate/        # Standalone migrations CLI tool (golang-migrate)
 │   └── healthcheck/    # Docker HEALTHCHECK binary
 ├── internal/
 │   ├── config/         # env + Key Vault loading
 │   ├── handler/        # HTTP handlers + SSE broker + OpenAPI docs
 │   ├── middleware/      # JWT auth (AuthMiddleware, RequireRoleOrScope)
+│   ├── migrations/      # Embedded SQL migrations and source driver
 │   ├── store/          # postgres queries (pgx/v5)
 │   └── monitor/        # OpenTelemetry setup
 ├── web/                # React frontend (hooks, components, pages, services, types, lib)
@@ -150,6 +152,7 @@ We use a modular Terraform structure split into environments and reusable module
 ├── prometheus.yml      # Prometheus scrape config
 ├── Dockerfile.api
 ├── Dockerfile.worker
+├── Dockerfile.migrate  # Database migration runner Dockerfile
 ├── docker-compose.yml
 ├── go.mod
 └── go.sum
@@ -261,10 +264,14 @@ source .env.azure    # for terraform
 
 **`cicd.yml` (PR + push to `main`)** — 6 sequential stages:
 1. **Audit**: `gofmt`, `go vet`, `go test -race`, Trivy `fs` scan
-2. **Build** *(push to `main` only)*: Docker build + push API/Worker/Web images to ACR with short Git SHA tag
-3. **Dev Deploy**: Deployment to Dev (`ca-healthcheck-api-dev`, `ca-healthcheck-web-dev`, `caj-healthcheck-worker-dev`)
+2. **Build** *(push to `main` only)*: Docker build + push API/Worker/Web/Migrate images to ACR with short Git SHA tag
+3. **Dev Deploy**:
+   - Triggers the `caj-healthcheck-migrate-dev` Container App Job to run database migrations, polling until execution finishes successfully.
+   - Deploys application updates to Dev (`ca-healthcheck-api-dev`, `ca-healthcheck-web-dev`, `caj-healthcheck-worker-dev`) once migrations succeed.
 4. **Dev Smoke Test**: Runs a curl loop check to ensure `/health` returns HTTP 200
-5. **Pro Deploy** *(requires manual approval)*: Deploys to Pro (`ca-healthcheck-api-pro`, `ca-healthcheck-web-pro`, `caj-healthcheck-worker-pro`) after environment manual approval gate is cleared
+5. **Pro Deploy** *(requires manual approval)*:
+   - Triggers the `caj-healthcheck-migrate-pro` Container App Job to run database migrations, polling until execution finishes successfully.
+   - Deploys application updates to Pro (`ca-healthcheck-api-pro`, `ca-healthcheck-web-pro`, `caj-healthcheck-worker-pro`) once migrations succeed, after environment manual approval gate is cleared.
 6. **Pro Smoke Test**: Runs a curl loop check to ensure Pro `/health` returns HTTP 200
 
 **`infra.yml` (push to `main`, infra paths)**:
@@ -291,6 +298,7 @@ source .env.azure    # for terraform
 - [x] RBAC Enforcement: `RequireRoleOrScope` middleware on `POST/DELETE /api/targets` (requires `Healthcheck.Admin` role)
 - [x] SSRF Hardening: Custom `CheckRedirect` on worker HTTP client blocks private/internal IP redirects (max 3 hops)
 - [x] Toast Notifications: Non-blocking error feedback on frontend (no native browser alerts)
+- [x] Standalone Schema Migrations: Database schemas are updated as an independent CI/CD step via dedicated Container App Jobs prior to container deployments.
 
 ## 📅 Roadmap Summary
 

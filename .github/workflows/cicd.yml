@@ -119,6 +119,14 @@ jobs:
           push: true
           tags: ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/web:${{ steps.vars.outputs.sha_short }}
 
+      - name: "📂 Build & Push Migrate Image"
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.migrate
+          push: true
+          tags: ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/migrate:${{ steps.vars.outputs.sha_short }}
+
   # ==========================================
   # STAGE 3: DEV DEPLOYMENT
   # ==========================================
@@ -135,6 +143,39 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: "⚡ Run Database Migrations"
+        run: |
+          echo "Updating Migrate Job image..."
+          az containerapp job update \
+            --name caj-healthcheck-migrate-dev \
+            --resource-group rg-healthcheck-dev \
+            --image ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/migrate:${{ needs.build.outputs.image_tag }}
+
+          echo "Starting Migration Job..."
+          EXECUTION_NAME=$(az containerapp job start \
+            --name caj-healthcheck-migrate-dev \
+            --resource-group rg-healthcheck-dev \
+            --query "name" -o tsv)
+          echo "Migration job started: $EXECUTION_NAME"
+
+          echo "Waiting for migration to complete..."
+          while true; do
+            STATUS=$(az containerapp job execution show \
+              --name caj-healthcheck-migrate-dev \
+              --resource-group rg-healthcheck-dev \
+              --job-execution-name $EXECUTION_NAME \
+              --query "properties.status" -o tsv)
+            echo "Current migration job status: $STATUS"
+            if [ "$STATUS" = "Succeeded" ]; then
+              echo "✅ Migrations completed successfully"
+              break
+            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Canceled" ]; then
+              echo "❌ Migrations failed or were canceled"
+              exit 1
+            fi
+            sleep 10
+          done
 
       - name: "⚡ Update API Container"
         run: |
@@ -217,6 +258,39 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: "⚡ Run Database Migrations"
+        run: |
+          echo "Updating Migrate Job image..."
+          az containerapp job update \
+            --name caj-healthcheck-migrate-pro \
+            --resource-group rg-healthcheck-pro \
+            --image ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/migrate:${{ needs.build.outputs.image_tag }}
+
+          echo "Starting Migration Job..."
+          EXECUTION_NAME=$(az containerapp job start \
+            --name caj-healthcheck-migrate-pro \
+            --resource-group rg-healthcheck-pro \
+            --query "name" -o tsv)
+          echo "Migration job started: $EXECUTION_NAME"
+
+          echo "Waiting for migration to complete..."
+          while true; do
+            STATUS=$(az containerapp job execution show \
+              --name caj-healthcheck-migrate-pro \
+              --resource-group rg-healthcheck-pro \
+              --job-execution-name $EXECUTION_NAME \
+              --query "properties.status" -o tsv)
+            echo "Current migration job status: $STATUS"
+            if [ "$STATUS" = "Succeeded" ]; then
+              echo "✅ Migrations completed successfully"
+              break
+            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Canceled" ]; then
+              echo "❌ Migrations failed or were canceled"
+              exit 1
+            fi
+            sleep 10
+          done
 
       - name: "⚡ Update API Container"
         run: |

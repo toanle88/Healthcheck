@@ -185,6 +185,12 @@ Implement full-stack improvements to make the application highly interactive and
   - [x] Create `.azure-pipelines/cicd.yml` mirroring the unified `cicd.yml` workflow (Audit, Build, Deploy, and Smoke Test).
   - [x] Create `.azure-pipelines/infra.yml` mirroring the infrastructure plan/apply workflow (Security Checkov scan, Speculative Plan on PRs, and manual Apply confirmation parameter).
   - [x] Create `.azure-pipelines/destroy.yml` mirroring the resources teardown workflow (Terraform destroy with manual DELETE confirmation parameter).
+- [x] **Option 13: Separate Schema Migrations in CI/CD**
+  - [x] Create versioned SQL migration files (`internal/migrations`) and embed them with `go:embed`.
+  - [x] Implement a standalone Go migration CLI (`cmd/migrate/main.go`) utilizing standard pgx pool and golang-migrate database/source drivers.
+  - [x] Update local Docker Compose configuration with a `migrate` service to run migrations before `api` and `worker` start.
+  - [x] Provision manual-trigger Container App Jobs (`caj-healthcheck-migrate-[dev/pro]`) in Terraform to run migrations in Azure.
+  - [x] Modify GitHub Actions and Azure DevOps pipelines to build the migration Docker image, trigger the Container App Job, poll for its successful completion, and fail the pipeline immediately on failure.
 
 ---
 
