@@ -130,6 +130,38 @@ If you have manually deleted your Resource Group and State, follow these steps t
 
 ---
 
+## 🔍 State Drift Management
+
+To ensure that live Azure resources do not deviate from their defined Infrastructure as Code (IaC) configuration (e.g. from manual changes in the Azure Portal), we have automated state drift detection.
+
+### 1. Automation
+Drift checks are run automatically on a scheduled basis (every night at midnight UTC) and can also be triggered manually:
+* **GitHub Actions**: The [.github/workflows/drift.yml](file:///mnt/d/Dev/Projects/Healthcheck/.github/workflows/drift.yml) workflow runs speculative plans against the `dev` and `pro` environments.
+* **Azure DevOps**: The [.azure-pipelines/drift.yml](file:///mnt/d/Dev/Projects/Healthcheck/.azure-pipelines/drift.yml) pipeline executes the same drift detection checks.
+
+Both pipelines run Terraform plan with the `-detailed-exitcode` flag.
+* If there is no drift, the step succeeds (exit code `0`).
+* If drift is detected (exit code `2`), the step logs the drift diffs, raises a build/run failure, and alerts the engineering team.
+
+### 2. Manual Verification
+You can manually trigger the drift check at any time by running the [.github/workflows/drift.yml](file:///mnt/d/Dev/Projects/Healthcheck/.github/workflows/drift.yml) workflow via **GitHub Actions** (Workflow Dispatch) or by running [.azure-pipelines/drift.yml](file:///mnt/d/Dev/Projects/Healthcheck/.azure-pipelines/drift.yml) from the **Azure DevOps Pipelines** dashboard.
+
+### 3. Remediation
+When a drift alert occurs, remediate it using one of the following methods depending on whether the manual changes are desired:
+
+* **Option A: Revert the Drift (Overwrite Manual Changes)**
+  If the manual change was a mistake or temporary, you can overwrite it and restore the defined IaC state:
+  * In GitHub, manually trigger [.github/workflows/infra.yml](file:///mnt/d/Dev/Projects/Healthcheck/.github/workflows/infra.yml) with `confirm_apply="yes"`.
+  * In Azure DevOps, manually trigger [.azure-pipelines/infra.yml](file:///mnt/d/Dev/Projects/Healthcheck/.azure-pipelines/infra.yml) with `confirm_apply` parameter set to `yes`.
+
+* **Option B: Adopt the Drift (Update Terraform Code)**
+  If the manual change is correct and should be kept permanently:
+  1. Update the local Terraform code under [infra/terraform](file:///mnt/d/Dev/Projects/Healthcheck/infra/terraform) to match the manual changes.
+  2. Create a Pull Request (PR). The PR plan check will verify if there are any remaining differences.
+  3. Once merged to `main`, the next automated drift detection run will pass cleanly.
+
+---
+
 ## ✅ Final Review Verification
 - **Frontend**: Uses Entra External ID (CIAM) for secure user login.
 - **Backend**: Uses **Managed Identity** to log into Postgres (No DB password exists in the config).

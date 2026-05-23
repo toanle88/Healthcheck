@@ -50,9 +50,11 @@ The pipelines are defined for both GitHub Actions (under `.github/workflows/`) a
 | `cicd.yml` | GitHub Actions | PR / push to `main` | **Audit** (lint, test, Trivy), **Build** (Docker images → ACR), **Deploy** (Dev deployment & smoke test, Pro deployment with manual approval & smoke test) |
 | `infra.yml` | GitHub Actions | Push to `main` (infra paths) | Terraform plan & apply |
 | `destroy.yml` | GitHub Actions | Manual dispatch | `terraform destroy` for teardown |
+| `drift.yml` | GitHub Actions | Daily schedule / manual dispatch | Terraform speculative plan & drift detection alerts |
 | [.azure-pipelines/cicd.yml](file:///mnt/d/Dev/Projects/Healthcheck/.azure-pipelines/cicd.yml) | Azure DevOps | PR / push to `main` | Mirror of `cicd.yml` (Audit, Build, Dev deployment & smoke test, Pro deployment with manual approval & smoke test) |
 | [.azure-pipelines/infra.yml](file:///mnt/d/Dev/Projects/Healthcheck/.azure-pipelines/infra.yml) | Azure DevOps | PR / manual trigger | Mirror of `infra.yml` (Checkov, speculative Plan, manual Apply) |
 | [.azure-pipelines/destroy.yml](file:///mnt/d/Dev/Projects/Healthcheck/.azure-pipelines/destroy.yml) | Azure DevOps | Manual trigger | Mirror of `destroy.yml` (manual Destroy with verification) |
+| [.azure-pipelines/drift.yml](file:///mnt/d/Dev/Projects/Healthcheck/.azure-pipelines/drift.yml) | Azure DevOps | Daily schedule / manual trigger | Mirror of `drift.yml` (Terraform speculative plan & drift detection alerts) |
 
 ```mermaid
 graph TD
@@ -156,11 +158,13 @@ We support both Terraform (our primary IaC) and equivalent Bicep templates for e
 ├── .github/workflows/
 │   ├── cicd.yml        # Unified CI + CD pipeline
 │   ├── infra.yml       # Terraform apply pipeline
-│   └── destroy.yml     # Terraform destroy pipeline
+│   ├── destroy.yml     # Terraform destroy pipeline
+│   └── drift.yml       # Terraform drift detection pipeline
 ├── .azure-pipelines/
 │   ├── cicd.yml        # Azure DevOps CI/CD pipeline
 │   ├── infra.yml       # Azure DevOps Terraform plan/apply pipeline
-│   └── destroy.yml     # Azure DevOps Terraform destroy pipeline
+│   ├── destroy.yml     # Azure DevOps Terraform destroy pipeline
+│   └── drift.yml       # Azure DevOps Terraform drift detection pipeline
 ├── prometheus.yml      # Prometheus scrape config
 ├── Dockerfile.api
 ├── Dockerfile.worker

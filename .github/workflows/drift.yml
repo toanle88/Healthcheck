@@ -1,0 +1,75 @@
+name: "🔍 Infrastructure: Drift Detection"
+
+on:
+  # Daily scheduled check at midnight UTC
+  schedule:
+    - cron: '0 0 * * *'
+  # Manual trigger
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_USE_OIDC: true
+
+jobs:
+  drift_detection:
+    name: "🔍 Drift Detection (${{ matrix.environment }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, pro]
+    defaults:
+      run:
+        working-directory: ./infra/terraform/environments/${{ matrix.environment }}
+    steps:
+      - name: "📂 Checkout Code"
+        uses: actions/checkout@v4
+
+      - name: "🔑 Login to Azure (OIDC)"
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: "🛠️ Setup Terraform"
+        uses: hashicorp/setup-terraform@v3
+
+      - name: "📦 Terraform Init"
+        run: |
+          terraform init -upgrade \
+            -backend-config="resource_group_name=rg-healthcheck-bootstrap" \
+            -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.AZURE_STORAGE_CONTAINER }}" \
+            -backend-config="key=${{ matrix.environment }}.terraform.tfstate"
+
+      - name: "📋 Run Drift Detection Plan"
+        id: drift_check
+        run: |
+          set +e
+          terraform plan -detailed-exitcode -no-color \
+            -var="acr_name=${{ secrets.AZURE_ACR_NAME }}" \
+            -var="entra_client_id=${{ secrets.ENTRA_CLIENT_ID }}" \
+            2>&1 | tee /tmp/drift_output.txt
+          EXIT_CODE=$?
+          set -e
+
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ No drift detected in ${{ matrix.environment }} environment."
+          elif [ $EXIT_CODE -eq 2 ]; then
+            echo "❌ DRIFT DETECTED in ${{ matrix.environment }} environment! The following changes were made outside of Terraform:"
+            cat /tmp/drift_output.txt
+            echo "::error::Terraform Drift Detected in ${{ matrix.environment }}!"
+            exit 2
+          else
+            echo "❌ Terraform plan failed with error code $EXIT_CODE"
+            cat /tmp/drift_output.txt
+            exit $EXIT_CODE
+          fi

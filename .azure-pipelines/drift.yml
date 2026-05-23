@@ -1,0 +1,82 @@
+schedules:
+  - cron: "0 0 * * *"
+    displayName: Daily Midnight Drift Check
+    branches:
+      include:
+        - main
+    always: true
+
+trigger: none
+pr: none
+
+variables:
+  # Reference your Azure DevOps Service Connection (ARM)
+  azureServiceConnection: 'sc-healthcheck-dev'
+  # Name of your Azure Container Registry (ACR)
+  acrName: 'crhealthcheckdev'
+  # Entra/Azure AD Client ID
+  entraClientId: 'your-entra-client-id'
+  # Terraform backend storage account
+  storageAccountName: 'sahealthchecktfstate'
+  storageContainerName: 'tfstate'
+  resourceGroupName: 'rg-healthcheck-bootstrap'
+
+stages:
+  - stage: DriftCheck
+    displayName: '🔍 Drift Detection'
+    jobs:
+      - job: RunDriftCheck
+        displayName: 'Run Drift Check'
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          matrix:
+            dev:
+              envName: 'dev'
+            pro:
+              envName: 'pro'
+        steps:
+          - checkout: self
+          
+          - task: AzureCLI@2
+            displayName: '🔍 Drift Detection Plan ($(envName))'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              addSpnToEnvironment: true
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                export ARM_CLIENT_ID="$servicePrincipalId"
+                export ARM_CLIENT_SECRET="$servicePrincipalKey"
+                export ARM_TENANT_ID="$tenantId"
+                export ARM_SUBSCRIPTION_ID="$(subscriptionId)"
+                export ARM_USE_OIDC=true
+
+                cd infra/terraform/environments/$(envName)
+                
+                terraform init -upgrade \
+                  -backend-config="resource_group_name=$(resourceGroupName)" \
+                  -backend-config="storage_account_name=$(storageAccountName)" \
+                  -backend-config="container_name=$(storageContainerName)" \
+                  -backend-config="key=$(envName).terraform.tfstate"
+
+                set +e
+                terraform plan -detailed-exitcode -no-color \
+                  -var="acr_name=$(acrName)" \
+                  -var="entra_client_id=$(entraClientId)" > drift_plan.txt
+                EXIT_CODE=$?
+                set -e
+
+                if [ $EXIT_CODE -eq 0 ]; then
+                  echo "##vso[task.logissue type=info]No drift detected in $(envName)."
+                  echo "✅ No drift detected in $(envName)."
+                elif [ $EXIT_CODE -eq 2 ]; then
+                  echo "##vso[task.logissue type=error]Terraform Drift Detected in $(envName)!"
+                  echo "❌ DRIFT DETECTED in $(envName)!"
+                  cat drift_plan.txt
+                  exit 2
+                else
+                  echo "##vso[task.logissue type=error]Terraform plan failed in $(envName) with error code $EXIT_CODE"
+                  cat drift_plan.txt
+                  exit $EXIT_CODE
+                fi
