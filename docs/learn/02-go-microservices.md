@@ -167,4 +167,4 @@ Before serving the OpenAPI spec to the browser, the API handler dynamically pars
 ---
 
 ### Next Steps 🚀
-Now that you understand the Go backend, let's explore **[Lesson 03: Infrastructure as Code](file:///mnt/d/Dev/Projects/Healthcheck/docs/lessons/03-infrastructure-as-code.md)** to see how we define the cloud resources that host this application.
+Now that you understand the Go backend, let's explore **[Lesson 03: Infrastructure as Code](file:///mnt/d/Dev/Projects/Healthcheck/docs/learn/03-infrastructure-as-code.md)** to see how we define the cloud resources that host this application.

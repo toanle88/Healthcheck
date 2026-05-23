@@ -188,4 +188,4 @@ Human error is the leading cause of cloud misconfigurations.
 ---
 
 ### Next Steps 🚀
-Now that you have a firm grasp of the environment structure, let's explore **[Lesson 02: Go Microservices](file:///mnt/d/Dev/Projects/Healthcheck/docs/lessons/02-go-microservices.md)** to see how Go translates these concepts into working code.
+Now that you have a firm grasp of the environment structure, let's explore **[Lesson 02: Go Microservices](file:///mnt/d/Dev/Projects/Healthcheck/docs/learn/02-go-microservices.md)** to see how Go translates these concepts into working code.

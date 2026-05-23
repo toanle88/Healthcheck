@@ -154,4 +154,4 @@ To comply with enterprise security and Checkov compliance, the production Key Va
 ---
 
 ### Next Steps 🚀
-Now that we've coded our environment blueprint, let's explore **[Lesson 04: Azure Container Apps](file:///mnt/d/Dev/Projects/Healthcheck/docs/lessons/04-azure-container-apps.md)** to see how we deploy, scale, and monitor our Go containers.
+Now that we've coded our environment blueprint, let's explore **[Lesson 04: Azure Container Apps](file:///mnt/d/Dev/Projects/Healthcheck/docs/learn/04-azure-container-apps.md)** to see how we deploy, scale, and monitor our Go containers.

@@ -172,13 +172,17 @@ We support both Terraform (our primary IaC) and equivalent Bicep templates for e
 
 ## 🎓 Learning Center
 
-If you want to understand how this project works, follow our **Masterclass Curriculum**:
+If you want to understand how this project works, follow our **[Masterclass Curriculum Index](./docs/learn/README.md)**:
 
-1. [Lesson 01: Architecture Overview](./docs/lessons/01-architecture-overview.md) — The "Big Picture."
-2. [Lesson 02: Go Microservices](./docs/lessons/02-go-microservices.md) — Identity-aware Go code.
-3. [Lesson 03: Infrastructure as Code](./docs/lessons/03-infrastructure-as-code.md) — The Terraform blueprint.
-4. [Lesson 04: Azure Container Apps](./docs/lessons/04-azure-container-apps.md) — Scaling & Resilience.
-5. [Lesson 05: CI/CD & Security](./docs/lessons/05-cicd-and-security.md) — Automating the "Castle."
+1. [Lesson 01: Architecture Overview](./docs/learn/01-architecture-overview.md) — The "Big Picture."
+2. [Lesson 02: Go Microservices](./docs/learn/02-go-microservices.md) — Identity-aware Go code.
+3. [Lesson 03: Infrastructure as Code](./docs/learn/03-infrastructure-as-code.md) — The Terraform blueprint.
+4. [Lesson 04: Azure Container Apps](./docs/learn/04-azure-container-apps.md) — Scaling & Resilience.
+5. [Lesson 05: CI/CD & Security](./docs/learn/05-cicd-and-security.md) — Automating the "Castle."
+6. [Lesson 06: W3C Distributed Tracing](./docs/learn/06-w3c-distributed-tracing.md) — OpenTelemetry & traces.
+7. [Lesson 07: Entra ID Passwordless Security](./docs/learn/07-entra-id-passwordless.md) — Managed Identity authentication.
+8. [Lesson 08: Network Isolation & Private Endpoints](./docs/learn/08-network-isolation-security.md) — VNet hardening.
+9. [Lesson 09: CI/CD Quality Gates & Rollbacks](./docs/learn/09-cicd-quality-gates.md) — Coverage gates & rollbacks.
 
 ---
 

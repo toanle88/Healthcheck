@@ -103,17 +103,6 @@ client := &http.Client{
 *   **Why it matters:** Even if a malicious target URL initially resolves to a public IP, the server could redirect to an internal address. The `CheckRedirect` hook intercepts every hop and blocks any redirect that resolves to a private, loopback, or link-local address.
 
 ---
-
-## 🏁 Walkthrough Completed! 🏆
-
-Congratulations! You have completed the architecture and implementation lessons. You now possess a deep understanding of:
-1.  **Architecture:** Setting up secure network zones (VNet/Subnets) and identity authentication patterns.
-2.  **Go Development:** Wiring up passwordless database connections and tracing using OpenTelemetry.
-3.  **Infrastructure as Code:** Modeling secure network environments and policies with Terraform.
-4.  **Container Services:** Deploying, scaling, and monitoring applications serverlessly with Azure Container Apps.
-5.  **CI/CD:** Hardening build pipelines and containers using OIDC, Checkov, Trivy, and Distroless base configurations.
-
----
-
-### Back to Overview 🗺️
-You can review the first lesson at **[Lesson 01: Architecture Overview](file:///mnt/d/Dev/Projects/Healthcheck/docs/lessons/01-architecture-overview.md)** or read the full repository onboarding notes in the **[README](file:///mnt/d/Dev/Projects/Healthcheck/README.md)**.
+ 
+ ### Next Steps 🚀
+ Now that you understand CI/CD automation and container hardening, let's explore **[Lesson 06: W3C Distributed Tracing](file:///mnt/d/Dev/Projects/Healthcheck/docs/learn/06-w3c-distributed-tracing.md)** to see how we trace requests across services.

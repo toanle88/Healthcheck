@@ -104,4 +104,4 @@ ContainerAppSystemLogs_CL
 ---
 
 ### Next Steps 🚀
-Now that we understand how our containers scale and report status, let's explore **[Lesson 05: CI/CD & Security Compliance](file:///mnt/d/Dev/Projects/Healthcheck/docs/lessons/05-cicd-and-security.md)** to see how we build automated security audits and deployment pipelines.
+Now that we understand how our containers scale and report status, let's explore **[Lesson 05: CI/CD & Security Compliance](file:///mnt/d/Dev/Projects/Healthcheck/docs/learn/05-cicd-and-security.md)** to see how we build automated security audits and deployment pipelines.
