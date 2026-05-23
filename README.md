@@ -2,7 +2,7 @@
 
 A tiny, production-like app built specifically to learn **CI/CD, Terraform, Docker, monitoring, and security on Azure using Go**. The app pings public APIs every minute and shows green/red status, so you spend 90% of your time on infra, not features.
 
-See [ROADMAP.md](./docs/ROADMAP.md) for the full phase plan, and [AGENT_GUIDELINES.md](./docs/AGENT_GUIDELINES.md) for code style and structure standards.
+See [ROADMAP.md](./docs/ROADMAP.md) for the full phase plan, and [AGENT.md](./AGENT.md) for code style and structure standards.
 
 ## 🎯 Learning Goals
 
@@ -27,7 +27,7 @@ This project uses a **"Clean Split"** architecture: Core infrastructure is autom
 
 ## 🛠️ Development & Quality
 
-For detailed conventions on styling, code structure, architecture, and testing for both backend, frontend, and infrastructure, please consult the **[Developer & Agent Guidelines](./docs/AGENT_GUIDELINES.md)**.
+For detailed conventions on styling, code structure, architecture, and testing for both backend, frontend, and infrastructure, please consult the **[Developer & Agent Guidelines](./AGENT.md)**.
 
 ### Code Formatting
 This project strictly enforces Go standards. To fix any formatting issues before pushing to GitHub, run:
