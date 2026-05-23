@@ -47,15 +47,15 @@ jobs:
       - name: "🔍 Run Checkov Dev"
         uses: bridgecrewio/checkov-action@master
         with:
-          directory: infra/envs/dev
-          config_file: infra/.checkov.yaml
+          directory: infra/terraform/environments/dev
+          config_file: infra/terraform/.checkov.yaml
           framework: terraform
           output_format: cli
 
       - name: "🔍 Run Checkov Pro"
         uses: bridgecrewio/checkov-action@master
         with:
-          directory: infra/envs/pro
+          directory: infra/terraform/environments/pro
           framework: terraform
           output_format: cli
 
@@ -74,7 +74,7 @@ jobs:
         environment: [dev, pro]
     defaults:
       run:
-        working-directory: ./infra/envs/${{ matrix.environment }}
+        working-directory: ./infra/terraform/environments/${{ matrix.environment }}
     steps:
       - name: "📂 Checkout Code"
         uses: actions/checkout@v4
@@ -177,7 +177,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./infra/envs/${{ github.event.inputs.environment }}
+        working-directory: ./infra/terraform/environments/${{ github.event.inputs.environment }}
     steps:
       - name: "📂 Checkout Code"
         uses: actions/checkout@v4

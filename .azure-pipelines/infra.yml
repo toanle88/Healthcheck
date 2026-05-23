@@ -6,7 +6,7 @@ pr:
       - main
   paths:
     include:
-      - infra/*
+      - infra/terraform/*
 
 parameters:
   - name: confirm_apply
@@ -49,9 +49,9 @@ stages:
           - script: |
               pip install checkov
               echo "=== Scanning Dev Environment ==="
-              checkov -d infra/envs/dev --config-file infra/.checkov.yaml --framework terraform --output cli
+              checkov -d infra/terraform/environments/dev --config-file infra/terraform/.checkov.yaml --framework terraform --output cli
               echo "=== Scanning Pro Environment ==="
-              checkov -d infra/envs/pro --framework terraform --output cli
+              checkov -d infra/terraform/environments/pro --framework terraform --output cli
             displayName: '🔍 Run Checkov Scan (Dev & Pro)'
 
   # ==========================================
@@ -89,7 +89,7 @@ stages:
                 export ARM_SUBSCRIPTION_ID="$(subscriptionId)"
                 export ARM_USE_OIDC=true
 
-                cd infra/envs/$(envName)
+                cd infra/terraform/environments/$(envName)
                 
                 terraform init -upgrade \
                   -backend-config="resource_group_name=$(resourceGroupName)" \
@@ -130,7 +130,7 @@ stages:
                 export ARM_SUBSCRIPTION_ID="$(subscriptionId)"
                 export ARM_USE_OIDC=true
 
-                cd infra/envs/${{ parameters.environment }}
+                cd infra/terraform/environments/${{ parameters.environment }}
                 
                 terraform init -upgrade \
                   -backend-config="resource_group_name=$(resourceGroupName)" \

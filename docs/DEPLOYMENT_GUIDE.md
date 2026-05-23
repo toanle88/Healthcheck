@@ -12,7 +12,7 @@ This document outlines the **"Clean Split"** architectural model for the Healthc
 ## 🧱 Step 0: The Bootstrap (Foundation)
 Before the first deployment, you must build the "Foundation" where your State and Images live.
 
-1. **Run Bootstrap Terraform**: Navigate to `infra/bootstrap` and run `terraform apply`. This creates:
+1. **Run Bootstrap Terraform**: Navigate to `infra/terraform/bootstrap` and run `terraform apply`. This creates:
    - The **Resource Group** for your base infrastructure.
    - The **Storage Account** for your `.tfstate` files.
    - The **Container Registry (ACR)** for your Docker images.
@@ -123,7 +123,7 @@ If you have manually deleted your Resource Group and State, follow these steps t
 1. **Re-Initialize Locally (One-time)**:
    Navigate to the desired environment directory:
    ```powershell
-   cd infra/envs/dev # or cd infra/envs/pro
+   cd infra/terraform/environments/dev # or cd infra/terraform/environments/pro
    terraform init -reconfigure -backend-config="storage_account_name=<STORAGE_NAME>"
    ```
 2. **Push to Main**: Simply push your code to GitHub. The updated `infra.yml` will detect the empty state and rebuild the entire environment.

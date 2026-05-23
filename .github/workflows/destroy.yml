@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./infra/envs/${{ github.event.inputs.environment }}
+        working-directory: ./infra/terraform/environments/${{ github.event.inputs.environment }}
     steps:
       - name: "📂 Checkout Code"
         uses: actions/checkout@v4

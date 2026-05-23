@@ -106,15 +106,15 @@ For a developer new to cloud architectures, the terms above can feel overwhelmin
 
 ### 1. Resource Groups
 *   **Dev Resource Group (`rg-healthcheck-dev`)**: A logical folder in your Azure subscription hosting the active development environment (VNet, container apps, database, key vault).
-*   **Bootstrap Resource Group (`rg-healthcheck-bootstrap`)**: Houses the long-lived, foundational components like the storage account for Terraform state and the private [Azure Container Registry (ACR)](file:///mnt/d/Dev/Projects/Healthcheck/infra/bootstrap).
+*   **Bootstrap Resource Group (`rg-healthcheck-bootstrap`)**: Houses the long-lived, foundational components like the storage account for Terraform state and the private [Azure Container Registry (ACR)](file:///mnt/d/Dev/Projects/Healthcheck/infra/terraform/bootstrap).
 *   **Why it matters:** It separates initial registry setup from ongoing app deployment lifecycles, and enables clean resource cleanup.
 
 ### 2. Virtual Network (VNet) & Subnets
 A **Virtual Network (VNet)** is your private sandbox in the cloud, completely isolated from the public internet.
 *   **IP Address Allocation:** We assign a range of private IP addresses (`10.0.0.0/16`, giving us 65,536 private IPs) that can only be reached within this network.
 *   **Subnets:** We slice the VNet into smaller `/24` segments (256 IPs each) for different security tiers:
-    *   **Apps Subnet (`snet-apps`)**: Delegated to `Microsoft.App/environments` for running our containerized applications inside [modules/containerapp](file:///mnt/d/Dev/Projects/Healthcheck/infra/modules/containerapp).
-    *   **Data Subnet (`snet-db`)**: Delegated to `Microsoft.DBforPostgreSQL/flexibleServers` for running the database inside [modules/postgres](file:///mnt/d/Dev/Projects/Healthcheck/infra/modules/postgres).
+    *   **Apps Subnet (`snet-apps`)**: Delegated to `Microsoft.App/environments` for running our containerized applications inside [modules/containerapp](file:///mnt/d/Dev/Projects/Healthcheck/infra/terraform/modules/common/containerapp).
+    *   **Data Subnet (`snet-db`)**: Delegated to `Microsoft.DBforPostgreSQL/flexibleServers` for running the database inside [modules/postgres](file:///mnt/d/Dev/Projects/Healthcheck/infra/terraform/modules/common/postgres).
 *   **Network Security Groups (NSGs):** Firewalls applied at the subnet level. `nsg-db` ensures that the PostgreSQL server only accepts incoming database requests (Port 5432) from the `snet-apps` subnet IP range. All other entry paths are blocked.
 
 ### 3. Managed Identity
@@ -124,17 +124,17 @@ To communicate securely, Azure uses **Managed Identities** mapped inside Entra I
 *   **Why it matters:** Zero passwords are written in our codebase or configuration files!
 
 ### 4. Azure Key Vault (KV)
-A hardened, secure storage facility for secrets, certificates, and API keys created by [modules/keyvault](file:///mnt/d/Dev/Projects/Healthcheck/infra/modules/keyvault).
+A hardened, secure storage facility for secrets, certificates, and API keys created by [modules/keyvault](file:///mnt/d/Dev/Projects/Healthcheck/infra/terraform/modules/common/keyvault).
 *   **Role-Based Access Control (RBAC):** We grant the Runtime Identity the `Key Vault Secrets User` role, allowing containers to read settings like the alert webhook URL securely.
 
 ### 5. Azure Container Apps (ACA)
-A serverless container hosting platform built on Kubernetes (AKS), Envoy, and KEDA, configured in [modules/containerapp](file:///mnt/d/Dev/Projects/Healthcheck/infra/modules/containerapp).
+A serverless container hosting platform built on Kubernetes (AKS), Envoy, and KEDA, configured in [modules/containerapp](file:///mnt/d/Dev/Projects/Healthcheck/infra/terraform/modules/common/containerapp).
 *   **Web App**: A container running our React 19 + Vite dashboard, exposed to the internet via public ingress.
 *   **API App**: A container running our Go HTTP backend, internally accessible to the frontend container, and featuring CORS restriction.
 *   **Worker Job**: A run-to-completion container job triggered on a cron schedule (every minute) to query public API health and record stats in PostgreSQL.
 
 ### 6. Observability Suite
-A robust monitoring setup defined in [modules/monitor](file:///mnt/d/Dev/Projects/Healthcheck/infra/modules/monitor).
+A robust monitoring setup defined in [modules/monitor](file:///mnt/d/Dev/Projects/Healthcheck/infra/terraform/modules/common/monitor).
 *   **Log Analytics Workspace**: The central repository for all container console outputs (stdout/stderr) which are exported in structured JSON via `slog`.
 *   **Application Insights**: Captures telemetry, spans, and traces sent from the Go OpenTelemetry SDK.
 *   **Azure Monitor Alerts**: Automated alerting configurations that email or ping a webhook if average response time exceeds 500ms or HTTP 5xx errors spike.

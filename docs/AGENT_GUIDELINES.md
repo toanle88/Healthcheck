@@ -32,14 +32,20 @@ The repository follows a clean, modular structure. Any new code should fit into 
 │   │   └── types/      # TypeScript interfaces and types
 │   └── e2e/            # Playwright end-to-end tests
 ├── grafana/            # Grafana provisioning config (datasources & dashboards)
-└── infra/              # Terraform Infrastructure-as-Code
-    ├── bootstrap/      # One-time ACR + Managed Identity + OIDC setup
-    ├── envs/
-    │   ├── dev/        # Development environment configuration
-    │   └── pro/        # Production environment configuration
-    └── modules/        # Reusable infrastructure modules
-        ├── common/     # Baseline configurations (acr, auth, containerapp, etc.)
-        └── pro/        # Production-specific overrides (hardened network, postgres, keyvault)
+└── infra/              # Infrastructure-as-Code
+    ├── bicep/          # Azure Bicep Templates & Comparison Guide
+    │   ├── modules/    # Reusable Bicep modules
+    │   ├── bootstrap.bicep
+    │   ├── main.bicep
+    │   └── README.md   # IaC Comparison Guide
+    └── terraform/      # Terraform Configurations
+        ├── bootstrap/  # One-time ACR + Managed Identity + OIDC setup
+        ├── environments/
+        │   ├── dev/    # Development environment configuration
+        │   └── pro/    # Production environment configuration
+        └── modules/    # Reusable infrastructure modules
+            ├── common/ # Baseline configurations (acr, auth, containerapp, etc.)
+            └── pro/    # Production-specific overrides (hardened network, postgres, keyvault)
 ```
 
 ---
@@ -124,15 +130,15 @@ The repository follows a clean, modular structure. Any new code should fit into 
 
 ---
 
-## ☁️ Infrastructure Standards (Terraform)
+## ☁️ Infrastructure Standards (Terraform & Bicep)
 
-- **Modularity**: Infrastructure must be partitioned into functional modules located under `infra/modules/common/` (shared baseline configs) or `infra/modules/pro/` (production-hardened overrides).
+- **Modularity**: Infrastructure must be partitioned into functional modules located under `infra/terraform/modules/common/` (shared baseline configs) or `infra/terraform/modules/pro/` (production-hardened overrides).
 - **Zero-Secret Architecture**:
   - Never commit credentials, passwords, or connection strings.
   - Utilize **Azure Managed Identities** (User-Assigned Managed Identity) for secure resource access (Key Vault, PostgreSQL).
   - Inject database configuration using Azure Key Vault secret URIs rather than plaintext values.
 - **Network Isolation**: PostgreSQL databases and compute subnets must be isolated using VNets, private subnets, and private DNS zones.
-- **Formatting**: Always execute `terraform fmt -recursive` on the `infra/` folder.
+- **Formatting**: Always execute `terraform fmt -recursive` on the `infra/terraform/` folder.
 
 ---
 

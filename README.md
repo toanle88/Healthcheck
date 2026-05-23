@@ -78,18 +78,20 @@ graph TD
     API & Worker -- Passwordless --> DB
 ```
 
-### Infrastructure as Code (Terraform)
-We use a modular Terraform structure split into environments and reusable modules:
+### Infrastructure as Code (Terraform & Bicep)
+We support both Terraform (our primary IaC) and equivalent Bicep templates for educational comparison:
 
-- **Baseline Modules (`infra/modules/common/`)**: Shared modules across all environments.
-- **Production Overrides (`infra/modules/pro/`)**: Hardened versions of modules overriding dev behavior to meet strict compliance/security requirements (scanned and verified with Checkov).
-- **Environments (`infra/envs/`)**:
-  - `dev/`: Development configuration utilizing common baseline modules.
-  - `pro/`: Production configuration utilizing common modules but overriding with `pro/` hardened modules.
+- **Terraform Configurations (`infra/terraform/`)**:
+  - **Baseline Modules (`infra/terraform/modules/common/`)**: Shared modules across all environments.
+  - **Production Overrides (`infra/terraform/modules/pro/`)**: Hardened versions of modules overriding dev behavior.
+  - **Environments (`infra/terraform/environments/`)**:
+    - `dev/`: Development configuration utilizing common baseline modules.
+    - `pro/`: Production configuration utilizing common modules but overriding with `pro/` hardened modules.
+- **Bicep Templates (`infra/bicep/`)**: Equivalent modular templates for deploying either dev or pro (see the [Bicep Readme](file:///mnt/d/Dev/Projects/Healthcheck/infra/bicep/README.md) for details).
 
 #### Environment Configuration Comparison
 
-| Component | Dev Setup (`infra/envs/dev`) | Production Setup (`infra/envs/pro`) | Checkov / Security Standards |
+| Component | Dev Setup (`infra/terraform/environments/dev`) | Production Setup (`infra/terraform/environments/pro`) | Checkov / Security Standards |
 | :--- | :--- | :--- | :--- |
 | **Network** | VNet + Subnets (`snet-apps`, `snet-db`). NSG allows HTTP (80) & HTTPS (443) from Internet. | VNet + Subnets (`snet-apps`, `snet-db`, **`snet-endpoints`**). NSG **denies HTTP (80)**, allows HTTPS (443). | `CKV_AZURE_160` (HTTP Denied), `CKV2_AZURE_31` (Subnet NSG association) |
 | **PostgreSQL** | Flexible Server in private subnet, public network access disabled. | Flexible Server in private subnet, public network access disabled, **Geo-redundant backups enabled**. | `CKV_AZURE_136` (Geo-redundant Backup) |
@@ -133,13 +135,23 @@ We use a modular Terraform structure split into environments and reusable module
 ├── web/                # React frontend (hooks, components, pages, services, types, lib)
 │   └── e2e/            # Playwright end-to-end tests
 ├── infra/
-│   ├── bootstrap/      # One-time ACR + Managed Identity + OIDC bootstrap
-│   ├── envs/
-│   │   ├── dev/        # Development environment configuration
-│   │   └── pro/        # Production environment configuration
-│   └── modules/
-│       ├── common/     # Shared baseline infrastructure modules (acr, auth, containerapp, identity, keyvault, monitor, network, policy, postgres)
-│       └── pro/        # Production-specific hardened module overrides (keyvault, network, postgres)
+│   ├── bicep/          # Azure Bicep Templates & Comparison Guide
+│   │   ├── bootstrap/  # One-time ACR + Managed Identity + OIDC bootstrap (Bicep)
+│   │   ├── environments/
+│   │   │   ├── dev/    # Development environment configuration
+│   │   │   └── pro/    # Production environment configuration
+│   │   ├── modules/
+│   │   │   ├── common/ # Shared baseline infrastructure modules (identity, network, etc.)
+│   │   │   └── pro/    # Production-specific hardened module overrides (keyvault, network, etc.)
+│   │   └── README.md   # IaC Comparison Guide
+│   └── terraform/      # Terraform Configurations
+│       ├── bootstrap/  # One-time ACR + Managed Identity + OIDC bootstrap
+│       ├── environments/
+│       │   ├── dev/    # Development environment configuration
+│       │   └── pro/    # Production environment configuration
+│       └── modules/
+│           ├── common/ # Shared baseline infrastructure modules (acr, auth, containerapp, identity, keyvault, monitor, network, policy, postgres)
+│           └── pro/    # Production-specific hardened module overrides (keyvault, network, postgres)
 ├── grafana/            # Grafana provisioning (datasources + dashboards)
 ├── .github/workflows/
 │   ├── cicd.yml        # Unified CI + CD pipeline
@@ -221,16 +233,16 @@ pnpm run dev
 1. **Prereqs**: Azure CLI, Terraform ≥1.8, Go 1.26
 
 2. **OIDC Bootstrap**:
-   - Run Terraform in `infra/bootstrap` to create the ACR and the OIDC Managed Identity.
+   - Run Terraform in `infra/terraform/bootstrap` to create the ACR and the OIDC Managed Identity.
    - Configure your GitHub repository with the `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID`.
 
 3. **Deploy Infrastructure**:
    Deploy either environment (e.g., `dev` or `pro`):
    ```bash
    # For Dev
-   cd infra/envs/dev
+   cd infra/terraform/environments/dev
    # For Pro
-   # cd infra/envs/pro
+   # cd infra/terraform/environments/pro
 
    terraform init
    terraform plan
@@ -332,11 +344,11 @@ Estimated cost if left running: $5-12/month in dev, $20-40/month in prod (due to
 source .env.azure
 
 # To destroy Dev
-cd infra/envs/dev
+cd infra/terraform/environments/dev
 terraform destroy -auto-approve
 
 # To destroy Pro
-# cd infra/envs/pro
+# cd infra/terraform/environments/pro
 # terraform destroy -auto-approve
 ```
 

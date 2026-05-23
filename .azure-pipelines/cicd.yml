@@ -4,7 +4,7 @@ trigger:
       - main
   paths:
     exclude:
-      - infra/*
+      - infra/**
       - docs/*
       - '*.md'
 
@@ -14,7 +14,7 @@ pr:
       - main
   paths:
     exclude:
-      - infra/*
+      - infra/**
       - docs/*
       - '*.md'
 

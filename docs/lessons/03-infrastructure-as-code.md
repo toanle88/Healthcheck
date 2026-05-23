@@ -1,4 +1,4 @@
-# Lesson 03: Infrastructure as Code (Terraform) 🏗️
+# Lesson 03: Infrastructure as Code (Terraform & Bicep) 🏗️
 
 Terraform is the "Source of Truth" for our cloud environments. Rather than clicking buttons manually inside the Azure Portal (which is slow, unrepeatable, and prone to errors), we define our entire infrastructure as HCL (HashiCorp Configuration Language) code.
 
@@ -8,13 +8,13 @@ Terraform is the "Source of Truth" for our cloud environments. Rather than click
 
 To build enterprise-ready infrastructure, we partition our Terraform into three layers:
 
-### A. The Bootstrap (`infra/bootstrap/`)
+### A. The Bootstrap (`infra/terraform/bootstrap/`)
 This is the foundational layer. It creates the resources that *store* our infrastructure, like the **Storage Account** for our Terraform state file (`.tfstate`) and the **Azure Container Registry (ACR)**.
 *   **Why it's split:** You only run this once. We build the registry first so we have a place to upload our Docker images *before* we deploy our container apps.
 
-### B. Reusable Modules (`infra/modules/`)
+### B. Reusable Modules (`infra/terraform/modules/`)
 These are our reusable "LEGO bricks." They do not declare environments directly; instead, they define parameterized components, split by compliance and hardening requirements:
-*   **Common Baseline Modules (`infra/modules/common/`)**: Shared modules across all environments.
+*   **Common Baseline Modules (`infra/terraform/modules/common/`)**: Shared modules across all environments.
     *   `acr/`: Azure Container Registry (ACR) configuration.
     *   `auth/`: Entra ID/CIAM authorization setup.
     *   `containerapp/`: Configures container app environments, API/Web apps, and worker jobs.
@@ -22,12 +22,12 @@ These are our reusable "LEGO bricks." They do not declare environments directly;
     *   `monitor/`: Sets up Log Analytics, Application Insights, and monitoring alerts.
     *   `policy/`: Enforces required Azure tags.
     *   `network/`, `postgres/`, `keyvault/`: Default dev configurations (cost-optimized, public/HTTP accessible).
-*   **Production Hardened Overrides (`infra/modules/pro/`)**:
+*   **Production Hardened Overrides (`infra/terraform/modules/pro/`)**:
     *   `network/`: Builds the VNet with an additional private endpoint subnet (`snet-endpoints`), NSG blocking public HTTP (port 80) access (`CKV_AZURE_160`), and NSG isolating endpoints to container app subnet traffic only (`CKV2_AZURE_31`).
     *   `postgres/`: Provisions PostgreSQL Flexible Server with geo-redundant backups enabled (`CKV_AZURE_136`).
     *   `keyvault/`: Provisions a Key Vault with purge protection enabled (`CKV_AZURE_115`), public network access disabled (`CKV_AZURE_189`), default network rules set to Deny (`CKV_AZURE_109`), and a **Private Endpoint** (`pe-kv-pro`) in the endpoints subnet (`CKV2_AZURE_32`).
 
-### C. The Environments (`infra/envs/`)
+### C. The Environments (`infra/terraform/environments/`)
 This is where we combine our modules to build a specific environment. It acts as a configuration file, passing environment-specific inputs (like different subnets or backups) to our modules:
 *   `dev/`: Dev configuration utilizing `common/` modules for all components (optimized for cost and simplicity).
 *   `pro/`: Production configuration utilizing `common/` modules for identity, apps, and monitoring, but overriding them with the hardened `pro/` modules for network, postgres, and keyvault.
@@ -36,7 +36,7 @@ This is where we combine our modules to build a specific environment. It acts as
 
 ## 🛡️ 2. Deep Dive: Networking & Subnets
 
-The network module (baseline `infra/modules/common/network/main.tf` and production `infra/modules/pro/network/main.tf`) is our primary defense. It constructs our private virtual space:
+The network module (baseline `infra/terraform/modules/common/network/main.tf` and production `infra/terraform/modules/pro/network/main.tf`) is our primary defense. It constructs our private virtual space:
 
 ```hcl
 resource "azurerm_virtual_network" "main" {
