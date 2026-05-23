@@ -6,6 +6,10 @@
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
+# Go to the root of the repository (parent of scripts directory)
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPT_DIR/.."
+
 # Default settings
 QUICK_MODE=false
 FIX_MODE=false
@@ -45,7 +49,7 @@ if [ "$FIX_MODE" = true ]; then
 else
     unformatted=$(gofmt -l .)
     if [ -n "$unformatted" ]; then
-        echo -e "${RED}❌ Go files are not formatted correctly. Please run './check.sh --fix' or 'go fmt ./...' to fix:${NC}"
+        echo -e "${RED}❌ Go files are not formatted correctly. Please run './scripts/check.sh --fix' or 'go fmt ./...' to fix:${NC}"
         echo "$unformatted"
         exit 1
     fi

@@ -6,6 +6,10 @@ param(
     [switch]$Fix
 )
 
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+if ($ScriptDir) { Set-Location "$ScriptDir\.." }
+
+
 Write-Host "🚀 Starting Full Project Check..." -ForegroundColor Blue
 
 # --- 0. Generate & Sync OpenAPI Spec ---
@@ -29,7 +33,7 @@ if ($Fix) {
 } else {
     $unformatted = gofmt -l .
     if ($unformatted) {
-        Write-Host "❌ Go files are not formatted correctly. Please run './check.ps1 -Fix' or 'go fmt ./...' to fix:" -ForegroundColor Red
+        Write-Host "❌ Go files are not formatted correctly. Please run './scripts/check.ps1 -Fix' or 'go fmt ./...' to fix:" -ForegroundColor Red
         $unformatted | Write-Host -ForegroundColor Red
         exit 1
     }

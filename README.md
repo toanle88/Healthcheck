@@ -213,11 +213,11 @@ Run the validation script to ensure linting and tests are passing:
 
 ```powershell
 # Windows
-./check.ps1
+./scripts/check.ps1
 
 # Linux/macOS
-chmod +x check.sh
-./check.sh
+chmod +x scripts/check.sh
+./scripts/check.sh
 ```
 
 ### 3. Manual Frontend Development

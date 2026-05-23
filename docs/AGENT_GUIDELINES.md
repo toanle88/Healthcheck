@@ -92,7 +92,7 @@ The repository follows a clean, modular structure. Any new code should fit into 
 ### 6. API Documentation (Scalar)
 - API documentation is served dynamically at `/docs` using **Scalar**.
 - The underlying OpenAPI 3.1.0 specification is stored in `docs/openapi.json`.
-- The validation scripts (`check.sh` and `check.ps1`) automatically synchronize this file to `internal/handler/openapi.json` for binary embedding and serving at `/openapi.json`.
+- The validation scripts (`scripts/check.sh` and `scripts/check.ps1`) automatically synchronize this file to `internal/handler/openapi.json` for binary embedding and serving at `/openapi.json`.
 - Developers and agents modifying API routes or payloads should update `docs/openapi.json` and run the validation script to automatically synchronize and test the updates.
 
 ### 7. SSE Broker (`internal/handler/broker.go`)
@@ -156,7 +156,7 @@ All code modifications must be verified through the appropriate automated checks
 - **End-to-End Tests**:
   - Playwright integration tests reside in `web/e2e/`.
 - **Validation Script**:
-  - Execute `bash check.sh` (or `powershell ./check.ps1` on Windows) to format, compile, lint, and run the entire verification suite.
+  - Execute `bash scripts/check.sh` (or `powershell ./scripts/check.ps1` on Windows) to format, compile, lint, and run the entire verification suite.
 
 ---
 
@@ -166,7 +166,7 @@ When implementing changes in this repository, agents must adhere to the followin
 
 1. **Maintain Documentation Integrity**: Preserve all existing comments, docstrings, and documentation unless specifically requested to update them.
 2. **No Placeholders**: Never leave `TODO` items or empty function blocks in production code. Generate complete, fully-functional implementations.
-3. **Run Pre-Commit Checks**: Always execute `check.sh` locally to verify there are no compilation, linting, or formatting errors.
+3. **Run Pre-Commit Checks**: Always execute `scripts/check.sh` locally to verify there are no compilation, linting, or formatting errors.
 4. **Follow the Sandbox Policy**: For tasks requiring network access (like package installations or git operations), explicitly set `BypassSandbox: true` and request user approval. Keep local compilations and test executions sandboxed.
 5. **Leverage Code Review Skills**: If unsure about the design patterns or style, refer to the available custom skills:
    - `code-review` to double-check style alignment.

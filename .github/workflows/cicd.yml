@@ -29,6 +29,8 @@ jobs:
     steps:
       - name: "📂 Checkout Code"
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required by SonarCloud scan
 
       - name: "🐹 Setup Go Environment"
         uses: actions/setup-go@v5
@@ -54,8 +56,39 @@ jobs:
       - name: "🔍 Static Analysis (Vet)"
         run: go vet ./...
 
-      - name: "⚡ Run Unit Tests"
-        run: go test -v -race ./...
+      - name: "⚡ Run Unit Tests with Coverage"
+        run: go test -v -race -coverprofile=coverage.out -covermode=atomic $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./...)
+
+      - name: "🟢 Setup Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: "📦 Install pnpm"
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: "📦 Install Frontend Dependencies"
+        run: pnpm --filter web install --no-frozen-lockfile
+
+      - name: "⚡ Run Frontend Unit Tests with Coverage"
+        run: pnpm --filter web run test:unit --coverage
+
+      - name: "🛡️ Check Coverage Quality Gate"
+        run: bash scripts/check-coverage.sh
+
+      - name: "SonarCloud Scan"
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: "SonarCloud Quality Gate"
+        uses: sonarsource/sonarcloud-quality-gate-action@master
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       - name: "🔒 Security Scan (Trivy)"
         uses: aquasecurity/trivy-action@master
@@ -128,15 +161,18 @@ jobs:
           tags: ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/migrate:${{ steps.vars.outputs.sha_short }}
 
   # ==========================================
-  # STAGE 3: DEV DEPLOYMENT
+  # STAGE 3: DEV DEPLOYMENT WITH ROLLBACK
   # ==========================================
   deploy-dev:
-    name: "🚀 Deploy: Dev"
+    name: "🚀 Deploy & Test: Dev"
     needs: build
     runs-on: ubuntu-latest
     outputs:
-      api_url: ${{ steps.get_url.outputs.api_url }}
+      api_url: ${{ steps.deploy.outputs.api_url }}
     steps:
+      - name: "📂 Checkout Code"
+        uses: actions/checkout@v4
+
       - name: "🔑 Login to Azure (OIDC)"
         uses: azure/login@v2
         with:
@@ -144,114 +180,26 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: "⚡ Run Database Migrations"
+      - name: "🚀 Deploy and Verify with Rollback"
+        id: deploy
         run: |
-          echo "Updating Migrate Job image..."
-          az containerapp job update \
-            --name caj-healthcheck-migrate-dev \
-            --resource-group rg-healthcheck-dev \
-            --image ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/migrate:${{ needs.build.outputs.image_tag }}
-
-          echo "Starting Migration Job..."
-          EXECUTION_NAME=$(az containerapp job start \
-            --name caj-healthcheck-migrate-dev \
-            --resource-group rg-healthcheck-dev \
-            --query "name" -o tsv)
-          echo "Migration job started: $EXECUTION_NAME"
-
-          echo "Waiting for migration to complete..."
-          while true; do
-            STATUS=$(az containerapp job execution show \
-              --name caj-healthcheck-migrate-dev \
-              --resource-group rg-healthcheck-dev \
-              --job-execution-name $EXECUTION_NAME \
-              --query "properties.status" -o tsv)
-            echo "Current migration job status: $STATUS"
-            if [ "$STATUS" = "Succeeded" ]; then
-              echo "✅ Migrations completed successfully"
-              break
-            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Canceled" ]; then
-              echo "❌ Migrations failed or were canceled"
-              exit 1
-            fi
-            sleep 10
-          done
-
-      - name: "⚡ Update API Container"
-        run: |
-          az containerapp update \
-            --name ca-healthcheck-api-dev \
-            --resource-group rg-healthcheck-dev \
-            --image ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/api:${{ needs.build.outputs.image_tag }}
-
-      - name: "⚡ Update Web Container"
-        run: |
-          az containerapp update \
-            --name ca-healthcheck-web-dev \
-            --resource-group rg-healthcheck-dev \
-            --image ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/web:${{ needs.build.outputs.image_tag }} \
-            --set-env-vars VITE_APP_VERSION=${{ needs.build.outputs.image_tag }}
-
-      - name: "⚡ Update Worker Job"
-        run: |
-          az containerapp job update \
-            --name caj-healthcheck-worker-dev \
-            --resource-group rg-healthcheck-dev \
-            --image ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/worker:${{ needs.build.outputs.image_tag }}
-
-      - name: "🔍 Get API URL"
-        id: get_url
-        run: |
-          FQDN=$(az containerapp show \
-            --name ca-healthcheck-api-dev \
-            --resource-group rg-healthcheck-dev \
-            --query "properties.configuration.ingress.fqdn" \
-            --output tsv)
-          echo "api_url=https://${FQDN}" >> $GITHUB_OUTPUT
+          chmod +x scripts/deploy-with-rollback.sh
+          bash scripts/deploy-with-rollback.sh dev rg-healthcheck-dev ${{ secrets.AZURE_ACR_NAME }} ${{ needs.build.outputs.image_tag }}
 
   # ==========================================
-  # STAGE 4: DEV SMOKE TEST
-  # ==========================================
-  smoke-test-dev:
-    name: "🔥 Smoke Test: Dev /health Check"
-    needs: deploy-dev
-    runs-on: ubuntu-latest
-    steps:
-      - name: "🌡️ Hit /health Endpoint"
-        run: |
-          API_URL="${{ needs.deploy-dev.outputs.api_url }}"
-          echo "Smoke-testing: ${API_URL}/health"
-
-          for attempt in $(seq 1 9); do
-            HTTP_STATUS=$(curl --silent --output /dev/null \
-              --write-out "%{http_code}" \
-              --max-time 10 \
-              "${API_URL}/health")
-
-            echo "Attempt ${attempt}/9 → HTTP ${HTTP_STATUS}"
-
-            if [ "${HTTP_STATUS}" -eq 200 ]; then
-              echo "✅ Smoke test passed (HTTP 200)"
-              exit 0
-            fi
-
-            sleep 10
-          done
-
-          echo "❌ Smoke test failed — /health did not return 200 after 90 s"
-          exit 1
-
-  # ==========================================
-  # STAGE 5: PRO DEPLOYMENT (Sequential)
+  # STAGE 4: PRO DEPLOYMENT WITH ROLLBACK
   # ==========================================
   deploy-pro:
-    name: "🚀 Deploy: Pro"
-    needs: [build, smoke-test-dev]
+    name: "🚀 Deploy & Test: Pro"
+    needs: [build, deploy-dev]
     runs-on: ubuntu-latest
     environment: pro
     outputs:
-      api_url: ${{ steps.get_url.outputs.api_url }}
+      api_url: ${{ steps.deploy.outputs.api_url }}
     steps:
+      - name: "📂 Checkout Code"
+        uses: actions/checkout@v4
+
       - name: "🔑 Login to Azure (OIDC)"
         uses: azure/login@v2
         with:
@@ -259,99 +207,8 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: "⚡ Run Database Migrations"
+      - name: "🚀 Deploy and Verify with Rollback"
+        id: deploy
         run: |
-          echo "Updating Migrate Job image..."
-          az containerapp job update \
-            --name caj-healthcheck-migrate-pro \
-            --resource-group rg-healthcheck-pro \
-            --image ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/migrate:${{ needs.build.outputs.image_tag }}
-
-          echo "Starting Migration Job..."
-          EXECUTION_NAME=$(az containerapp job start \
-            --name caj-healthcheck-migrate-pro \
-            --resource-group rg-healthcheck-pro \
-            --query "name" -o tsv)
-          echo "Migration job started: $EXECUTION_NAME"
-
-          echo "Waiting for migration to complete..."
-          while true; do
-            STATUS=$(az containerapp job execution show \
-              --name caj-healthcheck-migrate-pro \
-              --resource-group rg-healthcheck-pro \
-              --job-execution-name $EXECUTION_NAME \
-              --query "properties.status" -o tsv)
-            echo "Current migration job status: $STATUS"
-            if [ "$STATUS" = "Succeeded" ]; then
-              echo "✅ Migrations completed successfully"
-              break
-            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Canceled" ]; then
-              echo "❌ Migrations failed or were canceled"
-              exit 1
-            fi
-            sleep 10
-          done
-
-      - name: "⚡ Update API Container"
-        run: |
-          az containerapp update \
-            --name ca-healthcheck-api-pro \
-            --resource-group rg-healthcheck-pro \
-            --image ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/api:${{ needs.build.outputs.image_tag }}
-
-      - name: "⚡ Update Web Container"
-        run: |
-          az containerapp update \
-            --name ca-healthcheck-web-pro \
-            --resource-group rg-healthcheck-pro \
-            --image ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/web:${{ needs.build.outputs.image_tag }} \
-            --set-env-vars VITE_APP_VERSION=${{ needs.build.outputs.image_tag }}
-
-      - name: "⚡ Update Worker Job"
-        run: |
-          az containerapp job update \
-            --name caj-healthcheck-worker-pro \
-            --resource-group rg-healthcheck-pro \
-            --image ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/worker:${{ needs.build.outputs.image_tag }}
-
-      - name: "🔍 Get API URL"
-        id: get_url
-        run: |
-          FQDN=$(az containerapp show \
-            --name ca-healthcheck-api-pro \
-            --resource-group rg-healthcheck-pro \
-            --query "properties.configuration.ingress.fqdn" \
-            --output tsv)
-          echo "api_url=https://${FQDN}" >> $GITHUB_OUTPUT
-
-  # ==========================================
-  # STAGE 6: PRO SMOKE TEST
-  # ==========================================
-  smoke-test-pro:
-    name: "🔥 Smoke Test: Pro /health Check"
-    needs: deploy-pro
-    runs-on: ubuntu-latest
-    steps:
-      - name: "🌡️ Hit /health Endpoint"
-        run: |
-          API_URL="${{ needs.deploy-pro.outputs.api_url }}"
-          echo "Smoke-testing: ${API_URL}/health"
-
-          for attempt in $(seq 1 9); do
-            HTTP_STATUS=$(curl --silent --output /dev/null \
-              --write-out "%{http_code}" \
-              --max-time 10 \
-              "${API_URL}/health")
-
-            echo "Attempt ${attempt}/9 → HTTP ${HTTP_STATUS}"
-
-            if [ "${HTTP_STATUS}" -eq 200 ]; then
-              echo "✅ Smoke test passed (HTTP 200)"
-              exit 0
-            fi
-
-            sleep 10
-          done
-
-          echo "❌ Smoke test failed — /health did not return 200 after 90 s"
-          exit 1
+          chmod +x scripts/deploy-with-rollback.sh
+          bash scripts/deploy-with-rollback.sh pro rg-healthcheck-pro ${{ secrets.AZURE_ACR_NAME }} ${{ needs.build.outputs.image_tag }}

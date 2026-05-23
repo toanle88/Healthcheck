@@ -19,7 +19,7 @@ export default defineConfig({
     maxWorkers: 4,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'html', 'lcov', 'json-summary'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/main.tsx', 'src/authConfig.ts', 'src/types/**', 'src/**/*.test.{ts,tsx}', 'src/test/**'],
     },

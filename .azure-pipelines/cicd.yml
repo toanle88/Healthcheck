@@ -38,6 +38,24 @@ stages:
         pool:
           vmImage: 'ubuntu-latest'
         steps:
+          - checkout: self
+            fetchDepth: 0 # Required by SonarCloud scan
+
+          - task: SonarCloudPrepare@1
+            inputs:
+              SonarCloud: 'sc-sonarcloud'
+              organization: 'toanle88'
+              scannerMode: 'CLI'
+              configMode: 'manual'
+              cliProjectKey: 'toanle88_healthcheck'
+              cliProjectName: 'Healthcheck'
+              cliSources: '.'
+              extraProperties: |
+                sonar.exclusions=**/node_modules/**,**/vendor/**,infra/**,web/dist/**,web/coverage/**,web/playwright-report/**
+                sonar.go.coverage.reportPaths=coverage.out
+                sonar.javascript.lcov.reportPaths=web/coverage/lcov.info
+            displayName: 'SonarCloud Prepare'
+
           - task: GoTool@0
             inputs:
               version: '1.26'
@@ -63,8 +81,32 @@ stages:
           - script: go vet ./...
             displayName: '🔍 Static Analysis (Vet)'
 
-          - script: go test -v -race ./...
-            displayName: '⚡ Run Unit Tests'
+          - script: go test -v -race -coverprofile=coverage.out -covermode=atomic $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./...)
+            displayName: '⚡ Run Go Unit Tests with Coverage'
+
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '20.x'
+            displayName: '🟢 Setup Node.js'
+
+          - script: |
+              npm install -g pnpm
+              pnpm --filter web install --no-frozen-lockfile
+            displayName: '📦 Install Frontend Dependencies'
+
+          - script: pnpm --filter web run test:unit --coverage
+            displayName: '⚡ Run Frontend Unit Tests with Coverage'
+
+          - script: bash scripts/check-coverage.sh
+            displayName: '🛡️ Check Coverage Quality Gate'
+
+          - task: SonarCloudAnalyze@1
+            displayName: 'SonarCloud Analyze'
+
+          - task: SonarCloudPublish@1
+            inputs:
+              pollingTimeoutSec: '300'
+            displayName: 'SonarCloud Publish Quality Gate'
 
           # Install and run Trivy Security Scan
           - script: |
@@ -135,28 +177,24 @@ stages:
                 docker push $(acrName).azurecr.io/migrate:$TAG
 
   # ==========================================
-  # STAGE 3: DEV DEPLOYMENT
+  # STAGE 3: DEV DEPLOYMENT WITH ROLLBACK
   # ==========================================
   - stage: DeployDev
     displayName: '🚀 Deploy: Dev'
     dependsOn: Build
     variables:
-      # Retrieve the image tag from the Build stage's output variable
       image_tag: $[ stageDependencies.Build.BuildAndPush.outputs['vars.sha_short'] ]
-      containerAppApi: 'ca-healthcheck-api-dev'
-      containerAppWeb: 'ca-healthcheck-web-dev'
-      containerAppJobWorker: 'caj-healthcheck-worker-dev'
-      containerAppJobMigrate: 'caj-healthcheck-migrate-dev'
-      resourceGroup: 'rg-healthcheck-dev'
     jobs:
       - job: DeployContainers
-        displayName: 'Deploy Container Apps (Dev)'
+        displayName: 'Deploy Container Apps with Rollback (Dev)'
         pool:
           vmImage: 'ubuntu-latest'
         steps:
+          - checkout: self
+
           - task: AzureCLI@2
             name: deploy_step
-            displayName: '⚡ Update Container Apps & Job (Dev)'
+            displayName: '🚀 Deploy & verify with automatic rollback (Dev)'
             inputs:
               azureSubscription: '$(azureServiceConnection)'
               scriptType: 'bash'
@@ -164,124 +202,22 @@ stages:
               inlineScript: |
                 TAG="$(image_tag)"
                 echo "Deploying to Dev with tag: $TAG"
-
-                # Update Migrate Job
-                az containerapp job update \
-                  --name $(containerAppJobMigrate) \
-                  --resource-group $(resourceGroup) \
-                  --image $(acrName).azurecr.io/migrate:$TAG
-
-                # Start Migrate Job
-                EXECUTION_NAME=$(az containerapp job start \
-                  --name $(containerAppJobMigrate) \
-                  --resource-group $(resourceGroup) \
-                  --query "name" -o tsv)
-                echo "Migration job started: $EXECUTION_NAME"
-
-                # Wait for completion
-                while true; do
-                  STATUS=$(az containerapp job execution show \
-                    --name $(containerAppJobMigrate) \
-                    --resource-group $(resourceGroup) \
-                    --job-execution-name $EXECUTION_NAME \
-                    --query "properties.status" -o tsv)
-                  echo "Current migration job status: $STATUS"
-                  if [ "$STATUS" = "Succeeded" ]; then
-                    echo "✅ Migrations completed successfully"
-                    break
-                  elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Canceled" ]; then
-                    echo "❌ Migrations failed or were canceled"
-                    exit 1
-                  fi
-                  sleep 10
-                done
-
-                # Update API App
-                az containerapp update \
-                  --name $(containerAppApi) \
-                  --resource-group $(resourceGroup) \
-                  --image $(acrName).azurecr.io/api:$TAG
-                
-                # Update Web App
-                az containerapp update \
-                  --name $(containerAppWeb) \
-                  --resource-group $(resourceGroup) \
-                  --image $(acrName).azurecr.io/web:$TAG \
-                  --set-env-vars VITE_APP_VERSION=$TAG
-                
-                # Update Worker Job
-                az containerapp job update \
-                  --name $(containerAppJobWorker) \
-                  --resource-group $(resourceGroup) \
-                  --image $(acrName).azurecr.io/worker:$TAG
-                  
-                # Fetch FQDN of the API Container App
-                FQDN=$(az containerapp show \
-                  --name $(containerAppApi) \
-                  --resource-group $(resourceGroup) \
-                  --query "properties.configuration.ingress.fqdn" \
-                  --output tsv)
-                
-                echo "##vso[task.setvariable variable=api_url;isOutput=true]https://$FQDN"
+                chmod +x scripts/deploy-with-rollback.sh
+                bash scripts/deploy-with-rollback.sh dev rg-healthcheck-dev $(acrName) $TAG
 
   # ==========================================
-  # STAGE 4: DEV SMOKE TEST
-  # ==========================================
-  - stage: SmokeTestDev
-    displayName: '🔥 Smoke Test: Dev /health Check'
-    dependsOn: DeployDev
-    variables:
-      # Retrieve the live API URL from the DeployDev stage
-      api_url: $[ stageDependencies.DeployDev.DeployContainers.outputs['deploy_step.api_url'] ]
-    jobs:
-      - job: RunSmokeTest
-        displayName: 'Verify Live Endpoint (Dev)'
-        pool:
-          vmImage: 'ubuntu-latest'
-        steps:
-          - script: |
-              API_URL="$(api_url)"
-              echo "Smoke-testing: ${API_URL}/health"
-              
-              for attempt in $(seq 1 9); do
-                HTTP_STATUS=$(curl --silent --output /dev/null \
-                  --write-out "%{http_code}" \
-                  --max-time 10 \
-                  "${API_URL}/health")
-                
-                echo "Attempt ${attempt}/9 → HTTP ${HTTP_STATUS}"
-                
-                if [ "${HTTP_STATUS}" -eq 200 ]; then
-                  echo "✅ Smoke test passed (HTTP 200)"
-                  exit 0
-                fi
-                
-                sleep 10
-              done
-              
-              echo "❌ Smoke test failed — /health did not return 200 after 90 s"
-              exit 1
-            displayName: '🌡️ Hit /health Endpoint'
-
-  # ==========================================
-  # STAGE 5: PRO DEPLOYMENT
+  # STAGE 4: PRO DEPLOYMENT WITH ROLLBACK
   # ==========================================
   - stage: DeployPro
     displayName: '🚀 Deploy: Pro'
     dependsOn:
       - Build
-      - SmokeTestDev
+      - DeployDev
     variables:
-      # Retrieve the image tag from the Build stage's output variable
       image_tag: $[ stageDependencies.Build.BuildAndPush.outputs['vars.sha_short'] ]
-      containerAppApi: 'ca-healthcheck-api-pro'
-      containerAppWeb: 'ca-healthcheck-web-pro'
-      containerAppJobWorker: 'caj-healthcheck-worker-pro'
-      containerAppJobMigrate: 'caj-healthcheck-migrate-pro'
-      resourceGroup: 'rg-healthcheck-pro'
     jobs:
       - deployment: DeployContainers
-        displayName: 'Deploy Container Apps (Pro)'
+        displayName: 'Deploy Container Apps with Rollback (Pro)'
         pool:
           vmImage: 'ubuntu-latest'
         environment: 'pro'
@@ -289,9 +225,11 @@ stages:
           runOnce:
             deploy:
               steps:
+                - checkout: self
+
                 - task: AzureCLI@2
                   name: deploy_step
-                  displayName: '⚡ Update Container Apps & Job (Pro)'
+                  displayName: '🚀 Deploy & verify with automatic rollback (Pro)'
                   inputs:
                     azureSubscription: '$(azureServiceConnection)'
                     scriptType: 'bash'
@@ -299,101 +237,5 @@ stages:
                     inlineScript: |
                       TAG="$(image_tag)"
                       echo "Deploying to Pro with tag: $TAG"
-
-                      # Update Migrate Job
-                      az containerapp job update \
-                        --name $(containerAppJobMigrate) \
-                        --resource-group $(resourceGroup) \
-                        --image $(acrName).azurecr.io/migrate:$TAG
-
-                      # Start Migrate Job
-                      EXECUTION_NAME=$(az containerapp job start \
-                        --name $(containerAppJobMigrate) \
-                        --resource-group $(resourceGroup) \
-                        --query "name" -o tsv)
-                      echo "Migration job started: $EXECUTION_NAME"
-
-                      # Wait for completion
-                      while true; do
-                        STATUS=$(az containerapp job execution show \
-                          --name $(containerAppJobMigrate) \
-                          --resource-group $(resourceGroup) \
-                          --job-execution-name $EXECUTION_NAME \
-                          --query "properties.status" -o tsv)
-                        echo "Current migration job status: $STATUS"
-                        if [ "$STATUS" = "Succeeded" ]; then
-                          echo "✅ Migrations completed successfully"
-                          break
-                        elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Canceled" ]; then
-                          echo "❌ Migrations failed or were canceled"
-                          exit 1
-                        fi
-                        sleep 10
-                      done
-
-                      # Update API App
-                      az containerapp update \
-                        --name $(containerAppApi) \
-                        --resource-group $(resourceGroup) \
-                        --image $(acrName).azurecr.io/api:$TAG
-                      
-                      # Update Web App
-                      az containerapp update \
-                        --name $(containerAppWeb) \
-                        --resource-group $(resourceGroup) \
-                        --image $(acrName).azurecr.io/web:$TAG \
-                        --set-env-vars VITE_APP_VERSION=$TAG
-                      
-                      # Update Worker Job
-                      az containerapp job update \
-                        --name $(containerAppJobWorker) \
-                        --resource-group $(resourceGroup) \
-                        --image $(acrName).azurecr.io/worker:$TAG
-                        
-                      # Fetch FQDN of the API Container App
-                      FQDN=$(az containerapp show \
-                        --name $(containerAppApi) \
-                        --resource-group $(resourceGroup) \
-                        --query "properties.configuration.ingress.fqdn" \
-                        --output tsv)
-                      
-                      echo "##vso[task.setvariable variable=api_url;isOutput=true]https://$FQDN"
-
-  # ==========================================
-  # STAGE 6: PRO SMOKE TEST
-  # ==========================================
-  - stage: SmokeTestPro
-    displayName: '🔥 Smoke Test: Pro /health Check'
-    dependsOn: DeployPro
-    variables:
-      # Retrieve the live API URL from the DeployPro stage
-      api_url: $[ stageDependencies.DeployPro.DeployContainers.outputs['DeployContainers.deploy_step.api_url'] ]
-    jobs:
-      - job: RunSmokeTest
-        displayName: 'Verify Live Endpoint (Pro)'
-        pool:
-          vmImage: 'ubuntu-latest'
-        steps:
-          - script: |
-              API_URL="$(api_url)"
-              echo "Smoke-testing: ${API_URL}/health"
-              
-              for attempt in $(seq 1 9); do
-                HTTP_STATUS=$(curl --silent --output /dev/null \
-                  --write-out "%{http_code}" \
-                  --max-time 10 \
-                  "${API_URL}/health")
-                
-                echo "Attempt ${attempt}/9 → HTTP ${HTTP_STATUS}"
-                
-                if [ "${HTTP_STATUS}" -eq 200 ]; then
-                  echo "✅ Smoke test passed (HTTP 200)"
-                  exit 0
-                fi
-                
-                sleep 10
-              done
-              
-              echo "❌ Smoke test failed — /health did not return 200 after 90 s"
-              exit 1
-            displayName: '🌡️ Hit /health Endpoint'
+                      chmod +x scripts/deploy-with-rollback.sh
+                      bash scripts/deploy-with-rollback.sh pro rg-healthcheck-pro $(acrName) $TAG
