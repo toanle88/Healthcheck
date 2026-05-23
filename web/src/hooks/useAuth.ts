@@ -73,6 +73,7 @@ export const useAuth = () => {
       const response = await instance.acquireTokenSilent({
         ...tokenRequest,
         account: realUser.account,
+        redirectUri: window.location.origin + '/blank.html',
       });
       return response.accessToken;
     } catch (silentError) {

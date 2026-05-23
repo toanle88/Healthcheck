@@ -31,6 +31,7 @@ api.interceptors.request.use(
         const response = await msalInstance.acquireTokenSilent({
           ...tokenRequest,
           account: activeAccount,
+          redirectUri: window.location.origin + '/blank.html',
         });
         config.headers.Authorization = `Bearer ${response.accessToken}`;
       }

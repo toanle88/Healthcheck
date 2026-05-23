@@ -18,38 +18,44 @@ const queryClient = new QueryClient({
     },
 });
 
-// Initialize MSAL and then render the app
-msalInstance.initialize().then(() => {
-    // ... same logic for redirect response ...
-    msalInstance.handleRedirectPromise().then((response) => {
-        if (response) {
-            msalInstance.setActiveAccount(response.account);
-        }
+const isIframe = typeof window !== 'undefined' && window !== window.parent && !window.opener;
 
-        const accounts = msalInstance.getAllAccounts();
-        if (accounts.length > 0 && !msalInstance.getActiveAccount()) {
-            msalInstance.setActiveAccount(accounts[0]);
-        }
-
-        msalInstance.addEventCallback((event) => {
-            if (event.eventType === EventType.LOGIN_SUCCESS && event.payload) {
-                const payload = event.payload as AuthenticationResult;
-                msalInstance.setActiveAccount(payload.account);
+if (isIframe) {
+    console.log("Iframe detected, skipping React/MSAL bootstrap.");
+} else {
+    // Initialize MSAL and then render the app
+    msalInstance.initialize().then(() => {
+        // ... same logic for redirect response ...
+        msalInstance.handleRedirectPromise().then((response) => {
+            if (response) {
+                msalInstance.setActiveAccount(response.account);
             }
-        });
 
-        ReactDOM.createRoot(document.getElementById('root')!).render(
-            <React.StrictMode>
-                <MsalProvider instance={msalInstance}>
-                    <QueryClientProvider client={queryClient}>
-                        <ToastProvider>
-                            <App />
-                        </ToastProvider>
-                    </QueryClientProvider>
-                </MsalProvider>
-            </React.StrictMode>,
-        )
-    }).catch((err) => {
-        console.error("MSAL Redirect Error:", err);
+            const accounts = msalInstance.getAllAccounts();
+            if (accounts.length > 0 && !msalInstance.getActiveAccount()) {
+                msalInstance.setActiveAccount(accounts[0]);
+            }
+
+            msalInstance.addEventCallback((event) => {
+                if (event.eventType === EventType.LOGIN_SUCCESS && event.payload) {
+                    const payload = event.payload as AuthenticationResult;
+                    msalInstance.setActiveAccount(payload.account);
+                }
+            });
+
+            ReactDOM.createRoot(document.getElementById('root')!).render(
+                <React.StrictMode>
+                    <MsalProvider instance={msalInstance}>
+                        <QueryClientProvider client={queryClient}>
+                            <ToastProvider>
+                                <App />
+                            </ToastProvider>
+                        </QueryClientProvider>
+                    </MsalProvider>
+                </React.StrictMode>,
+            )
+        }).catch((err) => {
+            console.error("MSAL Redirect Error:", err);
+        });
     });
-});
+}
