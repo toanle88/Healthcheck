@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, act, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import { ToastProvider } from './ToastProvider';
 import { useToast } from '../../hooks/useToast';
 import { describe, it, expect, vi } from 'vitest';

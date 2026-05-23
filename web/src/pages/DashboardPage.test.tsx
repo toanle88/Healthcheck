@@ -1,4 +1,4 @@
-import { screen, waitFor, fireEvent, within } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
 import DashboardPage from './DashboardPage';
 import { renderWithProviders } from '../test/testUtils';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -25,7 +25,7 @@ class MockEventSource {
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
   close = mockClose;
-  constructor(_url: string) {}
+  constructor() {}
 }
 Object.defineProperty(window, 'EventSource', { value: MockEventSource, writable: true });
 

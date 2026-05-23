@@ -19,12 +19,12 @@ import (
 
 // mockStore is a simple mock that implements the Storer interface.
 type mockStore struct {
-	checks            []store.Check
-	err               error
-	getTargetsErr     error
-	insertTargetErr   error
-	deleteErr         error
-	getHistoricalErr  error
+	checks           []store.Check
+	err              error
+	getTargetsErr    error
+	insertTargetErr  error
+	deleteErr        error
+	getHistoricalErr error
 }
 
 func (m *mockStore) GetLatestChecks(ctx context.Context) ([]store.Check, error) {
@@ -135,6 +135,47 @@ func TestDocs(t *testing.T) {
 	contentType2 := w2.Header().Get("Content-Type")
 	if contentType2 != "text/html; charset=utf-8" {
 		t.Errorf("Expected Content-Type text/html; charset=utf-8, got %s", contentType2)
+	}
+}
+
+func TestDocsWithEnv(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Set env vars
+	t.Setenv("ENTRA_TENANT_ID", "test-tenant-id")
+	t.Setenv("ENTRA_CLIENT_ID", "test-client-id")
+	t.Setenv("ENTRA_TENANT_DOMAIN", "test-tenant.ciamlogin.com")
+
+	h := New(&mockStore{}, nil)
+	r := gin.New()
+	r.GET("/openapi.json", h.OpenAPISpec)
+	r.GET("/docs", h.Docs)
+
+	// Test OpenAPI Spec with Env
+	w1 := httptest.NewRecorder()
+	req1, _ := http.NewRequest("GET", "/openapi.json", nil)
+	r.ServeHTTP(w1, req1)
+
+	if w1.Code != http.StatusOK {
+		t.Errorf("Expected status 200 for openapi.json, got %d", w1.Code)
+	}
+	if !strings.Contains(w1.Body.String(), "test-tenant.ciamlogin.com") {
+		t.Errorf("Expected openapi.json to contain tenant domain, got %s", w1.Body.String())
+	}
+	if !strings.Contains(w1.Body.String(), "api://test-client-id/access_as_user") {
+		t.Errorf("Expected openapi.json to contain client ID scope, got %s", w1.Body.String())
+	}
+
+	// Test Docs page with Env
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest("GET", "/docs", nil)
+	r.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Errorf("Expected status 200 for docs, got %d", w2.Code)
+	}
+	if !strings.Contains(w2.Body.String(), "test-client-id") {
+		t.Errorf("Expected docs to contain client ID, got %s", w2.Body.String())
 	}
 }
 
