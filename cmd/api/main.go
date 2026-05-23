@@ -57,6 +57,91 @@ func main() {
 	}
 	defer st.Close()
 
+	broker := handler.NewBroker()
+	go broker.Start(ctx)
+
+	go startPostgresListener(ctx, st, broker)
+
+	r := setupRouter(cfg, st, broker, metricsHandler)
+
+	srv := &http.Server{
+		Addr:    ":" + cfg.Port,
+		Handler: r,
+	}
+
+	go func() {
+		slog.Info("api listening", "port", cfg.Port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("server error", "err", err)
+		}
+	}()
+
+	<-ctx.Done()
+	slog.Info("shutting down")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = srv.Shutdown(shutdownCtx)
+}
+
+func startPostgresListener(ctx context.Context, st *store.Store, broker *handler.Broker) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		// We need a dedicated connection for LISTEN/NOTIFY.
+		conn, err := st.DB.Acquire(ctx)
+		if err != nil {
+			slog.Error("failed to acquire connection for LISTEN", "err", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(2 * time.Second):
+				continue
+			}
+		}
+
+		_, err = conn.Exec(ctx, "LISTEN checks_channel")
+		if err != nil {
+			slog.Error("failed to listen on checks_channel", "err", err)
+			conn.Release()
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(2 * time.Second):
+				continue
+			}
+		}
+
+		slog.Info("successfully subscribed to postgres checks_channel")
+
+		for {
+			// WaitForNotification blocks until a notification is received or connection fails
+			_, err := conn.Conn().WaitForNotification(ctx)
+			if err != nil {
+				slog.Warn("postgres notification connection lost, reconnecting...", "err", err)
+				break
+			}
+
+			// Query the latest status of all targets
+			checks, err := st.GetLatestChecks(ctx)
+			if err != nil {
+				slog.Error("failed to fetch latest checks after notification", "err", err)
+				continue
+			}
+
+			// Broadcast to all connected SSE clients
+			broker.Broadcast(checks)
+		}
+
+		conn.Release()
+	}
+}
+
+func setupRouter(cfg config.Config, st *store.Store, broker *handler.Broker, metricsHandler http.Handler) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(otelgin.Middleware("healthcheck-api"))
@@ -94,66 +179,6 @@ func main() {
 
 		c.Next()
 	})
-
-	broker := handler.NewBroker()
-	go broker.Start(ctx)
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-
-			// We need a dedicated connection for LISTEN/NOTIFY.
-			conn, err := st.DB.Acquire(ctx)
-			if err != nil {
-				slog.Error("failed to acquire connection for LISTEN", "err", err)
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(2 * time.Second):
-					continue
-				}
-			}
-
-			_, err = conn.Exec(ctx, "LISTEN checks_channel")
-			if err != nil {
-				slog.Error("failed to listen on checks_channel", "err", err)
-				conn.Release()
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(2 * time.Second):
-					continue
-				}
-			}
-
-			slog.Info("successfully subscribed to postgres checks_channel")
-
-			for {
-				// WaitForNotification blocks until a notification is received or connection fails
-				_, err := conn.Conn().WaitForNotification(ctx)
-				if err != nil {
-					slog.Warn("postgres notification connection lost, reconnecting...", "err", err)
-					break
-				}
-
-				// Query the latest status of all targets
-				checks, err := st.GetLatestChecks(ctx)
-				if err != nil {
-					slog.Error("failed to fetch latest checks after notification", "err", err)
-					continue
-				}
-
-				// Broadcast to all connected SSE clients
-				broker.Broadcast(checks)
-			}
-
-			conn.Release()
-		}
-	}()
 
 	h := handler.New(st, broker)
 
@@ -200,22 +225,5 @@ func main() {
 		r.GET("/metrics", gin.WrapH(metricsHandler))
 	}
 
-	srv := &http.Server{
-		Addr:    ":" + cfg.Port,
-		Handler: r,
-	}
-
-	go func() {
-		slog.Info("api listening", "port", cfg.Port)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("server error", "err", err)
-		}
-	}()
-
-	<-ctx.Done()
-	slog.Info("shutting down")
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_ = srv.Shutdown(shutdownCtx)
+	return r
 }

@@ -25,10 +25,18 @@ func main() {
 
 	cfg := config.Load()
 
-	st, err := store.New(ctx, cfg.DatabaseURL)
-	if err != nil {
-		slog.Error("failed to connect to database", "err", err)
+	if err := runMigrate(ctx, cfg.DatabaseURL); err != nil {
+		slog.Error("failed to run migrations", "err", err)
 		os.Exit(1)
+	}
+
+	slog.Info("migrations applied successfully")
+}
+
+func runMigrate(ctx context.Context, dbURL string) error {
+	st, err := store.New(ctx, dbURL)
+	if err != nil {
+		return err
 	}
 	defer st.Close()
 
@@ -39,15 +47,13 @@ func main() {
 	// Initialize the pgx/v5 driver for golang-migrate
 	driver, err := pgxmigrate.WithInstance(db, &pgxmigrate.Config{})
 	if err != nil {
-		slog.Error("failed to create migration driver", "err", err)
-		os.Exit(1)
+		return err
 	}
 
 	// Initialize source driver using embedded FS
 	sourceDriver, err := iofs.New(migrations.FS, ".")
 	if err != nil {
-		slog.Error("failed to create source driver", "err", err)
-		os.Exit(1)
+		return err
 	}
 
 	// Create migrate instance
@@ -56,20 +62,14 @@ func main() {
 		"postgres", driver,
 	)
 	if err != nil {
-		slog.Error("failed to initialize migrate", "err", err)
-		os.Exit(1)
+		return err
 	}
+	defer m.Close()
 
 	// Run migration up
-	slog.Info("applying database migrations...")
-	if err := m.Up(); err != nil {
-		if err == migrate.ErrNoChange {
-			slog.Info("database is up to date, no migrations applied")
-			os.Exit(0)
-		}
-		slog.Error("failed to run migrations", "err", err)
-		os.Exit(1)
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return err
 	}
 
-	slog.Info("migrations applied successfully")
+	return nil
 }

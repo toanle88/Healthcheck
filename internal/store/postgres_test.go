@@ -146,6 +146,49 @@ func TestStoreIntegration(t *testing.T) {
 		t.Errorf("Recovery: expected shouldAlert=true, oldAlert=down, newAlert=up; got shouldAlert=%t, old=%s, new=%s", shouldAlert, oldAlert, newAlert)
 	}
 
+	// 8b. Test GetTargets
+	targets, err := st.GetTargets(ctx)
+	if err != nil {
+		t.Errorf("GetTargets failed: %v", err)
+	}
+	if len(targets) < 2 {
+		t.Errorf("expected at least 2 targets, got %d", len(targets))
+	}
+
+	// 8c. Test GetHistoricalChecks
+	histChecks, err := st.GetHistoricalChecks(ctx, target, 10)
+	if err != nil {
+		t.Errorf("GetHistoricalChecks failed: %v", err)
+	}
+	if len(histChecks) != 1 {
+		t.Errorf("expected 1 historical check for target %s, got %d", target, len(histChecks))
+	}
+
+	// 8d. Test GetPreviousCheckStatus
+	prevStatus, err := st.GetPreviousCheckStatus(ctx, target)
+	if err != nil {
+		t.Errorf("GetPreviousCheckStatus failed: %v", err)
+	}
+	if prevStatus != "up" {
+		t.Errorf("expected previous status to be 'up', got '%s'", prevStatus)
+	}
+
+	// 8e. Test DeleteTarget
+	err = st.DeleteTarget(ctx, insertedTarget.ID)
+	if err != nil {
+		t.Errorf("DeleteTarget failed: %v", err)
+	}
+	// Verify it was deleted
+	targetsAfterDelete, err := st.GetTargets(ctx)
+	if err != nil {
+		t.Errorf("GetTargets after delete failed: %v", err)
+	}
+	for _, tg := range targetsAfterDelete {
+		if tg.ID == insertedTarget.ID {
+			t.Errorf("expected target %s to be deleted, but it still exists", targetURL)
+		}
+	}
+
 	// Cleanup targets for test repeatability
 	_, _ = st.DB.Exec(ctx, "DELETE FROM targets WHERE url IN ($1, $2)", targetURL, target)
 	_, _ = st.DB.Exec(ctx, "DELETE FROM checks WHERE target IN ($1, $2)", targetURL, target)
@@ -156,4 +199,93 @@ func TestStoreIntegration(t *testing.T) {
 		t.Errorf("CleanupOldChecks failed: %v", err)
 	}
 	t.Logf("Cleaned up %d old records", count)
+}
+
+func TestStoreFailures(t *testing.T) {
+	ctx := context.Background()
+
+	// 1. Connection failure
+	_, err := New(ctx, "postgres://invalid:invalid@localhost:5432/invalid?sslmode=disable")
+	if err == nil {
+		t.Errorf("expected connection error for invalid database URL, got nil")
+	}
+
+	// 2. Delete non-existent target failure
+	dbURL := os.Getenv("DATABASE_URL_TEST")
+	if dbURL == "" {
+		return
+	}
+	st, err := New(ctx, dbURL)
+	if err != nil {
+		t.Fatalf("failed to connect to test db: %v", err)
+	}
+	defer st.Close()
+
+	err = st.DeleteTarget(ctx, -999) // Negative ID, won't exist
+	if err == nil {
+		t.Errorf("expected error deleting non-existent target, got nil")
+	}
+}
+
+func TestStoreContextErrors(t *testing.T) {
+	dbURL := os.Getenv("DATABASE_URL_TEST")
+	if dbURL == "" {
+		t.Skip("skipping TestStoreContextErrors: DATABASE_URL_TEST not set")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Already cancelled context
+
+	st, err := New(context.Background(), dbURL)
+	if err != nil {
+		t.Fatalf("failed to connect to test db: %v", err)
+	}
+	defer st.Close()
+
+	// 1. GetLatestChecks error
+	_, err = st.GetLatestChecks(ctx)
+	if err == nil {
+		t.Errorf("expected error with cancelled context, got nil")
+	}
+
+	// 2. GetTargets error
+	_, err = st.GetTargets(ctx)
+	if err == nil {
+		t.Errorf("expected error with cancelled context, got nil")
+	}
+
+	// 3. InsertTarget error
+	_, err = st.InsertTarget(ctx, "Name", "http://url.com", "GET", "", 200, "", 3)
+	if err == nil {
+		t.Errorf("expected error with cancelled context, got nil")
+	}
+
+	// 4. DeleteTarget error
+	err = st.DeleteTarget(ctx, 1)
+	if err == nil {
+		t.Errorf("expected error with cancelled context, got nil")
+	}
+
+	// 5. GetHistoricalChecks error
+	_, err = st.GetHistoricalChecks(ctx, "http://url.com", 10)
+	if err == nil {
+		t.Errorf("expected error with cancelled context, got nil")
+	}
+
+	// 6. GetPreviousCheckStatus error
+	_, err = st.GetPreviousCheckStatus(ctx, "http://url.com")
+	if err == nil {
+		t.Errorf("expected error with cancelled context, got nil")
+	}
+
+	// 7. CleanupOldChecks error
+	_, err = st.CleanupOldChecks(ctx, 1*time.Hour)
+	if err == nil {
+		t.Errorf("expected error with cancelled context, got nil")
+	}
+
+	// 8. UpdateTargetAlertState error
+	_, _, _, err = st.UpdateTargetAlertState(ctx, "http://url.com", "up")
+	if err == nil {
+		t.Errorf("expected error with cancelled context, got nil")
+	}
 }

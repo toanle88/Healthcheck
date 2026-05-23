@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-GO_THRESHOLD=${GO_THRESHOLD:-15}
-WEB_THRESHOLD=${WEB_THRESHOLD:-40}
+GO_THRESHOLD=${GO_THRESHOLD:-80}
+WEB_THRESHOLD=${WEB_THRESHOLD:-80}
 
 echo "=== Running Quality Gate Checks ==="
 echo "Go Threshold: ${GO_THRESHOLD}%"

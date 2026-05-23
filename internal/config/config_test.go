@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -34,4 +35,30 @@ func TestLoad(t *testing.T) {
 	// Clean up for other tests
 	os.Unsetenv("PORT")
 	os.Unsetenv("DATABASE_URL")
+}
+
+func TestLoadMore(t *testing.T) {
+	os.Unsetenv("DATABASE_URL")
+	os.Setenv("DB_HOST", "some-azure-host.postgres.database.azure.com")
+	os.Setenv("CORS_ALLOWED_ORIGINS", "http://domain1.com, http://domain2.com ")
+	defer func() {
+		os.Unsetenv("DB_HOST")
+		os.Unsetenv("CORS_ALLOWED_ORIGINS")
+	}()
+
+	cfg := Load()
+
+	// Should contain sslmode=require since host is not localhost
+	if !strings.Contains(cfg.DatabaseURL, "sslmode=require") {
+		t.Errorf("expected DatabaseURL to contain sslmode=require for non-localhost, got: %s", cfg.DatabaseURL)
+	}
+
+	// Should split and trim CORS Allowed Origins
+	if len(cfg.CORSAllowedOrigins) != 2 {
+		t.Errorf("expected 2 CORS allowed origins, got %d", len(cfg.CORSAllowedOrigins))
+	} else {
+		if cfg.CORSAllowedOrigins[0] != "http://domain1.com" || cfg.CORSAllowedOrigins[1] != "http://domain2.com" {
+			t.Errorf("unexpected CORS allowed origins content: %v", cfg.CORSAllowedOrigins)
+		}
+	}
 }

@@ -27,4 +27,15 @@ export const handlers = [
       count: 2,
     });
   }),
+
+  http.get(`${API_BASE_URL}/api/targets`, () => {
+    return HttpResponse.json([
+      { id: 1, name: 'Google', url: 'https://google.com', method: 'GET', expected_status: 200, failure_threshold: 3 },
+      { id: 2, name: 'GitHub', url: 'https://github.com', method: 'GET', expected_status: 200, failure_threshold: 3 },
+    ]);
+  }),
+
+  http.get(`${API_BASE_URL}/api/history`, () => {
+    return HttpResponse.json([]);
+  }),
 ];
