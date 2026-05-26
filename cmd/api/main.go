@@ -198,7 +198,8 @@ func setupRouter(cfg config.Config, st *store.Store, broker *handler.Broker, met
 			slog.Error("Entra ID configuration missing in non-development environment! Failing closed.")
 			os.Exit(1)
 		}
-		slog.Warn("Entra ID configuration missing, running without authentication (development mode only)")
+		slog.Warn("Entra ID configuration missing, running with mock authentication (development mode only)")
+		api.Use(middleware.MockAuthMiddleware())
 	}
 
 	{

@@ -13,7 +13,6 @@ param dbName string
 param dbUser string
 param entraClientId string
 param tenantId string
-param alertWebhookUrl string = ''
 param appInsightsConnectionString string
 param appIdentityId string
 param appIdentityPrincipalId string
@@ -197,6 +196,13 @@ resource workerJob 'Microsoft.App/jobs@2023-05-01' = {
       scheduleTriggerConfig: {
         cronExpression: '*/1 * * * *'
       }
+      secrets: [
+        {
+          name: 'alert-webhook'
+          keyVaultUrl: '${keyVault.properties.vaultUri}secrets/alert-webhook-url'
+          identity: appIdentityId
+        }
+      ]
     }
     template: {
       containers: [
@@ -238,7 +244,7 @@ resource workerJob 'Microsoft.App/jobs@2023-05-01' = {
             }
             {
               name: 'ALERT_WEBHOOK_URL'
-              value: alertWebhookUrl
+              secretRef: 'alert-webhook'
             }
           ]
         }

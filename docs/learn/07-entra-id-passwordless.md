@@ -76,23 +76,24 @@ We parse the token claims and verify:
 - **`exp` (Expiration)**: Enforces that the token is not expired.
 
 ### C. Role & Scope Enforcement (`RequireRoleOrScope`)
-Once authenticated, we restrict API mutations (e.g., adding or deleting health check targets) to users holding admin privileges:
+Once authenticated, we restrict API mutations (e.g., adding or deleting health check targets) to users holding admin privileges.
+
+The authorization checks are strictly **fail-closed**. If the authentication claims are missing from the request context (for example, if authentication middleware was omitted by a developer), the middleware immediately aborts the request with a `403 Forbidden` error:
+
 ```go
 func RequireRoleOrScope(allowedRoles []string, allowedScopes []string) gin.HandlerFunc {
-    return func(c *gin.Context) {
-        roles, _ := c.Get("roles")
-        scopes, _ := c.Get("scopes")
-        // Check if claims contain any of the allowedRoles or allowedScopes...
-    }
+	return func(c *gin.Context) {
+		claimsVal, exists := c.Get("claims")
+		if !exists {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "unauthenticated request"})
+			return
+		}
+		// Validate roles/scopes...
+	}
 }
 ```
-In [main.go](file:///mnt/d/Dev/Projects/Healthcheck/cmd/api/main.go#L204), this middleware is attached to mutation routes:
-```go
-adminRequired := middleware.RequireRoleOrScope([]string{"Healthcheck.Admin"}, nil)
-api.POST("/targets", adminRequired, h.CreateTarget)
-api.DELETE("/targets/:id", adminRequired, h.DeleteTarget)
-```
-Only users with the `"Healthcheck.Admin"` role mapped in the Entra ID enterprise application can add or remove targets.
+
+In local development environments where Entra ID configuration is missing, rather than bypassing authorization (which is a fail-open risk), we register `MockAuthMiddleware` to automatically inject mock administrative claims into the request context. This ensures that permission checks remain active and fail-closed at all times.
 
 ---
 

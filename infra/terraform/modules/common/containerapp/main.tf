@@ -160,6 +160,15 @@ resource "azurerm_container_app_job" "worker" {
     identity_ids = [var.app_identity_id]
   }
 
+  dynamic "secret" {
+    for_each = var.alert_webhook_secret_id != "" ? [1] : []
+    content {
+      name                = "alert-webhook"
+      key_vault_secret_id = var.alert_webhook_secret_id
+      identity            = var.app_identity_id
+    }
+  }
+
   depends_on = [time_sleep.wait_for_rbac]
 
   registry {
@@ -216,9 +225,12 @@ resource "azurerm_container_app_job" "worker" {
         value = var.app_insights_connection_string
       }
 
-      env {
-        name  = "ALERT_WEBHOOK_URL"
-        value = var.alert_webhook_url
+      dynamic "env" {
+        for_each = var.alert_webhook_secret_id != "" ? [1] : []
+        content {
+          name        = "ALERT_WEBHOOK_URL"
+          secret_name = "alert-webhook"
+        }
       }
     }
   }

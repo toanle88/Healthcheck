@@ -92,8 +92,8 @@ func TestRequireRoleOrScope_NoClaims(t *testing.T) {
 	req, _ := http.NewRequest("GET", "/test", nil)
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200 when claims do not exist (auth bypassed), got %d", w.Code)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 when claims do not exist, got %d", w.Code)
 	}
 }
 
@@ -238,8 +238,8 @@ func TestAuthMiddleware_BypassQueryToken(t *testing.T) {
 	req, _ := http.NewRequest("GET", "/test?token=mocked-e2e-token", nil)
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200 using token query param bypass, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status 401 using token query param (fallback disabled), got %d", w.Code)
 	}
 }
 
@@ -381,5 +381,23 @@ func TestAuthMiddleware_IssuerMismatch(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("Expected status 401 for issuer mismatch, got %d", w.Code)
+	}
+}
+
+func TestMockAuthMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	r.Use(MockAuthMiddleware())
+	r.GET("/test", RequireRoleOrScope([]string{"Healthcheck.Admin"}, nil), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/test", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200 using MockAuthMiddleware, got %d", w.Code)
 	}
 }

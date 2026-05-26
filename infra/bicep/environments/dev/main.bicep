@@ -111,12 +111,15 @@ module containerapp '../../modules/common/containerapp.bicep' = {
     dbUser: identity.outputs.app_identity_name
     entraClientId: entraClientId
     tenantId: ciamTenantId
-    alertWebhookUrl: alertWebhookUrl
     appInsightsConnectionString: appinsights.outputs.connectionString
     appIdentityId: identity.outputs.app_identity_id
     appIdentityPrincipalId: identity.outputs.app_identity_principal_id
     appIdentityClientId: identity.outputs.app_identity_client_id
   }
+  dependsOn: [
+    keyvaultSecrets
+    keyvaultWebhookSecret
+  ]
 }
 
 // 7. Alerts Module (Common)
@@ -198,6 +201,17 @@ module keyvaultSecrets '../../modules/common/keyvault-secret.bicep' = {
     keyVaultName: keyvault.outputs.name
     secretName: 'database-password'
     secretValue: dbPassword
+  }
+}
+
+// 12. Key Vault secret alert-webhook-url upload (Common)
+module keyvaultWebhookSecret '../../modules/common/keyvault-secret.bicep' = {
+  name: 'keyvault-webhook-secret-deployment-${environment}'
+  scope: rg
+  params: {
+    keyVaultName: keyvault.outputs.name
+    secretName: 'alert-webhook-url'
+    secretValue: empty(alertWebhookUrl) ? 'dummy' : alertWebhookUrl
   }
 }
 

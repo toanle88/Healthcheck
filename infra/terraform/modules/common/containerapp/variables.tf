@@ -33,8 +33,8 @@ variable "app_identity_id" { type = string }
 variable "app_identity_principal_id" { type = string }
 variable "app_identity_client_id" { type = string }
 
-variable "alert_webhook_url" {
-  type      = string
-  default   = ""
-  sensitive = true
+variable "alert_webhook_secret_id" {
+  type        = string
+  default     = ""
+  description = "The Key Vault Secret ID of the alert webhook URL"
 }

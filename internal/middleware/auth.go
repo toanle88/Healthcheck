@@ -22,23 +22,18 @@ func AuthMiddleware(tenantID, clientID, environment string) gin.HandlerFunc {
 	}
 
 	return func(c *gin.Context) {
-		// 2. Extract the token from the Authorization header or query parameter
+		// 2. Extract the token from the Authorization header
 		authHeader := c.GetHeader("Authorization")
-		tokenString := ""
-		if authHeader != "" {
-			bearerToken := strings.Split(authHeader, " ")
-			if len(bearerToken) != 2 || strings.ToLower(bearerToken[0]) != "bearer" {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
-				return
-			}
-			tokenString = bearerToken[1]
-		} else {
-			tokenString = c.Query("token")
-			if tokenString == "" {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header or token query parameter is required"})
-				return
-			}
+		if authHeader == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
+			return
 		}
+		bearerToken := strings.Split(authHeader, " ")
+		if len(bearerToken) != 2 || strings.ToLower(bearerToken[0]) != "bearer" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
+			return
+		}
+		tokenString := bearerToken[1]
 
 		// 2b. E2E / Development mock token bypass (MFA / redirect automation support)
 		isLocalDev := environment == "local"
@@ -99,8 +94,7 @@ func RequireRoleOrScope(allowedRoles []string, allowedScopes []string) gin.Handl
 	return func(c *gin.Context) {
 		claimsVal, exists := c.Get("claims")
 		if !exists {
-			// Auth middleware not run (e.g. disabled in local dev). Allow.
-			c.Next()
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "unauthenticated request"})
 			return
 		}
 
@@ -161,6 +155,18 @@ func RequireRoleOrScope(allowedRoles []string, allowedScopes []string) gin.Handl
 			return
 		}
 
+		c.Next()
+	}
+}
+
+// MockAuthMiddleware is used in local dev to bypass authentication by providing mock admin claims.
+func MockAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		mockClaims := jwt.MapClaims{
+			"roles": []interface{}{"Healthcheck.Admin"},
+			"scp":   "Healthcheck.Write Healthcheck.Read",
+		}
+		c.Set("claims", mockClaims)
 		c.Next()
 	}
 }

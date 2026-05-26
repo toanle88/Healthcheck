@@ -149,8 +149,8 @@ module "containerapp" {
   entra_client_id = var.entra_client_id
   tenant_id       = var.ciam_tenant_id
 
-  # Alert Webhook URL
-  alert_webhook_url = var.alert_webhook_url
+  # Alert Webhook Secret reference from Key Vault
+  alert_webhook_secret_id = azurerm_key_vault_secret.alert_webhook.id
 
   # Monitoring
   app_insights_connection_string = module.monitor.app_insights_connection_string
@@ -161,7 +161,19 @@ module "containerapp" {
   app_identity_client_id    = module.identity.app_identity_client_id
 
   # Ensure the secret is created in Key Vault BEFORE the apps try to mount it
-  depends_on = [azurerm_key_vault_secret.db_password]
+  depends_on = [azurerm_key_vault_secret.db_password, azurerm_key_vault_secret.alert_webhook]
+}
+
+# Store the alert webhook in Key Vault for later use by the App
+resource "azurerm_key_vault_secret" "alert_webhook" {
+  name            = "alert-webhook-url"
+  value           = var.alert_webhook_url == "" ? "dummy" : var.alert_webhook_url
+  key_vault_id    = module.keyvault.id
+  content_type    = "text/plain"
+  expiration_date = "2027-12-31T23:59:59Z"
+
+  # Ensure the role assignment/Key Vault is created before trying to write the secret
+  depends_on = [module.keyvault]
 }
 
 # 9. MONITORING MODULE (Day 12)
