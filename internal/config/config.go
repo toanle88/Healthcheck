@@ -22,10 +22,10 @@ func Load() Config {
 		user := getEnv("DB_USER", "postgres")
 		pass := getEnv("DB_PASSWORD", "postgres")
 		name := getEnv("DB_NAME", "healthcheck")
-		// Use sslmode=require for Azure
-		ssl := "disable"
-		if host != "localhost" {
-			ssl = "require"
+		// Default to require for remote databases unless DB_SSLMODE is set
+		ssl := getEnv("DB_SSLMODE", "require")
+		if host == "localhost" {
+			ssl = "disable"
 		}
 		dbURL = "postgres://" + user + ":" + pass + "@" + host + ":5432/" + name + "?sslmode=" + ssl
 	}

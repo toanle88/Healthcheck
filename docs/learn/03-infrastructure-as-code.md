@@ -111,12 +111,12 @@ resource "azurerm_private_dns_zone_virtual_network_link" "main" {
 This maps the database hostname (e.g., `psql-healthcheck-dev.postgres.database.azure.com`) directly to its private network IP address (`10.0.2.x`), allowing our Go applications to connect.
 
 ### Enabling Entra ID Authentication
-We configure PostgreSQL to accept both standard database passwords and modern active directory tokens:
+We configure PostgreSQL to enforce passwordless Entra ID authentication and disable password authentication entirely:
 
 ```hcl
 authentication {
   active_directory_auth_enabled = true
-  password_auth_enabled         = true
+  password_auth_enabled         = false
 }
 ```
 

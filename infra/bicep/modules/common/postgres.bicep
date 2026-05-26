@@ -2,8 +2,6 @@ param location string
 param environment string
 param vnetId string
 param subnetId string
-@secure()
-param adminPassword string
 param aadAdminObjectId string
 param aadAdminName string
 
@@ -41,11 +39,12 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-06-01-pr
       privateDnsZoneArmResourceId: privateDnsZone.id
     }
     administratorLogin: 'psqladmin'
+    // In dev, password auth is disabled, but we must pass a secure dummy placeholder to satisfy the ARM API schema.
     #disable-next-line use-secure-value-for-secure-inputs
-    administratorLoginPassword: adminPassword
+    administratorLoginPassword: guid(resourceGroup().id, 'postgresDevPlaceholderPass')
     authConfig: {
       activeDirectoryAuth: 'Enabled'
-      passwordAuth: 'Enabled'
+      passwordAuth: 'Disabled' // Passwordless!
     }
     storage: {
       storageSizeGB: 32

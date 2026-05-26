@@ -81,11 +81,6 @@ data "azurerm_container_registry" "main" {
 }
 
 # 6. POSTGRES MODULE (Day 7)
-resource "random_password" "db_password" {
-  length  = 16
-  special = false # Remove complex symbols to avoid URL encoding issues
-}
-
 module "postgres" {
   source              = "../../modules/common/postgres"
   location            = azurerm_resource_group.dev.location
@@ -93,7 +88,6 @@ module "postgres" {
   environment         = var.environment
   vnet_id             = module.network.vnet_id
   subnet_id           = module.network.db_subnet_id
-  admin_password      = random_password.db_password.result
   aad_admin_object_id = module.identity.app_identity_principal_id
   aad_admin_name      = module.identity.app_identity_name
 }
@@ -161,7 +155,7 @@ module "containerapp" {
   app_identity_client_id    = module.identity.app_identity_client_id
 
   # Ensure the secret is created in Key Vault BEFORE the apps try to mount it
-  depends_on = [azurerm_key_vault_secret.db_password, azurerm_key_vault_secret.alert_webhook]
+  depends_on = [azurerm_key_vault_secret.alert_webhook]
 }
 
 # Store the alert webhook in Key Vault for later use by the App
@@ -198,17 +192,7 @@ module "policy" {
   project             = "healthcheck"
 }
 
-# Store the DB password in Key Vault for later use by the App
-resource "azurerm_key_vault_secret" "db_password" {
-  name            = "database-password"
-  value           = random_password.db_password.result
-  key_vault_id    = module.keyvault.id
-  content_type    = "text/plain"
-  expiration_date = "2027-12-31T23:59:59Z"
 
-  # Ensure the role assignment is created before trying to write the secret
-  depends_on = [module.keyvault]
-}
 
 # OUTPUTS for GitHub Actions
 output "ACR_LOGIN_SERVER" { value = data.azurerm_container_registry.main.login_server }

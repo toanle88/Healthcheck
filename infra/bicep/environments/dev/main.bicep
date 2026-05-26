@@ -10,8 +10,6 @@ param ciamTenantId string = 'cea4bf39-5592-4b9c-bed9-0729bbf40cd4'
 @secure()
 param alertWebhookUrl string = ''
 param alertEmail string = 'toanle88@outlook.com'
-@secure()
-param dbAdminPassword string = ''
 param deployerPrincipalId string = ''
 
 param apiImage string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
@@ -51,11 +49,7 @@ module network '../../modules/common/network.bicep' = {
   }
 }
 
-// Generate a compliant password for Dev PostgreSQL if not provided.
-var defaultDbPassword = 'P@ssw0rd${substring(uniqueString(rg.id, environment), 0, 8)}'
-var dbPassword = empty(dbAdminPassword) ? defaultDbPassword : dbAdminPassword
-
-// 3. Postgres Module (Common - Dev configuration with password auth)
+// 3. Postgres Module (Common - Dev configuration passwordless)
 module postgres '../../modules/common/postgres.bicep' = {
   name: 'postgres-deployment-${environment}'
   scope: rg
@@ -64,7 +58,6 @@ module postgres '../../modules/common/postgres.bicep' = {
     environment: environment
     vnetId: network.outputs.vnet_id
     subnetId: network.outputs.db_subnet_id
-    adminPassword: dbPassword
     aadAdminObjectId: identity.outputs.app_identity_principal_id
     aadAdminName: identity.outputs.app_identity_name
   }
@@ -117,7 +110,6 @@ module containerapp '../../modules/common/containerapp.bicep' = {
     appIdentityClientId: identity.outputs.app_identity_client_id
   }
   dependsOn: [
-    keyvaultSecrets
     keyvaultWebhookSecret
   ]
 }
@@ -193,16 +185,7 @@ module acrRoleAssignment '../../modules/common/acr-role-assignment.bicep' = {
   }
 }
 
-// 11. Key Vault secret database-password upload (Common - Dev only)
-module keyvaultSecrets '../../modules/common/keyvault-secret.bicep' = {
-  name: 'keyvault-secrets-deployment-${environment}'
-  scope: rg
-  params: {
-    keyVaultName: keyvault.outputs.name
-    secretName: 'database-password'
-    secretValue: dbPassword
-  }
-}
+
 
 // 12. Key Vault secret alert-webhook-url upload (Common)
 module keyvaultWebhookSecret '../../modules/common/keyvault-secret.bicep' = {

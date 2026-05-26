@@ -189,7 +189,7 @@ func setupRouter(cfg config.Config, st *store.Store, broker *handler.Broker, met
 
 	// --- PROTECTED ROUTES ---
 	api := r.Group("/api")
-	isLocalDev := cfg.Environment == "local" || cfg.Environment == "development" || cfg.Environment == ""
+	isLocalDev := cfg.Environment == "local" || cfg.Environment == "development"
 	if cfg.EntraTenantID != "" && cfg.EntraClientID != "" {
 		slog.Info("enabling Entra ID authentication", "tenantID", cfg.EntraTenantID)
 		api.Use(middleware.AuthMiddleware(cfg.EntraTenantID, cfg.EntraClientID, cfg.Environment))
