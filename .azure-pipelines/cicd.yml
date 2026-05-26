@@ -90,7 +90,7 @@ stages:
             displayName: '🟢 Setup Node.js'
 
           - script: |
-              npm install -g pnpm
+              npm install -g pnpm@8
               pnpm --filter web install --no-frozen-lockfile
             displayName: '📦 Install Frontend Dependencies'
 

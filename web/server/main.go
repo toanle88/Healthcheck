@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func main() {
@@ -23,17 +25,27 @@ func main() {
 	}
 
 	// 1. Generate env.js dynamically at startup
-	envJSContent := fmt.Sprintf(`window.ENV = {
-  VITE_API_URL: "%s",
-  VITE_APP_VERSION: "%s",
-  VITE_ENTRA_CLIENT_ID: "%s",
-  VITE_ENTRA_TENANT_ID: "%s"
-};`,
-		os.Getenv("VITE_API_URL"),
-		os.Getenv("VITE_APP_VERSION"),
-		os.Getenv("VITE_ENTRA_CLIENT_ID"),
-		os.Getenv("VITE_ENTRA_TENANT_ID"),
-	)
+	type EnvConfig struct {
+		APIURL        string `json:"VITE_API_URL"`
+		AppVersion    string `json:"VITE_APP_VERSION"`
+		EntraClientID string `json:"VITE_ENTRA_CLIENT_ID"`
+		EntraTenantID string `json:"VITE_ENTRA_TENANT_ID"`
+	}
+
+	envObj := EnvConfig{
+		APIURL:        os.Getenv("VITE_API_URL"),
+		AppVersion:    os.Getenv("VITE_APP_VERSION"),
+		EntraClientID: os.Getenv("VITE_ENTRA_CLIENT_ID"),
+		EntraTenantID: os.Getenv("VITE_ENTRA_TENANT_ID"),
+	}
+
+	jsonData, err := json.Marshal(envObj)
+	if err != nil {
+		slog.Error("Failed to marshal env config", "err", err)
+		os.Exit(1)
+	}
+
+	envJSContent := fmt.Sprintf("window.ENV = %s;", jsonData)
 
 	envFilePath := filepath.Join(distDir, "env.js")
 	if err := os.WriteFile(envFilePath, []byte(envJSContent), 0644); err != nil {
@@ -66,6 +78,25 @@ func main() {
 		// Check if file exists, if not serve index.html for SPA routing
 		path := filepath.Clean(r.URL.Path)
 		fullPath := filepath.Join(distDir, path)
+
+		// Hardening: Verify resolved path remains inside distDir to prevent directory traversal
+		absDistDir, err := filepath.Abs(distDir)
+		if err != nil {
+			slog.Error("Failed to get absolute path of distDir", "err", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		absFullPath, err := filepath.Abs(fullPath)
+		if err != nil {
+			slog.Error("Failed to get absolute path of fullPath", "err", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		if !strings.HasPrefix(absFullPath, absDistDir) {
+			slog.Warn("Directory traversal attempt detected", "path", r.URL.Path)
+			http.ServeFile(w, r, filepath.Join(distDir, "index.html"))
+			return
+		}
 
 		stat, err := os.Stat(fullPath)
 		if err != nil || stat.IsDir() {

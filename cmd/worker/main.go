@@ -33,7 +33,7 @@ var alertsWG sync.WaitGroup
 
 // isPrivateIP checks if a net.IP is loopback, link-local, or private.
 func isPrivateIP(ip net.IP) bool {
-	return ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsPrivate()
+	return ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsPrivate() || ip.IsUnspecified()
 }
 
 // newSafeHTTPClient returns an HTTP client that blocks connections to loopback/private/link-local addresses

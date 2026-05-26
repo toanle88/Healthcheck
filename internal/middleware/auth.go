@@ -25,16 +25,38 @@ func AuthMiddleware(tenantID, clientID, environment string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 2. Extract the token from the Authorization header
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
+		tokenString := ""
+		if authHeader != "" {
+			bearerToken := strings.Split(authHeader, " ")
+			if len(bearerToken) == 2 && strings.ToLower(bearerToken[0]) == "bearer" {
+				tokenString = bearerToken[1]
+			} else {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
+				return
+			}
+		}
+
+		// Fallback to query parameter ONLY for SSE stream endpoint (native EventSource doesn't support headers)
+		if tokenString == "" && c.Request.URL.Path == "/api/status/stream" {
+			tokenString = c.Query("token")
+			if tokenString != "" {
+				// Redact the token from the query string to prevent logging by downstream middleware (e.g. OpenTelemetry)
+				values := c.Request.URL.Query()
+				values.Del("token")
+				c.Request.URL.RawQuery = values.Encode()
+
+				// Update RequestURI to prevent logging by webservers/libraries using it
+				c.Request.RequestURI = c.Request.URL.Path
+				if c.Request.URL.RawQuery != "" {
+					c.Request.RequestURI += "?" + c.Request.URL.RawQuery
+				}
+			}
+		}
+
+		if tokenString == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization token is required"})
 			return
 		}
-		bearerToken := strings.Split(authHeader, " ")
-		if len(bearerToken) != 2 || strings.ToLower(bearerToken[0]) != "bearer" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
-			return
-		}
-		tokenString := bearerToken[1]
 
 		// 2b. E2E / Development mock token bypass (MFA / redirect automation support)
 		isLocalDev := environment == "local"

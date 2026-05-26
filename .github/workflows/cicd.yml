@@ -28,12 +28,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "📂 Checkout Code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0 # Required by SonarCloud scan
 
       - name: "🐹 Setup Go Environment"
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34
         with:
           go-version: '1.26'
 
@@ -41,7 +41,7 @@ jobs:
       # the build cache (~/.cache/go/build) so subsequent
       # runs skip re-downloading dependencies.
       - name: "📦 Cache Go Modules"
-        uses: actions/cache@v4
+        uses: actions/cache@d4373f1513ff4d1140260d2a3e0973be10f886f4
         with:
           path: |
             ~/.cache/go/mod
@@ -60,12 +60,12 @@ jobs:
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./...)
 
       - name: "🟢 Setup Node.js"
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@1d11216273e3b82c2cb3b11387f65b8698663c1e
         with:
           node-version: '20'
 
       - name: "📦 Install pnpm"
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@a32e13959a84d2850931238b5e4ff5d24ef020d6
         with:
           version: 8
 
@@ -79,19 +79,19 @@ jobs:
         run: bash scripts/check-coverage.sh
 
       - name: "SonarCloud Scan"
-        uses: SonarSource/sonarcloud-github-action@master
+        uses: SonarSource/sonarcloud-github-action@02ef6b1098601d682363b96b20bbfc11a9ad111d
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       - name: "SonarCloud Quality Gate"
-        uses: sonarsource/sonarcloud-quality-gate-action@master
+        uses: sonarsource/sonarcloud-quality-gate-action@d304b0dcabccb7297e6e34279b9409d949d28e75
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       - name: "🔒 Security Scan (Trivy)"
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@18f25ad3ee30097be7000290878515892f24128f
         with:
           scan-type: 'fs'
           ignore-unfixed: true
@@ -110,14 +110,14 @@ jobs:
       image_tag: ${{ steps.vars.outputs.sha_short }}
     steps:
       - name: "📂 Checkout Code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: "🆔 Generate Version Tag"
         id: vars
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: "🔑 Login to Azure (OIDC)"
-        uses: azure/login@v2
+        uses: azure/login@a65d910e8af852a8061c3276fcc8afbeb69c24ce
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -127,7 +127,7 @@ jobs:
         run: az acr login --name ${{ secrets.AZURE_ACR_NAME }}
 
       - name: "🐳 Build & Push API Image"
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@ca052c20bc6a1dd2e305e3960324ae341029cd44
         with:
           context: .
           file: ./Dockerfile.api
@@ -136,7 +136,7 @@ jobs:
           build-args: APP_VERSION=${{ steps.vars.outputs.sha_short }}
 
       - name: "🐝 Build & Push Worker Image"
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@ca052c20bc6a1dd2e305e3960324ae341029cd44
         with:
           context: .
           file: ./Dockerfile.worker
@@ -145,7 +145,7 @@ jobs:
           build-args: APP_VERSION=${{ steps.vars.outputs.sha_short }}
 
       - name: "🌐 Build & Push Web Image"
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@ca052c20bc6a1dd2e305e3960324ae341029cd44
         with:
           context: ./web
           file: ./web/Dockerfile.web
@@ -153,7 +153,7 @@ jobs:
           tags: ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/web:${{ steps.vars.outputs.sha_short }}
 
       - name: "📂 Build & Push Migrate Image"
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@ca052c20bc6a1dd2e305e3960324ae341029cd44
         with:
           context: .
           file: ./Dockerfile.migrate
@@ -171,10 +171,10 @@ jobs:
       api_url: ${{ steps.deploy.outputs.api_url }}
     steps:
       - name: "📂 Checkout Code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: "🔑 Login to Azure (OIDC)"
-        uses: azure/login@v2
+        uses: azure/login@a65d910e8af852a8061c3276fcc8afbeb69c24ce
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -198,10 +198,10 @@ jobs:
       api_url: ${{ steps.deploy.outputs.api_url }}
     steps:
       - name: "📂 Checkout Code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: "🔑 Login to Azure (OIDC)"
-        uses: azure/login@v2
+        uses: azure/login@a65d910e8af852a8061c3276fcc8afbeb69c24ce
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}

@@ -86,24 +86,15 @@ Our CI workflow integrates **Trivy**, an open-source vulnerability scanner. Triv
 
 The worker pings arbitrary URLs that operators configure through the UI. Without restrictions, an attacker could register an internal URL (e.g., `http://169.254.169.254/` — the AWS/Azure metadata endpoint) and trick the worker into leaking cloud credentials.
 
-We harden the worker's HTTP client with a custom `CheckRedirect` function:
+To prevent this, the worker uses a custom HTTP client that resolves hostnames first, checks the resolved IPs, and dials the resolved IP directly. This prevents DNS Rebinding and SSRF. The IP verification checks and blocks loopback, private, link-local, and **unspecified/wildcard IP addresses (`0.0.0.0` and `::`)**:
 
 ```go
-client := &http.Client{
-    CheckRedirect: func(req *http.Request, via []*http.Request) error {
-        if len(via) >= 3 {
-            return errors.New("too many redirects (max 3)")
-        }
-        // Block redirects to private / loopback / link-local IP ranges
-        if isPrivateIP(req.URL.Hostname()) {
-            return fmt.Errorf("redirect to private IP blocked: %s", req.URL.Hostname())
-        }
-        return nil
-    },
+func isPrivateIP(ip net.IP) bool {
+	return ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsPrivate() || ip.IsUnspecified()
 }
 ```
 
-*   **Why it matters:** Even if a malicious target URL initially resolves to a public IP, the server could redirect to an internal address. The `CheckRedirect` hook intercepts every hop and blocks any redirect that resolves to a private, loopback, or link-local address.
+*   **Why unspecified IP blocking matters:** On Linux hosts, dialing `0.0.0.0` or `::` bypasses standard loopback filters and routes connections back to `localhost`. Explicitly checking `ip.IsUnspecified()` prevents this common SSRF filter bypass.
 
 ---
 
@@ -112,7 +103,9 @@ client := &http.Client{
 We have implemented additional defense-in-depth protections on our API and frontend:
 *   **Target Header Redaction:** Custom headers (such as Authorization headers or API keys) can be set on targets. The `GET /api/targets` endpoint automatically redacts the `headers` field to an empty string `""` unless the user possesses explicit `Healthcheck.Admin` claims, protecting credentials from unauthorized readers.
 *   **Mock Token Hardening:** The mock E2E JWT bypass check in the middleware requires both the environment to be set to `local` AND the explicit setting of `ALLOW_MOCK_AUTH=true`. This dual-gate validation ensures testing bypass mechanisms are disabled in production or staging even if the configuration environment string is misconfigured.
+*   **SSE Query Token Redaction:** For Server-Sent Events (SSE), the native browser `EventSource` cannot send custom headers and must append the token in the URL query string (`?token=...`). The backend extracts the token and immediately deletes it from the request's query string and `RequestURI` fields. This ensures the sensitive access token is never logged by webservers, proxies, or downstream APM/OpenTelemetry middleware.
 *   **Hardened CSP Headers:** The new Go-based distroless frontend webserver enforces a secure Content Security Policy (CSP) that excludes `'unsafe-inline'` and unused script CDNs from the `script-src` directive, significantly boosting protection against Cross-Site Scripting (XSS).
+*   **Pipeline Supply Chain Hardening:** All third-party GitHub Actions are pinned to their exact 40-character commit SHAs in the workflow files to protect our CI/CD pipelines from tag-mutation supply chain attacks. Similarly, Azure DevOps pipelines pin tools like `pnpm` to major version 8.
 
 ---
  

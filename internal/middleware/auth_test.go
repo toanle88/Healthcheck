@@ -402,3 +402,22 @@ func TestMockAuthMiddleware(t *testing.T) {
 		t.Errorf("Expected status 200 using MockAuthMiddleware, got %d", w.Code)
 	}
 }
+
+func TestAuthMiddleware_QueryTokenSSE(t *testing.T) {
+	t.Setenv("ALLOW_MOCK_AUTH", "true")
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	r.Use(AuthMiddleware("dummy-tenant", "dummy-client", "local"))
+	r.GET("/api/status/stream", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/status/stream?token=mocked-e2e-token", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200 using token query param on SSE stream endpoint, got %d", w.Code)
+	}
+}
