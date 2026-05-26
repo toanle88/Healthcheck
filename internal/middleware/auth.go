@@ -3,6 +3,7 @@ package middleware
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/MicahParks/keyfunc/v3"
@@ -37,7 +38,8 @@ func AuthMiddleware(tenantID, clientID, environment string) gin.HandlerFunc {
 
 		// 2b. E2E / Development mock token bypass (MFA / redirect automation support)
 		isLocalDev := environment == "local"
-		if tokenString == "mocked-e2e-token" && isLocalDev {
+		allowMockAuth := os.Getenv("ALLOW_MOCK_AUTH") == "true"
+		if tokenString == "mocked-e2e-token" && isLocalDev && allowMockAuth {
 			mockClaims := jwt.MapClaims{
 				"roles": []interface{}{"Healthcheck.Admin"},
 				"scp":   "Healthcheck.Write Healthcheck.Read",

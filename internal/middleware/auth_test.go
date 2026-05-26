@@ -207,6 +207,7 @@ func TestRequireRoleOrScope_InsufficientPermissions(t *testing.T) {
 }
 
 func TestAuthMiddleware_MockTokenBypass(t *testing.T) {
+	t.Setenv("ALLOW_MOCK_AUTH", "true")
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 

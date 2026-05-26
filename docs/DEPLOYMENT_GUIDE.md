@@ -163,7 +163,7 @@ When a drift alert occurs, remediate it using one of the following methods depen
 ---
 
 ## ✅ Final Review Verification
-- **Frontend**: Uses Entra External ID (CIAM) for secure user login.
+- **Frontend**: Uses Entra External ID (CIAM) for secure user login, packaged in a hardened **nonroot distroless container** on port `8080` via a custom Go static file server.
 - **Backend**: Uses **Managed Identity** to log into Postgres (No DB password exists in the config).
 - **Network**: **VNet Injection** ensures the database is invisible to the public internet.
 - **Security**: **Checkov** scans every PR to ensure infrastructure compliance.

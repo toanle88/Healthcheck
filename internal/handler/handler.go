@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/toanle88/healthcheck/internal/store"
 )
@@ -189,6 +190,32 @@ func (h *Handler) GetTargets(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// REDACTION: Only allow administrators to view target headers
+	isAdmin := false
+	if claimsVal, exists := c.Get("claims"); exists {
+		if claims, ok := claimsVal.(jwt.MapClaims); ok {
+			if rolesClaim, ok := claims["roles"]; ok {
+				if rolesList, ok := rolesClaim.([]interface{}); ok {
+					for _, r := range rolesList {
+						if rStr, ok := r.(string); ok && rStr == "Healthcheck.Admin" {
+							isAdmin = true
+							break
+						}
+					}
+				} else if rStr, ok := rolesClaim.(string); ok && rStr == "Healthcheck.Admin" {
+					isAdmin = true
+				}
+			}
+		}
+	}
+
+	if !isAdmin {
+		for i := range targets {
+			targets[i].Headers = ""
+		}
+	}
+
 	c.JSON(http.StatusOK, targets)
 }
 

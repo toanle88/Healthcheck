@@ -58,7 +58,7 @@ services:
       context: ./web
       dockerfile: Dockerfile.web
     ports:
-      - "5173:80" # Map host 5173 to Nginx port 80
+      - "5173:8080" # Map host 5173 to Go webserver port 8080
     env_file:
       - docker-compose.env
     depends_on:

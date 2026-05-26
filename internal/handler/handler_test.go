@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/toanle88/healthcheck/internal/store"
 )
@@ -21,6 +22,7 @@ import (
 type mockStore struct {
 	checks           []store.Check
 	err              error
+	targets          []store.Target
 	getTargetsErr    error
 	insertTargetErr  error
 	deleteErr        error
@@ -32,7 +34,7 @@ func (m *mockStore) GetLatestChecks(ctx context.Context) ([]store.Check, error) 
 }
 
 func (m *mockStore) GetTargets(ctx context.Context) ([]store.Target, error) {
-	return nil, m.getTargetsErr
+	return m.targets, m.getTargetsErr
 }
 
 func (m *mockStore) InsertTarget(ctx context.Context, name, url, method, headers string, expectedStatus int, responseContains string, failureThreshold int) (store.Target, error) {
@@ -215,6 +217,65 @@ func TestGetTargets(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200 OK, got %d", w.Code)
+	}
+}
+
+func TestGetTargets_Redaction(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockTargets := []store.Target{
+		{
+			ID:      1,
+			Name:    "Test",
+			URL:     "http://test.com",
+			Headers: `{"Authorization":"Bearer secret-token"}`,
+		},
+	}
+
+	// 1. Test as Admin
+	{
+		h := New(&mockStore{targets: mockTargets}, nil)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("claims", jwt.MapClaims{
+				"roles": []interface{}{"Healthcheck.Admin"},
+			})
+			c.Next()
+		})
+		r.GET("/api/targets", h.GetTargets)
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/targets", nil)
+		r.ServeHTTP(w, req)
+
+		var resp []store.Target
+		json.Unmarshal(w.Body.Bytes(), &resp)
+		if len(resp) != 1 || resp[0].Headers != `{"Authorization":"Bearer secret-token"}` {
+			t.Errorf("Admin expected to see headers, got: %s", resp[0].Headers)
+		}
+	}
+
+	// 2. Test as Non-Admin (headers should be redacted)
+	{
+		h := New(&mockStore{targets: mockTargets}, nil)
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("claims", jwt.MapClaims{
+				"roles": []interface{}{"Healthcheck.Reader"},
+			})
+			c.Next()
+		})
+		r.GET("/api/targets", h.GetTargets)
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/targets", nil)
+		r.ServeHTTP(w, req)
+
+		var resp []store.Target
+		json.Unmarshal(w.Body.Bytes(), &resp)
+		if len(resp) != 1 || resp[0].Headers != "" {
+			t.Errorf("Non-admin expected redacted headers, got: %s", resp[0].Headers)
+		}
 	}
 }
 

@@ -52,11 +52,14 @@ Instead of turning off the checks, we document exceptions in a central `.checkov
 
 ## 📦 3. Container Hardening (Distroless Images)
 
-In our [Dockerfile.api](file:///mnt/d/Dev/Projects/Healthcheck/Dockerfile.api), we use a two-stage build. The final runner container uses a **Distroless** base image:
+In our Go backends ([Dockerfile.api](file:///mnt/d/Dev/Projects/Healthcheck/Dockerfile.api), [Dockerfile.worker](file:///mnt/d/Dev/Projects/Healthcheck/Dockerfile.worker), [Dockerfile.migrate](file:///mnt/d/Dev/Projects/Healthcheck/Dockerfile.migrate)), we use a two-stage build. The final runner container uses a **Distroless** base image:
 
 ```dockerfile
 FROM gcr.io/distroless/static-debian12:nonroot
 ```
+
+Similarly, our frontend container ([Dockerfile.web](file:///mnt/d/Dev/Projects/Healthcheck/web/Dockerfile.web)) is refactored into a distroless container. Rather than employing Nginx (which executes as root and contains standard OS shells/binaries), we bundle our static React files with a lightweight custom Go webserver ([main.go](file:///mnt/d/Dev/Projects/Healthcheck/web/server/main.go)) inside the same nonroot distroless container listening on port `8080`.
+
 
 ### Distroless vs. Standard Images
 *   **Standard Base Images (e.g., Alpine, Ubuntu):** Contain a complete operating system inside the container. They include package managers (`apk`, `apt`), shell command prompts (`sh`, `bash`), and system utility binaries (`curl`, `wget`).
@@ -103,6 +106,16 @@ client := &http.Client{
 *   **Why it matters:** Even if a malicious target URL initially resolves to a public IP, the server could redirect to an internal address. The `CheckRedirect` hook intercepts every hop and blocks any redirect that resolves to a private, loopback, or link-local address.
 
 ---
+
+## 🔒 6. Application Security Hardening (API & Data Protection)
+
+We have implemented additional defense-in-depth protections on our API and frontend:
+*   **Target Header Redaction:** Custom headers (such as Authorization headers or API keys) can be set on targets. The `GET /api/targets` endpoint automatically redacts the `headers` field to an empty string `""` unless the user possesses explicit `Healthcheck.Admin` claims, protecting credentials from unauthorized readers.
+*   **Mock Token Hardening:** The mock E2E JWT bypass check in the middleware requires both the environment to be set to `local` AND the explicit setting of `ALLOW_MOCK_AUTH=true`. This dual-gate validation ensures testing bypass mechanisms are disabled in production or staging even if the configuration environment string is misconfigured.
+*   **Hardened CSP Headers:** The new Go-based distroless frontend webserver enforces a secure Content Security Policy (CSP) that excludes `'unsafe-inline'` and unused script CDNs from the `script-src` directive, significantly boosting protection against Cross-Site Scripting (XSS).
+
+---
  
  ### Next Steps 🚀
+
  Now that you understand CI/CD automation and container hardening, let's explore **[Lesson 06: W3C Distributed Tracing](file:///mnt/d/Dev/Projects/Healthcheck/docs/learn/06-w3c-distributed-tracing.md)** to see how we trace requests across services.
