@@ -41,7 +41,7 @@ jobs:
       # the build cache (~/.cache/go/build) so subsequent
       # runs skip re-downloading dependencies.
       - name: "📦 Cache Go Modules"
-        uses: actions/cache@d4373f1513ff4d1140260d2a3e0973be10f886f4
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go/mod
@@ -60,12 +60,12 @@ jobs:
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./...)
 
       - name: "🟢 Setup Node.js"
-        uses: actions/setup-node@1d11216273e3b82c2cb3b11387f65b8698663c1e
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: "📦 Install pnpm"
-        uses: pnpm/action-setup@a32e13959a84d2850931238b5e4ff5d24ef020d6
+        uses: pnpm/action-setup@v4
         with:
           version: 8
 
@@ -79,19 +79,19 @@ jobs:
         run: bash scripts/check-coverage.sh
 
       - name: "SonarCloud Scan"
-        uses: SonarSource/sonarcloud-github-action@02ef6b1098601d682363b96b20bbfc11a9ad111d
+        uses: SonarSource/sonarcloud-github-action@v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       - name: "SonarCloud Quality Gate"
-        uses: sonarsource/sonarcloud-quality-gate-action@d304b0dcabccb7297e6e34279b9409d949d28e75
+        uses: sonarsource/sonarqube-quality-gate-action@v1.2.0
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       - name: "🔒 Security Scan (Trivy)"
-        uses: aquasecurity/trivy-action@18f25ad3ee30097be7000290878515892f24128f
+        uses: aquasecurity/trivy-action@v0.28.0
         with:
           scan-type: 'fs'
           ignore-unfixed: true
