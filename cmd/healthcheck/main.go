@@ -6,6 +6,7 @@ import (
 	"os"
 )
 
+// main is the entrypoint for the healthcheck CLI/utility, verifying the API's local health status.
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -17,6 +18,7 @@ func main() {
 	os.Exit(0)
 }
 
+// checkHealth queries the local /health endpoint to ensure the API service is up and running.
 func checkHealth(port string) error {
 	// We check the local API health endpoint
 	resp, err := http.Get("http://localhost:" + port + "/health")

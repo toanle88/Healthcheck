@@ -14,6 +14,9 @@ import (
 //go:embed openapi.json
 var openAPISpec []byte
 
+// OpenAPISpec serves the raw/dynamically generated JSON OpenAPI specification.
+// It dynamically injects Entra ID configuration (authorize URL, token URL, client ID) if configured.
+//
 // OpenAPISpec godoc
 // @Summary Get raw OpenAPI specification
 // @Description Serves the raw JSON OpenAPI specification.
@@ -56,6 +59,9 @@ func (h *Handler) OpenAPISpec(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json", []byte(specStr))
 }
 
+// Docs renders the interactive Scalar API documentation.
+// It serves an HTML template embedding the Scalar API reference interface.
+//
 // Docs godoc
 // @Summary Render interactive API documentation
 // @Description Serves the Scalar HTML interface for interactive API exploration.

@@ -15,6 +15,8 @@ type Config struct {
 	CORSAllowedOrigins []string
 }
 
+// Load compiles configuration values from environment variables.
+// Fallback defaults are used if environment variables are not specified.
 func Load() Config {
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
@@ -52,6 +54,7 @@ func Load() Config {
 	}
 }
 
+// getEnv retrieves the environment variable for the given key, falling back to def if not set.
 func getEnv(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v

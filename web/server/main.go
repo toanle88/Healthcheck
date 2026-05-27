@@ -10,6 +10,9 @@ import (
 	"strings"
 )
 
+// main is the entrypoint for the frontend static file server.
+// It generates env.js configuration dynamically at startup from environment variables
+// and hosts static assets with security headers and fallback routing for the SPA.
 func main() {
 	// Set JSON structured logging
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))

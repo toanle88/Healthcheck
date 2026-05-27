@@ -16,6 +16,8 @@ import (
 	"github.com/toanle88/healthcheck/internal/store"
 )
 
+// main is the entrypoint for the database migration utility.
+// It loads configuration, connects to the database, and runs pending migrations.
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -33,6 +35,7 @@ func main() {
 	slog.Info("migrations applied successfully")
 }
 
+// runMigrate performs migration execution by loading migrations from embedded files and applying them to the target database URL.
 func runMigrate(ctx context.Context, dbURL string) error {
 	st, err := store.New(ctx, dbURL)
 	if err != nil {

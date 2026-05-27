@@ -34,6 +34,9 @@ import (
 // @description Enter "Bearer <token>" to authenticate.
 var Version = "dev"
 
+// main is the entrypoint for the Healthcheck API service.
+// It initializes configuration, telemetry, store, broker, starts the PostgreSQL listener,
+// configures routes, and starts the HTTP server with graceful shutdown support.
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -84,6 +87,9 @@ func main() {
 	_ = srv.Shutdown(shutdownCtx)
 }
 
+// startPostgresListener subscribes to the PostgreSQL 'checks_channel' and listens for notify events.
+// Upon receiving a notification, it queries the latest checks status from the store
+// and broadcasts them to the SSE broker.
 func startPostgresListener(ctx context.Context, st *store.Store, broker *handler.Broker) {
 	for {
 		select {
@@ -141,6 +147,8 @@ func startPostgresListener(ctx context.Context, st *store.Store, broker *handler
 	}
 }
 
+// setupRouter initializes the Gin router, sets up CORS middlewares, public endpoints,
+// protected endpoints (using either Entra ID or mock authentication), and registers metrics.
 func setupRouter(cfg config.Config, st *store.Store, broker *handler.Broker, metricsHandler http.Handler) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())

@@ -37,6 +37,7 @@ func init() {
 	LatencyHistogram, _ = nm.Float64Histogram("noop_latency")
 }
 
+// setupTracing configures the trace exporter and trace provider, connecting to Jaeger locally or Azure App Insights.
 func setupTracing(ctx context.Context, res *resource.Resource, isAzure bool, connString string) (*trace.TracerProvider, error) {
 	traceOpts := []otlptracehttp.Option{}
 	if isAzure {
@@ -62,6 +63,7 @@ func setupTracing(ctx context.Context, res *resource.Resource, isAzure bool, con
 	return tp, nil
 }
 
+// setupMetrics configures OTel metrics using periodic OTLP HTTP metrics exporter (for Azure) or Prometheus exporter.
 func setupMetrics(ctx context.Context, res *resource.Resource, isAzure bool, connString string, promExporter *otelprom.Exporter) (*sdkmetric.MeterProvider, error) {
 	var mp *sdkmetric.MeterProvider
 	if isAzure {
@@ -89,8 +91,8 @@ func setupMetrics(ctx context.Context, res *resource.Resource, isAzure bool, con
 	return mp, nil
 }
 
-// InitOTel initializes the OpenTelemetry SDK.
-// It returns a metrics handler, a shutdown function, and an error.
+// InitOTel initializes the OpenTelemetry SDK with resource detection, trace providers, and metrics meters.
+// Returns an HTTP handler for exposing Prometheus metrics, a shutdown function, and any initialization error.
 func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(context.Context) error, error) {
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
@@ -150,7 +152,8 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 	}, nil
 }
 
-// parseConnectionString extracts the ingestion HOST and instrumentation key.
+// parseConnectionString parses an Azure Application Insights connection string
+// and extracts the target ingestion endpoint host and the instrumentation key.
 func parseConnectionString(connStr string) (string, string) {
 	parts := strings.Split(connStr, ";")
 	var ikey, endpoint string

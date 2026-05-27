@@ -141,6 +141,8 @@ func runBatch(ctx context.Context, client *http.Client, st *store.Store, tracer 
 	_ = g.Wait()
 }
 
+// initMetricsServer starts a background HTTP server on port 8081 for Prometheus metrics scraping.
+// It returns the http.Server instance and a shutdown cleanup function.
 func initMetricsServer(ctx context.Context) (*http.Server, func(context.Context)) {
 	metricsHandler, shutdown, err := monitor.InitOTel(ctx, "healthcheck-worker")
 	if err != nil {
@@ -168,6 +170,7 @@ func initMetricsServer(ctx context.Context) (*http.Server, func(context.Context)
 	}
 }
 
+// runJob executes health checks once for all active targets, cleans up old records, and exits.
 func runJob(ctx context.Context, client *http.Client, st *store.Store) {
 	slog.Info("running in JOB mode (one-time execution)")
 	defer alertsWG.Wait()
@@ -188,6 +191,7 @@ func runJob(ctx context.Context, client *http.Client, st *store.Store) {
 	slog.Info("job completed successfully")
 }
 
+// runService registers periodic cron tasks to execute health checks every minute and run DB cleanup hourly.
 func runService(ctx context.Context, client *http.Client, st *store.Store) {
 	slog.Info("running in SERVICE mode (background cron)")
 	c := cron.New()
@@ -241,6 +245,9 @@ func runService(ctx context.Context, client *http.Client, st *store.Store) {
 	}
 }
 
+// main is the entrypoint for the healthcheck worker service.
+// It initializes logging, loads configurations, sets up OTel telemetry, and determines whether
+// to run in one-off job mode or daemon service mode.
 func main() {
 	// --- 1. SETUP LOGGING ---
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -290,6 +297,8 @@ func main() {
 	slog.Info("worker stopped cleanly")
 }
 
+// parseHeaders parses a JSON string containing HTTP headers into a map.
+// Returns nil if input is empty, or an error if the JSON is invalid.
 func parseHeaders(targetHeaders string) (map[string]string, error) {
 	if targetHeaders == "" {
 		return nil, nil
@@ -301,6 +310,8 @@ func parseHeaders(targetHeaders string) (map[string]string, error) {
 	return headersMap, nil
 }
 
+// verifyStatus checks whether the received HTTP status code matches the expected code.
+// If the expected status is 200 or not set, any 2xx response is considered successful.
 func verifyStatus(respStatusCode, expectedStatus int) bool {
 	if expectedStatus <= 0 {
 		expectedStatus = 200
@@ -372,6 +383,8 @@ func pingTarget(ctx context.Context, client *http.Client, target store.Target) (
 	return "up", time.Since(start)
 }
 
+// handleSpanStart initializes a telemetry span for a target ping operation.
+// Returns the child context and the created trace span.
 func handleSpanStart(ctx context.Context, tracer trace.Tracer, target store.Target) (context.Context, trace.Span) {
 	if tracer == nil {
 		return ctx, nil
@@ -382,6 +395,7 @@ func handleSpanStart(ctx context.Context, tracer trace.Tracer, target store.Targ
 	))
 }
 
+// recordMetricsAndSpan records check latency and status counts to Prometheus counters and registers span attributes.
 func recordMetricsAndSpan(ctx context.Context, span trace.Span, target store.Target, status string, latency time.Duration) {
 	if span != nil {
 		span.SetAttributes(
@@ -400,6 +414,7 @@ func recordMetricsAndSpan(ctx context.Context, span trace.Span, target store.Tar
 	))
 }
 
+// handleAlertState checks if the ping result triggers a status transition and fires a webhook alert if necessary.
 func handleAlertState(ctx context.Context, client *http.Client, st *store.Store, target store.Target, status string, latency time.Duration) {
 	// Update alert state and check if we should alert
 	shouldAlert, oldAlertStatus, newAlertStatus, err := st.UpdateTargetAlertState(ctx, target.URL, status)
@@ -415,6 +430,7 @@ func handleAlertState(ctx context.Context, client *http.Client, st *store.Store,
 	}
 }
 
+// runPingAndCheck executes the target ping, records tracing details, updates alert state, and persists checks.
 func runPingAndCheck(ctx context.Context, client *http.Client, st *store.Store, tracer trace.Tracer, target store.Target) {
 	pingCtx, childSpan := handleSpanStart(ctx, tracer, target)
 
@@ -440,6 +456,7 @@ func runPingAndCheck(ctx context.Context, client *http.Client, st *store.Store, 
 	}
 }
 
+// sendWebhookAlert delivers a slack/teams-formatted message webhook notification summarizing the target alert state change.
 func sendWebhookAlert(ctx context.Context, client *http.Client, target, oldStatus, newStatus string, latency time.Duration) {
 	webhookURL := os.Getenv("ALERT_WEBHOOK_URL")
 	if webhookURL == "" {

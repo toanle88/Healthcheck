@@ -33,6 +33,7 @@ type Handler struct {
 	broker *Broker
 }
 
+// New constructs and returns a new Handler with the given Store and SSE Broker.
 func New(s Storer, b *Broker) *Handler {
 	return &Handler{store: s, broker: b}
 }
@@ -48,6 +49,8 @@ type CreateTargetInput struct {
 	FailureThreshold int    `json:"failure_threshold" example:"3"`
 }
 
+// Health checks the operational status of the API service.
+//
 // Health godoc
 // @Summary Check service health
 // @Description Returns the operational status, current time, and service name.
@@ -63,6 +66,8 @@ func (h *Handler) Health(c *gin.Context) {
 	})
 }
 
+// Status returns the most recent check results for all active targets.
+//
 // Status godoc
 // @Summary Get latest checks status
 // @Description Retrieves the most recent check results for all active targets, including their computed 24-hour SLA.
@@ -85,6 +90,8 @@ func (h *Handler) Status(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"checks": checks, "count": len(checks)})
 }
 
+// StreamStatus establishes a Server-Sent Events (SSE) stream for real-time target status updates.
+//
 // StreamStatus godoc
 // @Summary Stream latest checks status in real-time
 // @Description Establishes a Server-Sent Events (SSE) connection to receive real-time health check updates.
@@ -141,6 +148,8 @@ func (h *Handler) StreamStatus(c *gin.Context) {
 	})
 }
 
+// History retrieves historical check records for a specific target URL.
+//
 // History godoc
 // @Summary Get historical checks
 // @Description Retrieves historical ping results for a specific target URL.
@@ -174,6 +183,8 @@ func (h *Handler) History(c *gin.Context) {
 	c.JSON(http.StatusOK, checks)
 }
 
+// GetTargets lists all active monitored targets. The headers field is redacted for non-admins.
+//
 // GetTargets godoc
 // @Summary Get all monitored targets
 // @Description Retrieves the list of active URL targets being monitored by the system.
@@ -219,17 +230,7 @@ func (h *Handler) GetTargets(c *gin.Context) {
 	c.JSON(http.StatusOK, targets)
 }
 
-// CreateTarget godoc
-// @Summary Create a monitored target
-// @Description Adds a new target URL to the monitoring queue.
-// @Tags Targets
-// @Accept json
-// @Produce json
-// @Param target body CreateTargetInput true "Target configuration details"
-// @Success 201 {object} store.Target
-// @Router /api/targets [post]
-// @Security EntraID
-// @Security BearerAuth
+// validateAndNormalizeTargetInput checks and normalizes user input parameters for target registration.
 func validateAndNormalizeTargetInput(input *CreateTargetInput) error {
 	if input.Method == "" {
 		input.Method = "GET"
@@ -262,6 +263,19 @@ func validateAndNormalizeTargetInput(input *CreateTargetInput) error {
 	return nil
 }
 
+// CreateTarget inserts a new monitoring target into the database.
+//
+// CreateTarget godoc
+// @Summary Create a monitored target
+// @Description Adds a new target URL to the monitoring queue.
+// @Tags Targets
+// @Accept json
+// @Produce json
+// @Param target body CreateTargetInput true "Target configuration details"
+// @Success 201 {object} store.Target
+// @Router /api/targets [post]
+// @Security EntraID
+// @Security BearerAuth
 func (h *Handler) CreateTarget(c *gin.Context) {
 	var input CreateTargetInput
 
@@ -293,6 +307,8 @@ func (h *Handler) CreateTarget(c *gin.Context) {
 	c.JSON(http.StatusCreated, target)
 }
 
+// DeleteTarget removes a monitored target from the database by its ID.
+//
 // DeleteTarget godoc
 // @Summary Delete a monitored target
 // @Description Removes a URL target from the monitor list by its database ID.
@@ -323,6 +339,8 @@ func (h *Handler) DeleteTarget(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "target deleted"})
 }
 
+// TestError deliberately throws an error for observability testing.
+//
 // TestError godoc
 // @Summary Trigger a chaos error
 // @Description Artificially triggers a 500 Internal Server Error for testing observability and alerting.
@@ -334,6 +352,8 @@ func (h *Handler) TestError(c *gin.Context) {
 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Chaos alert triggered: internal server error"})
 }
 
+// TestSlow delays responding by 2 seconds to simulate latency for timeout testing.
+//
 // TestSlow godoc
 // @Summary Trigger a slow chaos response
 // @Description Deliberately delays the response by 2 seconds to test timeout handling and latency metrics.

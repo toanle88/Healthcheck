@@ -11,7 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// AuthMiddleware validates the Entra ID JWT token
+// extractToken extracts the bearer token from the Authorization header or the 'token' query parameter.
 func extractToken(c *gin.Context) (string, error) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader != "" {
@@ -40,10 +40,12 @@ func extractToken(c *gin.Context) (string, error) {
 	return "", fmt.Errorf("Authorization token is required")
 }
 
+// isMockTokenAllowed evaluates whether mock tokens are permitted based on the environment and flags.
 func isMockTokenAllowed(tokenString, environment string) bool {
 	return tokenString == "mocked-e2e-token" && environment == "local" && os.Getenv("ALLOW_MOCK_AUTH") == "true"
 }
 
+// validateClaims checks tenant ID, audience, and issuer fields in the parsed JWT claims.
 func validateClaims(claims jwt.MapClaims, tenantID, clientID string) error {
 	tid, ok := claims["tid"].(string)
 	if !ok || tid != tenantID {
@@ -64,7 +66,7 @@ func validateClaims(claims jwt.MapClaims, tenantID, clientID string) error {
 	return nil
 }
 
-// AuthMiddleware validates the Entra ID JWT token
+// AuthMiddleware validates the Entra ID JWT token and sets the claims into the request context.
 func AuthMiddleware(tenantID, clientID, environment string) gin.HandlerFunc {
 	// 1. Initialize the JWKS key function for CIAM
 	jwksURL := fmt.Sprintf("https://%s.ciamlogin.com/%s/discovery/v2.0/keys", tenantID, tenantID)
@@ -148,6 +150,7 @@ func RequireRoleOrScope(allowedRoles, allowedScopes []string) gin.HandlerFunc {
 	}
 }
 
+// hasAnyRole checks whether the jwt claims contain at least one of the expected allowed roles.
 func hasAnyRole(claims jwt.MapClaims, allowedRoles []string) bool {
 	if len(allowedRoles) == 0 {
 		return false
@@ -169,6 +172,7 @@ func hasAnyRole(claims jwt.MapClaims, allowedRoles []string) bool {
 	return matchRole(rolesClaim, allowedRoles)
 }
 
+// matchRole compares a claim role string with the list of allowed roles.
 func matchRole(role interface{}, allowedRoles []string) bool {
 	rStr, ok := role.(string)
 	if !ok {
@@ -182,6 +186,7 @@ func matchRole(role interface{}, allowedRoles []string) bool {
 	return false
 }
 
+// hasAnyScope checks whether the jwt claims contain at least one of the expected allowed scopes.
 func hasAnyScope(claims jwt.MapClaims, allowedScopes []string) bool {
 	if len(allowedScopes) == 0 {
 		return false
@@ -198,6 +203,7 @@ func hasAnyScope(claims jwt.MapClaims, allowedScopes []string) bool {
 	return false
 }
 
+// matchScope compares a claim scope string with the list of allowed scopes.
 func matchScope(scope string, allowedScopes []string) bool {
 	for _, allowed := range allowedScopes {
 		if scope == allowed {

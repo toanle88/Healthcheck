@@ -34,7 +34,7 @@ type Store struct {
 	slaMutex       sync.Mutex
 }
 
-// New creates a new database connection pool with hybrid auth support.
+// New creates and configures a new postgres database connection pool with hybrid Azure AD auth support.
 func New(ctx context.Context, databaseURL string) (*Store, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -142,12 +142,7 @@ type Target struct {
 	UpdatedAt           time.Time `json:"updated_at"`
 }
 
-// TargetSLA represents calculated uptime percentage.
-type TargetSLA struct {
-	Target           string  `json:"target"`
-	UptimePercentage float64 `json:"uptime_percentage"`
-}
-
+// getSLACache retrieves cached target SLA percentages or computes them from database records if expired.
 func (s *Store) getSLACache(ctx context.Context) (map[string]float64, error) {
 	s.slaMutex.Lock()
 	defer s.slaMutex.Unlock()
@@ -243,7 +238,7 @@ func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
 	return checks, nil
 }
 
-// GetTargets retrieves all monitored targets.
+// GetTargets queries all monitored target endpoints from the targets database table.
 func (s *Store) GetTargets(ctx context.Context) ([]Target, error) {
 	rows, err := s.DB.Query(ctx, `
 		SELECT id, name, url, method, headers, expected_status, response_contains, failure_threshold, consecutive_failures, last_alert_status, is_active, created_at, updated_at 
@@ -280,7 +275,7 @@ func (s *Store) GetTargets(ctx context.Context) ([]Target, error) {
 	return targets, nil
 }
 
-// InsertTarget saves a new target.
+// InsertTarget adds a new monitoring target config into the targets database table.
 func (s *Store) InsertTarget(ctx context.Context, params InsertTargetParams) (Target, error) {
 	var t Target
 
@@ -306,7 +301,7 @@ func (s *Store) InsertTarget(ctx context.Context, params InsertTargetParams) (Ta
 	return t, err
 }
 
-// DeleteTarget removes a target and its associated check history.
+// DeleteTarget removes a target and its check logs inside a database transaction.
 func (s *Store) DeleteTarget(ctx context.Context, id int) error {
 	s.slaMutex.Lock()
 	s.slaCacheExpiry = time.Time{}
@@ -369,7 +364,7 @@ func (s *Store) GetHistoricalChecks(ctx context.Context, target string, limit in
 	return checks, nil
 }
 
-// GetPreviousCheckStatus retrieves the status of the most recent check for a target.
+// GetPreviousCheckStatus retrieves the status of the single most recent check execution for a target.
 func (s *Store) GetPreviousCheckStatus(ctx context.Context, target string) (string, error) {
 	var status string
 	err := s.DB.QueryRow(ctx, `
@@ -382,7 +377,7 @@ func (s *Store) GetPreviousCheckStatus(ctx context.Context, target string) (stri
 	return status, err
 }
 
-// CleanupOldChecks deletes records older than the specified duration.
+// CleanupOldChecks deletes all health check logs older than the specified duration.
 func (s *Store) CleanupOldChecks(ctx context.Context, olderThan time.Duration) (int64, error) {
 	cutoff := time.Now().Add(-olderThan)
 	result, err := s.DB.Exec(ctx, "DELETE FROM checks WHERE checked_at < $1", cutoff)
