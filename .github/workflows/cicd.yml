@@ -111,7 +111,7 @@ jobs:
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: "🔑 Login to Azure (OIDC)"
-        uses: azure/login@a65d910e8af852a8061c3276fcc8afbeb69c24ce
+        uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -121,7 +121,7 @@ jobs:
         run: az acr login --name ${{ secrets.AZURE_ACR_NAME }}
 
       - name: "🐳 Build & Push API Image"
-        uses: docker/build-push-action@ca052c20bc6a1dd2e305e3960324ae341029cd44
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile.api
@@ -130,7 +130,7 @@ jobs:
           build-args: APP_VERSION=${{ steps.vars.outputs.sha_short }}
 
       - name: "🐝 Build & Push Worker Image"
-        uses: docker/build-push-action@ca052c20bc6a1dd2e305e3960324ae341029cd44
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile.worker
@@ -139,7 +139,7 @@ jobs:
           build-args: APP_VERSION=${{ steps.vars.outputs.sha_short }}
 
       - name: "🌐 Build & Push Web Image"
-        uses: docker/build-push-action@ca052c20bc6a1dd2e305e3960324ae341029cd44
+        uses: docker/build-push-action@v6
         with:
           context: ./web
           file: ./web/Dockerfile.web
@@ -147,7 +147,7 @@ jobs:
           tags: ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/web:${{ steps.vars.outputs.sha_short }}
 
       - name: "📂 Build & Push Migrate Image"
-        uses: docker/build-push-action@ca052c20bc6a1dd2e305e3960324ae341029cd44
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile.migrate
@@ -168,7 +168,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: "🔑 Login to Azure (OIDC)"
-        uses: azure/login@a65d910e8af852a8061c3276fcc8afbeb69c24ce
+        uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -195,7 +195,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: "🔑 Login to Azure (OIDC)"
-        uses: azure/login@a65d910e8af852a8061c3276fcc8afbeb69c24ce
+        uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
