@@ -84,12 +84,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-      - name: "SonarCloud Quality Gate"
-        uses: sonarsource/sonarqube-quality-gate-action@v1.2.0
-        timeout-minutes: 5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
       - name: "🔒 Security Scan (Trivy)"
         uses: aquasecurity/trivy-action@v0.36.0
         with:

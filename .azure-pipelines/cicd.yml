@@ -54,6 +54,7 @@ stages:
                 sonar.exclusions=**/node_modules/**,**/vendor/**,infra/**,web/dist/**,web/coverage/**,web/playwright-report/**
                 sonar.go.coverage.reportPaths=coverage.out
                 sonar.javascript.lcov.reportPaths=web/coverage/lcov.info
+                sonar.qualitygate.wait=true
             displayName: 'SonarCloud Prepare'
 
           - task: GoTool@0
