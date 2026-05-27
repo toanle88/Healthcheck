@@ -148,15 +148,15 @@ func initMetricsServer(ctx context.Context) (*http.Server, func(context.Context)
 		return nil, nil
 	}
 
-	var metricsSrv *http.Server
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", metricsHandler)
+	metricsSrv := &http.Server{
+		Addr:    ":8081",
+		Handler: mux,
+	}
+
 	// Start a small HTTP server for Prometheus metrics in the background
 	go func() {
-		mux := http.NewServeMux()
-		mux.Handle("/metrics", metricsHandler)
-		metricsSrv = &http.Server{
-			Addr:    ":8081",
-			Handler: mux,
-		}
 		slog.Info("worker metrics server starting", "port", 8081)
 		if err := metricsSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("metrics server failed", "err", err)
