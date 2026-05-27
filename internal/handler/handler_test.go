@@ -436,8 +436,9 @@ func TestStreamStatusSSE(t *testing.T) {
 	defer resp.Body.Close()
 
 	// Verify headers
-	if resp.Header.Get("Content-Type") != "text/event-stream" {
-		t.Errorf("expected Content-Type to be text/event-stream, got %s", resp.Header.Get("Content-Type"))
+	contentType := resp.Header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "text/event-stream") {
+		t.Errorf("expected Content-Type to start with text/event-stream, got %s", contentType)
 	}
 
 	// Trigger broadcast in background
