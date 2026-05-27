@@ -12,6 +12,59 @@ import (
 )
 
 // AuthMiddleware validates the Entra ID JWT token
+func extractToken(c *gin.Context) (string, error) {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" {
+		bearerToken := strings.Split(authHeader, " ")
+		if len(bearerToken) == 2 && strings.ToLower(bearerToken[0]) == "bearer" {
+			return bearerToken[1], nil
+		}
+		return "", fmt.Errorf("Invalid authorization header format")
+	}
+
+	if c.Request.URL.Path == "/api/status/stream" {
+		tokenString := c.Query("token")
+		if tokenString != "" {
+			values := c.Request.URL.Query()
+			values.Del("token")
+			c.Request.URL.RawQuery = values.Encode()
+
+			c.Request.RequestURI = c.Request.URL.Path
+			if c.Request.URL.RawQuery != "" {
+				c.Request.RequestURI += "?" + c.Request.URL.RawQuery
+			}
+			return tokenString, nil
+		}
+	}
+
+	return "", fmt.Errorf("Authorization token is required")
+}
+
+func isMockTokenAllowed(tokenString, environment string) bool {
+	return tokenString == "mocked-e2e-token" && environment == "local" && os.Getenv("ALLOW_MOCK_AUTH") == "true"
+}
+
+func validateClaims(claims jwt.MapClaims, tenantID, clientID string) error {
+	tid, ok := claims["tid"].(string)
+	if !ok || tid != tenantID {
+		return fmt.Errorf("unauthorized tenant")
+	}
+
+	aud, _ := claims["aud"].(string)
+	if aud != clientID {
+		return fmt.Errorf("Invalid audience")
+	}
+
+	iss, _ := claims["iss"].(string)
+	expectedIss := fmt.Sprintf("https://%s.ciamlogin.com/%s/v2.0", tenantID, tenantID)
+	if iss != expectedIss {
+		return fmt.Errorf("Invalid issuer")
+	}
+
+	return nil
+}
+
+// AuthMiddleware validates the Entra ID JWT token
 func AuthMiddleware(tenantID, clientID, environment string) gin.HandlerFunc {
 	// 1. Initialize the JWKS key function for CIAM
 	jwksURL := fmt.Sprintf("https://%s.ciamlogin.com/%s/discovery/v2.0/keys", tenantID, tenantID)
@@ -23,45 +76,13 @@ func AuthMiddleware(tenantID, clientID, environment string) gin.HandlerFunc {
 	}
 
 	return func(c *gin.Context) {
-		// 2. Extract the token from the Authorization header
-		authHeader := c.GetHeader("Authorization")
-		tokenString := ""
-		if authHeader != "" {
-			bearerToken := strings.Split(authHeader, " ")
-			if len(bearerToken) == 2 && strings.ToLower(bearerToken[0]) == "bearer" {
-				tokenString = bearerToken[1]
-			} else {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
-				return
-			}
-		}
-
-		// Fallback to query parameter ONLY for SSE stream endpoint (native EventSource doesn't support headers)
-		if tokenString == "" && c.Request.URL.Path == "/api/status/stream" {
-			tokenString = c.Query("token")
-			if tokenString != "" {
-				// Redact the token from the query string to prevent logging by downstream middleware (e.g. OpenTelemetry)
-				values := c.Request.URL.Query()
-				values.Del("token")
-				c.Request.URL.RawQuery = values.Encode()
-
-				// Update RequestURI to prevent logging by webservers/libraries using it
-				c.Request.RequestURI = c.Request.URL.Path
-				if c.Request.URL.RawQuery != "" {
-					c.Request.RequestURI += "?" + c.Request.URL.RawQuery
-				}
-			}
-		}
-
-		if tokenString == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization token is required"})
+		tokenString, err := extractToken(c)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
 
-		// 2b. E2E / Development mock token bypass (MFA / redirect automation support)
-		isLocalDev := environment == "local"
-		allowMockAuth := os.Getenv("ALLOW_MOCK_AUTH") == "true"
-		if tokenString == "mocked-e2e-token" && isLocalDev && allowMockAuth {
+		if isMockTokenAllowed(tokenString, environment) {
 			mockClaims := jwt.MapClaims{
 				"roles": []interface{}{"Healthcheck.Admin"},
 				"scp":   "Healthcheck.Write Healthcheck.Read",
@@ -73,7 +94,6 @@ func AuthMiddleware(tenantID, clientID, environment string) gin.HandlerFunc {
 
 		// 3. Parse and validate the token
 		token, err := jwt.Parse(tokenString, k.Keyfunc)
-
 		if err != nil || !token.Valid {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": fmt.Sprintf("Invalid token: %v", err)})
 			return
@@ -86,24 +106,12 @@ func AuthMiddleware(tenantID, clientID, environment string) gin.HandlerFunc {
 			return
 		}
 
-		// Verify the tenant ID (tid) to ensure it's from our specific tenant
-		if tid, ok := claims["tid"].(string); !ok || tid != tenantID {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "unauthorized tenant"})
-			return
-		}
-
-		// Validate Audience (aud should be your clientId)
-		aud, _ := claims["aud"].(string)
-		if aud != clientID {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid audience"})
-			return
-		}
-
-		// Validate Issuer (iss for CIAM)
-		iss, _ := claims["iss"].(string)
-		expectedIss := fmt.Sprintf("https://%s.ciamlogin.com/%s/v2.0", tenantID, tenantID)
-		if iss != expectedIss {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid issuer"})
+		if err := validateClaims(claims, tenantID, clientID); err != nil {
+			if err.Error() == "unauthorized tenant" {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			} else {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			}
 			return
 		}
 
@@ -114,7 +122,7 @@ func AuthMiddleware(tenantID, clientID, environment string) gin.HandlerFunc {
 }
 
 // RequireRoleOrScope checks if the authenticated user has at least one of the specified roles or scopes.
-func RequireRoleOrScope(allowedRoles []string, allowedScopes []string) gin.HandlerFunc {
+func RequireRoleOrScope(allowedRoles, allowedScopes []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		claimsVal, exists := c.Get("claims")
 		if !exists {
@@ -128,51 +136,8 @@ func RequireRoleOrScope(allowedRoles []string, allowedScopes []string) gin.Handl
 			return
 		}
 
-		hasRole := false
-		if len(allowedRoles) > 0 {
-			if rolesClaim, ok := claims["roles"]; ok {
-				if rolesList, ok := rolesClaim.([]interface{}); ok {
-					for _, r := range rolesList {
-						if rStr, ok := r.(string); ok {
-							for _, allowed := range allowedRoles {
-								if rStr == allowed {
-									hasRole = true
-									break
-								}
-							}
-						}
-						if hasRole {
-							break
-						}
-					}
-				} else if rStr, ok := rolesClaim.(string); ok {
-					for _, allowed := range allowedRoles {
-						if rStr == allowed {
-							hasRole = true
-							break
-						}
-					}
-				}
-			}
-		}
-
-		hasScope := false
-		if len(allowedScopes) > 0 {
-			if scpClaim, ok := claims["scp"].(string); ok {
-				scopes := strings.Fields(scpClaim)
-				for _, s := range scopes {
-					for _, allowed := range allowedScopes {
-						if s == allowed {
-							hasScope = true
-							break
-						}
-					}
-					if hasScope {
-						break
-					}
-				}
-			}
-		}
+		hasRole := hasAnyRole(claims, allowedRoles)
+		hasScope := hasAnyScope(claims, allowedScopes)
 
 		if (len(allowedRoles) > 0 || len(allowedScopes) > 0) && !hasRole && !hasScope {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "insufficient permissions"})
@@ -181,6 +146,65 @@ func RequireRoleOrScope(allowedRoles []string, allowedScopes []string) gin.Handl
 
 		c.Next()
 	}
+}
+
+func hasAnyRole(claims jwt.MapClaims, allowedRoles []string) bool {
+	if len(allowedRoles) == 0 {
+		return false
+	}
+	rolesClaim, ok := claims["roles"]
+	if !ok {
+		return false
+	}
+
+	if rolesList, ok := rolesClaim.([]interface{}); ok {
+		for _, r := range rolesList {
+			if matchRole(r, allowedRoles) {
+				return true
+			}
+		}
+		return false
+	}
+
+	return matchRole(rolesClaim, allowedRoles)
+}
+
+func matchRole(role interface{}, allowedRoles []string) bool {
+	rStr, ok := role.(string)
+	if !ok {
+		return false
+	}
+	for _, allowed := range allowedRoles {
+		if rStr == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+func hasAnyScope(claims jwt.MapClaims, allowedScopes []string) bool {
+	if len(allowedScopes) == 0 {
+		return false
+	}
+	scpClaim, ok := claims["scp"].(string)
+	if !ok {
+		return false
+	}
+	for _, s := range strings.Fields(scpClaim) {
+		if matchScope(s, allowedScopes) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchScope(scope string, allowedScopes []string) bool {
+	for _, allowed := range allowedScopes {
+		if scope == allowed {
+			return true
+		}
+	}
+	return false
 }
 
 // MockAuthMiddleware is used in local dev to bypass authentication by providing mock admin claims.

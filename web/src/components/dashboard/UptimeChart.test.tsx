@@ -208,7 +208,7 @@ describe('UptimeChart', () => {
       http.get(`${API_BASE_URL}/api/history`, () => HttpResponse.json([]))
     );
 
-    // Since the query is disabled, we just check no SVG or text appears
-    // (loading spinner stays visible due to enabled:false → isLoading stays true)
+    const { container } = renderWithProviders(<UptimeChart target="https://example.com" />);
+    expect(container.querySelector('svg')).not.toBeInTheDocument();
   });
 });

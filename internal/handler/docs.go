@@ -1,6 +1,7 @@
 package handler
 
 import (
+	// embed is required to use the go:embed directive for openapi.json
 	_ "embed"
 	"fmt"
 	"net/http"

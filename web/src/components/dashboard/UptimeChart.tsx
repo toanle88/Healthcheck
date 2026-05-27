@@ -86,23 +86,31 @@ const UptimeChart: React.FC<UptimeChartProps> = ({ target }) => {
 
         {/* State Bar Row (Ticks) */}
         <div className="flex gap-[2px] h-6 items-end">
-          {history.slice(-15).map((item, idx) => (
-            <div
-              key={idx}
-              className={`w-[4px] rounded-full transition-all duration-300 ${
-                item.status === 'up'
-                  ? item.latency_ms > 500
-                    ? 'bg-amber-500 h-4'
-                    : 'bg-emerald-500 h-5'
-                  : 'bg-red-500 h-6 animate-pulse'
-              }`}
-              title={`${new Date(item.checked_at).toLocaleTimeString()}: ${item.status === 'up' ? `${item.latency_ms}ms` : 'DOWN'}`}
-            />
-          ))}
+          {history.slice(-15).map((item) => {
+            let tickClass = 'bg-red-500 h-6 animate-pulse';
+            if (item.status === 'up') {
+              if (item.latency_ms > 500) {
+                tickClass = 'bg-amber-500 h-4';
+              } else {
+                tickClass = 'bg-emerald-500 h-5';
+              }
+            }
+            const timeStr = new Date(item.checked_at).toLocaleTimeString();
+            const latencyStr = item.status === 'up' ? `${item.latency_ms}ms` : 'DOWN';
+            const titleText = `${timeStr}: ${latencyStr}`;
+
+            return (
+              <div
+                key={`${item.checked_at}-${item.status}`}
+                className={`w-[4px] rounded-full transition-all duration-300 ${tickClass}`}
+                title={titleText}
+              />
+            );
+          })}
           {history.length === 0 && (
             <div className="flex gap-[2px] h-6 items-end">
               {Array.from({ length: 15 }).map((_, idx) => (
-                <div key={idx} className="w-[4px] h-2 bg-slate-800 rounded-full" />
+                <div key={`empty-${idx}`} className="w-[4px] h-2 bg-slate-800 rounded-full" />
               ))}
             </div>
           )}

@@ -13,6 +13,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const notifyChecksChannel = "NOTIFY checks_channel"
+
+// InsertTargetParams represents the parameters for creating a new target.
+type InsertTargetParams struct {
+	Name             string
+	URL              string
+	Method           string
+	Headers          string
+	ExpectedStatus   int
+	ResponseContains string
+	FailureThreshold int
+}
+
 // Store holds all database connections and methods.
 type Store struct {
 	DB             *pgxpool.Pool
@@ -93,7 +106,7 @@ func (s *Store) InsertCheck(ctx context.Context, target, status string, latencyM
 	`, target, status, latencyMs)
 
 	if err == nil {
-		_, _ = s.DB.Exec(ctx, "NOTIFY checks_channel")
+		_, _ = s.DB.Exec(ctx, notifyChecksChannel)
 	}
 
 	return err
@@ -135,41 +148,49 @@ type TargetSLA struct {
 	UptimePercentage float64 `json:"uptime_percentage"`
 }
 
+func (s *Store) getSLACache(ctx context.Context) (map[string]float64, error) {
+	s.slaMutex.Lock()
+	defer s.slaMutex.Unlock()
+
+	if s.slaCache != nil && time.Now().Before(s.slaCacheExpiry) {
+		return s.slaCache, nil
+	}
+
+	rows, err := s.DB.Query(ctx, `
+		SELECT 
+			target,
+			ROUND(100.0 * COUNT(CASE WHEN status = 'up' THEN 1 END) / COUNT(*), 2) as uptime_percentage
+		FROM checks
+		WHERE checked_at >= NOW() - INTERVAL '24 hours'
+		GROUP BY target
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query SLA percentages: %w", err)
+	}
+	defer rows.Close()
+
+	cache := make(map[string]float64)
+	for rows.Next() {
+		var target string
+		var percentage float64
+		if err := rows.Scan(&target, &percentage); err != nil {
+			return nil, fmt.Errorf("failed to scan SLA percentage: %w", err)
+		}
+		cache[target] = percentage
+	}
+
+	s.slaCache = cache
+	s.slaCacheExpiry = time.Now().Add(10 * time.Second)
+	return cache, nil
+}
+
 // GetLatestChecks retrieves the most recent check result for each active target, including 24h SLA.
 func (s *Store) GetLatestChecks(ctx context.Context) ([]Check, error) {
-	// 1. Get SLA cache or populate it
-	s.slaMutex.Lock()
-	if s.slaCache == nil || time.Now().After(s.slaCacheExpiry) {
-		rows, err := s.DB.Query(ctx, `
-			SELECT 
-				target,
-				ROUND(100.0 * COUNT(CASE WHEN status = 'up' THEN 1 END) / COUNT(*), 2) as uptime_percentage
-			FROM checks
-			WHERE checked_at >= NOW() - INTERVAL '24 hours'
-			GROUP BY target
-		`)
-		if err != nil {
-			s.slaMutex.Unlock()
-			return nil, fmt.Errorf("failed to query SLA percentages: %w", err)
-		}
-
-		cache := make(map[string]float64)
-		for rows.Next() {
-			var target string
-			var percentage float64
-			if err := rows.Scan(&target, &percentage); err != nil {
-				rows.Close()
-				s.slaMutex.Unlock()
-				return nil, fmt.Errorf("failed to scan SLA percentage: %w", err)
-			}
-			cache[target] = percentage
-		}
-		rows.Close()
-		s.slaCache = cache
-		s.slaCacheExpiry = time.Now().Add(10 * time.Second)
+	// 1. Get SLA cache
+	cache, err := s.getSLACache(ctx)
+	if err != nil {
+		return nil, err
 	}
-	cache := s.slaCache
-	s.slaMutex.Unlock()
 
 	// 2. Fetch the latest status for active targets (fast query)
 	rows, err := s.DB.Query(ctx, `
@@ -260,27 +281,27 @@ func (s *Store) GetTargets(ctx context.Context) ([]Target, error) {
 }
 
 // InsertTarget saves a new target.
-func (s *Store) InsertTarget(ctx context.Context, name, url, method, headers string, expectedStatus int, responseContains string, failureThreshold int) (Target, error) {
+func (s *Store) InsertTarget(ctx context.Context, params InsertTargetParams) (Target, error) {
 	var t Target
 
 	var headersVal *string
-	if headers != "" {
-		headersVal = &headers
+	if params.Headers != "" {
+		headersVal = &params.Headers
 	}
 	var responseContainsVal *string
-	if responseContains != "" {
-		responseContainsVal = &responseContains
+	if params.ResponseContains != "" {
+		responseContainsVal = &params.ResponseContains
 	}
 
 	err := s.DB.QueryRow(ctx, `
 		INSERT INTO targets (name, url, method, headers, expected_status, response_contains, failure_threshold) 
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, name, url, method, COALESCE(headers, ''), expected_status, COALESCE(response_contains, ''), failure_threshold, consecutive_failures, last_alert_status, is_active, created_at, updated_at
-	`, name, url, method, headersVal, expectedStatus, responseContainsVal, failureThreshold).Scan(
+	`, params.Name, params.URL, params.Method, headersVal, params.ExpectedStatus, responseContainsVal, params.FailureThreshold).Scan(
 		&t.ID, &t.Name, &t.URL, &t.Method, &t.Headers, &t.ExpectedStatus, &t.ResponseContains, &t.FailureThreshold, &t.ConsecutiveFailures, &t.LastAlertStatus, &t.IsActive, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err == nil {
-		_, _ = s.DB.Exec(ctx, "NOTIFY checks_channel")
+		_, _ = s.DB.Exec(ctx, notifyChecksChannel)
 	}
 	return t, err
 }
@@ -311,7 +332,7 @@ func (s *Store) DeleteTarget(ctx context.Context, id int) error {
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
-	_, _ = s.DB.Exec(ctx, "NOTIFY checks_channel")
+	_, _ = s.DB.Exec(ctx, notifyChecksChannel)
 	return nil
 }
 

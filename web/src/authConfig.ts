@@ -10,8 +10,8 @@ export const msalConfig: Configuration = {
     clientId,
     authority: `https://${tenantDomain}/${tenantId}`,
     knownAuthorities: [tenantDomain],
-    redirectUri: window.location.origin,
-    postLogoutRedirectUri: window.location.origin,
+    redirectUri: globalThis.location.origin,
+    postLogoutRedirectUri: globalThis.location.origin,
   },
   cache: {
     cacheLocation: "sessionStorage",

@@ -11,11 +11,11 @@ export const api = axios.create({
   },
 });
 
-const isE2E = typeof window !== 'undefined' && (
-  window.location.search.includes("test-mode=true") || 
+const isE2E = typeof globalThis.window !== 'undefined' && (
+  globalThis.window.location.search.includes("test-mode=true") || 
   localStorage.getItem("playwright-mock-auth") === "true" ||
-  (window as unknown as { playwrightMockAuth?: boolean | string }).playwrightMockAuth === true ||
-  (window as unknown as { playwrightMockAuth?: boolean | string }).playwrightMockAuth === "true"
+  (globalThis.window as unknown as { playwrightMockAuth?: boolean | string }).playwrightMockAuth === true ||
+  (globalThis.window as unknown as { playwrightMockAuth?: boolean | string }).playwrightMockAuth === "true"
 );
 
 api.interceptors.request.use(
@@ -31,7 +31,7 @@ api.interceptors.request.use(
         const response = await msalInstance.acquireTokenSilent({
           ...tokenRequest,
           account: activeAccount,
-          redirectUri: window.location.origin + '/blank.html',
+          redirectUri: globalThis.window.location.origin + '/blank.html',
         });
         config.headers.Authorization = `Bearer ${response.accessToken}`;
       }

@@ -37,6 +37,58 @@ func init() {
 	LatencyHistogram, _ = nm.Float64Histogram("noop_latency")
 }
 
+func setupTracing(ctx context.Context, res *resource.Resource, isAzure bool, connString string) (*trace.TracerProvider, error) {
+	traceOpts := []otlptracehttp.Option{}
+	if isAzure {
+		host, ikey := parseConnectionString(connString)
+		traceOpts = append(traceOpts,
+			otlptracehttp.WithEndpoint(host),
+			otlptracehttp.WithURLPath("/v2.1/otlp/v1/traces"),
+			otlptracehttp.WithHeaders(map[string]string{"x-otlp-api-key": ikey}),
+		)
+	} else {
+		traceOpts = append(traceOpts, otlptracehttp.WithEndpoint("jaeger:4318"), otlptracehttp.WithInsecure())
+	}
+
+	traceExporter, err := otlptracehttp.New(ctx, traceOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create trace exporter: %w", err)
+	}
+
+	tp := trace.NewTracerProvider(
+		trace.WithBatcher(traceExporter),
+		trace.WithResource(res),
+	)
+	return tp, nil
+}
+
+func setupMetrics(ctx context.Context, res *resource.Resource, isAzure bool, connString string, promExporter *otelprom.Exporter) (*sdkmetric.MeterProvider, error) {
+	var mp *sdkmetric.MeterProvider
+	if isAzure {
+		host, ikey := parseConnectionString(connString)
+		metricExporter, err := otlpmetrichttp.New(ctx,
+			otlpmetrichttp.WithEndpoint(host),
+			otlpmetrichttp.WithURLPath("/v2.1/otlp/v1/metrics"),
+			otlpmetrichttp.WithHeaders(map[string]string{"x-otlp-api-key": ikey}),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create metric exporter: %w", err)
+		}
+
+		mp = sdkmetric.NewMeterProvider(
+			sdkmetric.WithResource(res),
+			sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter, sdkmetric.WithInterval(1*time.Minute))),
+			sdkmetric.WithReader(promExporter),
+		)
+	} else {
+		mp = sdkmetric.NewMeterProvider(
+			sdkmetric.WithResource(res),
+			sdkmetric.WithReader(promExporter),
+		)
+	}
+	return mp, nil
+}
+
 // InitOTel initializes the OpenTelemetry SDK.
 // It returns a metrics handler, a shutdown function, and an error.
 func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(context.Context) error, error) {
@@ -55,55 +107,18 @@ func InitOTel(ctx context.Context, serviceName string) (http.Handler, func(conte
 	isAzure := connString != "" && !isLocal
 
 	// 1. Setup Tracing
-	traceOpts := []otlptracehttp.Option{}
-	if isAzure {
-		host, ikey := parseConnectionString(connString)
-		traceOpts = append(traceOpts,
-			otlptracehttp.WithEndpoint(host),
-			otlptracehttp.WithURLPath("/v2.1/otlp/v1/traces"),
-			otlptracehttp.WithHeaders(map[string]string{"x-otlp-api-key": ikey}),
-		)
-	} else {
-		traceOpts = append(traceOpts, otlptracehttp.WithEndpoint("jaeger:4318"), otlptracehttp.WithInsecure())
-	}
-
-	traceExporter, err := otlptracehttp.New(ctx, traceOpts...)
+	tp, err := setupTracing(ctx, res, isAzure, connString)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create trace exporter: %w", err)
+		return nil, nil, err
 	}
-
-	tp := trace.NewTracerProvider(
-		trace.WithBatcher(traceExporter),
-		trace.WithResource(res),
-	)
 	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 
 	// 2. Setup Metrics
-	var mp *sdkmetric.MeterProvider
 	promExporter, _ := otelprom.New(otelprom.WithRegisterer(prometheus.DefaultRegisterer))
-
-	if isAzure {
-		host, ikey := parseConnectionString(connString)
-		metricExporter, err := otlpmetrichttp.New(ctx,
-			otlpmetrichttp.WithEndpoint(host),
-			otlpmetrichttp.WithURLPath("/v2.1/otlp/v1/metrics"),
-			otlpmetrichttp.WithHeaders(map[string]string{"x-otlp-api-key": ikey}),
-		)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create metric exporter: %w", err)
-		}
-
-		mp = sdkmetric.NewMeterProvider(
-			sdkmetric.WithResource(res),
-			sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter, sdkmetric.WithInterval(1*time.Minute))),
-			sdkmetric.WithReader(promExporter),
-		)
-	} else {
-		mp = sdkmetric.NewMeterProvider(
-			sdkmetric.WithResource(res),
-			sdkmetric.WithReader(promExporter),
-		)
+	mp, err := setupMetrics(ctx, res, isAzure, connString, promExporter)
+	if err != nil {
+		return nil, nil, err
 	}
 	otel.SetMeterProvider(mp)
 

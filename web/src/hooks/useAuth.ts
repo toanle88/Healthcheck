@@ -9,11 +9,11 @@ import { loginRequest, tokenRequest } from "../authConfig";
 export const useAuth = () => {
   const { instance, accounts, inProgress } = useMsal();
 
-  const isE2E = typeof window !== 'undefined' && (
-    window.location.search.includes("test-mode=true") || 
+  const isE2E = typeof globalThis.window !== 'undefined' && (
+    globalThis.window.location.search.includes("test-mode=true") || 
     localStorage.getItem("playwright-mock-auth") === "true" ||
-    (window as unknown as { playwrightMockAuth?: boolean | string }).playwrightMockAuth === true ||
-    (window as unknown as { playwrightMockAuth?: boolean | string }).playwrightMockAuth === "true"
+    (globalThis.window as unknown as { playwrightMockAuth?: boolean | string }).playwrightMockAuth === true ||
+    (globalThis.window as unknown as { playwrightMockAuth?: boolean | string }).playwrightMockAuth === "true"
   );
 
   const realUser = useMemo(() => {
@@ -53,7 +53,7 @@ export const useAuth = () => {
 
   const realLogout = useCallback(() => {
     instance.logoutRedirect({
-      postLogoutRedirectUri: window.location.origin,
+      postLogoutRedirectUri: globalThis.window.location.origin,
     });
   }, [instance]);
 
@@ -73,7 +73,7 @@ export const useAuth = () => {
       const response = await instance.acquireTokenSilent({
         ...tokenRequest,
         account: realUser.account,
-        redirectUri: window.location.origin + '/blank.html',
+        redirectUri: globalThis.window.location.origin + '/blank.html',
       });
       return response.accessToken;
     } catch (silentError) {
@@ -97,8 +97,8 @@ export const useAuth = () => {
 
   const isAdmin = useMemo(() => {
     if (isE2E) {
-      const mockRole = typeof window !== 'undefined' && localStorage.getItem("playwright-mock-role");
-      const windowMockRole = typeof window !== 'undefined' && (window as unknown as { playwrightMockRole?: string }).playwrightMockRole;
+      const mockRole = typeof globalThis.window !== 'undefined' && localStorage.getItem("playwright-mock-role");
+      const windowMockRole = typeof globalThis.window !== 'undefined' && (globalThis.window as unknown as { playwrightMockRole?: string }).playwrightMockRole;
       const role = windowMockRole || mockRole || "Healthcheck.Admin";
       return role === "Healthcheck.Admin";
     }

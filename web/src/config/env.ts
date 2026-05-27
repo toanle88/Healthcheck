@@ -7,9 +7,10 @@
  *    populated by Vite from the `.env.local` file.
  */
 export const getEnv = (key: keyof Window['ENV']): string => {
-  // Check if window.ENV exists and has the key (Production)
-  if (window.ENV && window.ENV[key]) {
-    return window.ENV[key] as string;
+  // Check if globalThis.window.ENV exists and has the key (Production)
+  const envVal = globalThis.window?.ENV?.[key];
+  if (envVal) {
+    return envVal;
   }
   
   // Fallback to Vite's import.meta.env (Local Development)

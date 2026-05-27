@@ -7,16 +7,16 @@ function App() {
   const { isAuthenticated, isProcessing } = useAuth();
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof globalThis.window !== 'undefined') {
       const saved = localStorage.getItem('theme');
       if (saved === 'light' || saved === 'dark') return saved;
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      return globalThis.window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
     return 'dark';
   });
 
   useEffect(() => {
-    const root = window.document.documentElement;
+    const root = globalThis.window.document.documentElement;
     if (theme === 'dark') {
       root.classList.add('dark');
     } else {

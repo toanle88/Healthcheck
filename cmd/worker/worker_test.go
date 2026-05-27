@@ -198,7 +198,15 @@ func TestRunPingAndCheck(t *testing.T) {
 
 	// Insert target
 	targetURL := ts.URL
-	target, err := st.InsertTarget(ctx, "Test Worker Target", targetURL, "GET", "", 200, "", 3)
+	target, err := st.InsertTarget(ctx, store.InsertTargetParams{
+		Name:             "Test Worker Target",
+		URL:              targetURL,
+		Method:           "GET",
+		Headers:          "",
+		ExpectedStatus:   200,
+		ResponseContains: "",
+		FailureThreshold: 3,
+	})
 	if err != nil {
 		t.Fatalf("failed to insert target: %v", err)
 	}

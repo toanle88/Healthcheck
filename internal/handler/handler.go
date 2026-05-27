@@ -22,7 +22,7 @@ import (
 type Storer interface {
 	GetLatestChecks(ctx context.Context) ([]store.Check, error)
 	GetTargets(ctx context.Context) ([]store.Target, error)
-	InsertTarget(ctx context.Context, name, url, method, headers string, expectedStatus int, responseContains string, failureThreshold int) (store.Target, error)
+	InsertTarget(ctx context.Context, params store.InsertTargetParams) (store.Target, error)
 	DeleteTarget(ctx context.Context, id int) error
 	GetHistoricalChecks(ctx context.Context, target string, limit int) ([]store.Check, error)
 	GetPreviousCheckStatus(ctx context.Context, target string) (string, error)
@@ -230,15 +230,7 @@ func (h *Handler) GetTargets(c *gin.Context) {
 // @Router /api/targets [post]
 // @Security EntraID
 // @Security BearerAuth
-func (h *Handler) CreateTarget(c *gin.Context) {
-	var input CreateTargetInput
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate method
+func validateAndNormalizeTargetInput(input *CreateTargetInput) error {
 	if input.Method == "" {
 		input.Method = "GET"
 	}
@@ -247,33 +239,52 @@ func (h *Handler) CreateTarget(c *gin.Context) {
 		"GET": true, "POST": true, "PUT": true, "DELETE": true, "HEAD": true, "PATCH": true, "OPTIONS": true,
 	}
 	if !allowedMethods[input.Method] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported HTTP method"})
-		return
+		return errors.New("unsupported HTTP method")
 	}
 
-	// Validate headers format (should be valid JSON if provided)
 	if input.Headers != "" {
 		var js map[string]interface{}
 		if err := json.Unmarshal([]byte(input.Headers), &js); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "headers must be a valid JSON object"})
-			return
+			return errors.New("headers must be a valid JSON object")
 		}
 	}
 
-	// Validate expected status code
 	if input.ExpectedStatus == 0 {
 		input.ExpectedStatus = 200
 	} else if input.ExpectedStatus < 100 || input.ExpectedStatus > 599 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "expected status must be a valid HTTP status code (100-599)"})
-		return
+		return errors.New("expected status must be a valid HTTP status code (100-599)")
 	}
 
 	if input.FailureThreshold <= 0 {
 		input.FailureThreshold = 3
 	}
 
+	return nil
+}
+
+func (h *Handler) CreateTarget(c *gin.Context) {
+	var input CreateTargetInput
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := validateAndNormalizeTargetInput(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	ctx := c.Request.Context()
-	target, err := h.store.InsertTarget(ctx, input.Name, input.URL, input.Method, input.Headers, input.ExpectedStatus, input.ResponseContains, input.FailureThreshold)
+	target, err := h.store.InsertTarget(ctx, store.InsertTargetParams{
+		Name:             input.Name,
+		URL:              input.URL,
+		Method:           input.Method,
+		Headers:          input.Headers,
+		ExpectedStatus:   input.ExpectedStatus,
+		ResponseContains: input.ResponseContains,
+		FailureThreshold: input.FailureThreshold,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
