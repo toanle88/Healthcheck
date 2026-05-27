@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -10,12 +11,55 @@ import (
 	pgxmigrate "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/toanle88/healthcheck/internal/migrations"
 )
 
+func TestMain(m *testing.M) {
+	dbURL := os.Getenv("DATABASE_URL_TEST")
+	var pgContainer *postgres.PostgresContainer
+	var err error
+
+	if dbURL == "" {
+		ctx := context.Background()
+		pgContainer, err = postgres.Run(ctx,
+			"postgres:18-alpine",
+			postgres.WithDatabase("healthcheck"),
+			postgres.WithUsername("postgres"),
+			postgres.WithPassword("postgres"),
+			testcontainers.WithWaitStrategy(
+				wait.ForLog("database system is ready to accept connections").
+					WithOccurrence(2).
+					WithStartupTimeout(30*time.Second),
+			),
+		)
+		if err != nil {
+			panic(fmt.Sprintf("failed to start postgres container: %v", err))
+		}
+
+		dbURL, err = pgContainer.ConnectionString(ctx, "sslmode=disable")
+		if err != nil {
+			panic(fmt.Sprintf("failed to get connection string: %v", err))
+		}
+
+		os.Setenv("DATABASE_URL_TEST", dbURL)
+	}
+
+	code := m.Run()
+
+	if pgContainer != nil {
+		ctx := context.Background()
+		if err := pgContainer.Terminate(ctx); err != nil {
+			panic(fmt.Sprintf("failed to terminate container: %v", err))
+		}
+	}
+
+	os.Exit(code)
+}
+
 func TestStoreIntegration(t *testing.T) {
-	// 1. Get test DB URL from environment
-	// Example: DATABASE_URL_TEST="postgres://postgres:postgres@localhost:5432/healthcheck?sslmode=disable"
 	dbURL := os.Getenv("DATABASE_URL_TEST")
 	if dbURL == "" {
 		t.Skip("Skipping integration test: DATABASE_URL_TEST not set")
