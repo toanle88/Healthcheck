@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "📂 Checkout Code"
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: "🔍 Run Checkov Dev"
         uses: bridgecrewio/checkov-action@512ac46f7f6f4fa6e3d231e3d1fa291b920e8bfa
@@ -77,7 +77,7 @@ jobs:
         working-directory: ./infra/terraform/environments/${{ matrix.environment }}
     steps:
       - name: "📂 Checkout Code"
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: "🔑 Login to Azure (OIDC)"
         uses: azure/login@a65d910e8af852a8061c3276fcc8afbeb69c24ce
@@ -180,7 +180,7 @@ jobs:
         working-directory: ./infra/terraform/environments/${{ github.event.inputs.environment }}
     steps:
       - name: "📂 Checkout Code"
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: "🔑 Login to Azure (OIDC)"
         uses: azure/login@a65d910e8af852a8061c3276fcc8afbeb69c24ce
