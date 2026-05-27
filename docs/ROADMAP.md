@@ -174,7 +174,7 @@ Implement full-stack improvements to make the application highly interactive and
   - [x] Design a class-based Light/Dark Theme toggle using Tailwind CSS v4 CSS variables.
   - [x] Build a detailed SRE Incident Log modal showing incident duration timelines, binned latency histograms, check tables, and authenticated links to raw JSON database logs.
 - [x] **Option 10: CI/CD Pipeline Hardening**
-  - [x] Add `actions/cache@v4` for Go module downloads (`~/.cache/go/mod`) and the build cache (`~/.cache/go/build`), keyed on `go.sum` hash to skip re-downloading dependencies on every run.
+  - [x] Add `actions/cache@v5` for Go module downloads (`~/.cache/go/mod`) and the build cache (`~/.cache/go/build`), keyed on `go.sum` hash to skip re-downloading dependencies on every run.
   - [x] Add a dedicated `terraform-plan` job in `cicd.yml` that runs on PRs, posts the full speculative plan diff as a collapsible PR comment (via `actions/github-script`), and updates the comment on re-push instead of creating duplicates.
   - [x] Mirror the same `terraform_plan` job and PR trigger (`paths: infra/**`) in `infra.yml` so infra-only PRs also surface plan output.
   - [x] Add a `smoke-test` job that runs after `deploy`, fetches the live Container App FQDN, and retries `curl $URL/health` for up to 90 s — exits 0 on HTTP 200, exits 1 (fails pipeline) otherwise.
