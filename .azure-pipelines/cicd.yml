@@ -5,8 +5,8 @@ trigger:
   paths:
     exclude:
       - infra/**
-      - docs/*
-      - '*.md'
+      - docs/**
+      - '**.md'
 
 pr:
   branches:
@@ -15,8 +15,8 @@ pr:
   paths:
     exclude:
       - infra/**
-      - docs/*
-      - '*.md'
+      - docs/**
+      - '**.md'
 
 variables:
   # Reference your Azure DevOps Service Connection (ARM)
@@ -44,17 +44,9 @@ stages:
           - task: SonarCloudPrepare@1
             inputs:
               SonarCloud: 'sc-sonarcloud'
-              organization: 'toanle88'
+              organization: 'toanle88healthcheck'
               scannerMode: 'CLI'
-              configMode: 'manual'
-              cliProjectKey: 'toanle88_healthcheck'
-              cliProjectName: 'Healthcheck'
-              cliSources: '.'
-              extraProperties: |
-                sonar.exclusions=**/node_modules/**,**/vendor/**,infra/**,web/dist/**,web/coverage/**,web/playwright-report/**
-                sonar.go.coverage.reportPaths=coverage.out
-                sonar.javascript.lcov.reportPaths=web/coverage/lcov.info
-                sonar.qualitygate.wait=true
+              configMode: 'file'
             displayName: 'SonarCloud Prepare'
 
           - task: GoTool@0

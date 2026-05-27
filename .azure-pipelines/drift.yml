@@ -63,7 +63,7 @@ stages:
                 set +e
                 terraform plan -detailed-exitcode -no-color \
                   -var="acr_name=$(acrName)" \
-                  -var="entra_client_id=$(entraClientId)" > drift_plan.txt
+                  -var="entra_client_id=$(entraClientId)" 2>&1 | tee drift_plan.txt
                 EXIT_CODE=$?
                 set -e
 

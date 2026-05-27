@@ -6,7 +6,7 @@ pr:
       - main
   paths:
     include:
-      - infra/terraform/*
+      - infra/**
 
 parameters:
   - name: confirm_apply
