@@ -36,7 +36,7 @@ jobs:
         working-directory: ./infra/terraform/environments/${{ github.event.inputs.environment }}
     steps:
       - name: "📂 Checkout Code"
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        uses: actions/checkout@v4
 
       - name: "🔑 Login to Azure (OIDC)"
         uses: azure/login@v2
@@ -46,7 +46,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: "🛠️ Setup Terraform"
-        uses: hashicorp/setup-terraform@b9cd54a1e4d0fc1c12140be0db454ee11d1796be
+        uses: hashicorp/setup-terraform@v3
 
       - name: "📦 Initialize Workspace"
         run: |
