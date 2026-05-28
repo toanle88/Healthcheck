@@ -19,6 +19,8 @@ resource rgBootstrap 'Microsoft.Resources/resourceGroups@2023-07-01' = {
 var contributorRoleId = 'b24988ac-6180-42a0-ab88-20f7382dd24c'
 // Built-in User Access Administrator Role ID: 18d7d88d-d35e-4fb5-a5c3-7773c20a72d9
 var uaaRoleId = '18d7d88d-d35e-4fb5-a5c3-7773c20a72d9'
+// Built-in Storage Blob Data Owner Role ID: b7e6dc26-a60b-4bfe-b0ef-37d7b8470fd4
+var sdoRoleId = 'b7e6dc26-a60b-4bfe-b0ef-37d7b8470fd4'
 
 // Deploys the bootstrap resources in the scope of rgBootstrap
 module bootstrapResources './modules/bootstrap-resources.bicep' = {
@@ -49,6 +51,16 @@ resource allowGithubUaa 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(githubActionsIdentityId, subscription().id, uaaRoleId)
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', uaaRoleId)
+    principalId: bootstrapResources.outputs.identityPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Assign Storage Blob Data Owner to githubActions user identity at subscription level
+resource allowGithubSdo 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(githubActionsIdentityId, subscription().id, sdoRoleId)
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', sdoRoleId)
     principalId: bootstrapResources.outputs.identityPrincipalId
     principalType: 'ServicePrincipal'
   }

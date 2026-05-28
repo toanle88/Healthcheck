@@ -36,6 +36,13 @@ resource "azurerm_role_assignment" "allow_github_uaa" {
   principal_id         = azurerm_user_assigned_identity.github_actions.principal_id
 }
 
+# Role 3: Storage Blob Data Owner (To manage Terraform state files)
+resource "azurerm_role_assignment" "allow_github_sdo" {
+  scope                = data.azurerm_subscription.primary.id
+  role_definition_name = "Storage Blob Data Owner"
+  principal_id         = azurerm_user_assigned_identity.github_actions.principal_id
+}
+
 # 3. THE FEDERATED CREDENTIALS (The "Badge")
 resource "azurerm_federated_identity_credential" "main" {
   name                      = "fed-github-main"

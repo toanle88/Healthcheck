@@ -28,7 +28,7 @@ env:
 
 jobs:
   destroy:
-    name: "🧨 Terraform Destroy (${{ github.event.inputs.environment }})"
+    name: "🧨 Terraform Destroy"
     if: github.event.inputs.confirm_destroy == 'DELETE'
     runs-on: ubuntu-latest
     defaults:

@@ -165,7 +165,7 @@ jobs:
   # STAGE 2B: TERRAFORM PLAN (Manual deploy only)
   # ==========================================
   terraform_plan_manual:
-    name: "📋 Terraform: Plan (${{ github.event.inputs.environment }})"
+    name: "📋 Terraform: Plan"
     needs: security_scan
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -204,7 +204,7 @@ jobs:
   # STAGE 3: THE DEPLOYER (manual apply only)
   # ==========================================
   terraform:
-    name: "🏗️ Terraform Apply (${{ github.event.inputs.environment }})"
+    name: "🏗️ Terraform Apply"
     needs: [security_scan, terraform_plan_manual] # <--- ONLY RUN IF PLAN AND SECURITY SCAN PASS!
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
