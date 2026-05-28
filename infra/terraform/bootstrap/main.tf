@@ -1,5 +1,6 @@
 provider "azurerm" {
   features {}
+  storage_use_azuread = true
 }
 
 variable "github_org" { default = "toanle88" }
@@ -38,7 +39,6 @@ resource "azurerm_role_assignment" "allow_github_uaa" {
 # 3. THE FEDERATED CREDENTIALS (The "Badge")
 resource "azurerm_federated_identity_credential" "main" {
   name                      = "fed-github-main"
-  resource_group_name       = azurerm_resource_group.bootstrap.name
   audience                  = ["api://AzureADTokenExchange"]
   issuer                    = "https://token.actions.githubusercontent.com"
   user_assigned_identity_id = azurerm_user_assigned_identity.github_actions.id
@@ -47,7 +47,6 @@ resource "azurerm_federated_identity_credential" "main" {
 
 resource "azurerm_federated_identity_credential" "manual" {
   name                      = "fed-github-manual"
-  resource_group_name       = azurerm_resource_group.bootstrap.name
   audience                  = ["api://AzureADTokenExchange"]
   issuer                    = "https://token.actions.githubusercontent.com"
   user_assigned_identity_id = azurerm_user_assigned_identity.github_actions.id

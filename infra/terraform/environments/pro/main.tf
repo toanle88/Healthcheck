@@ -17,6 +17,7 @@ terraform {
     resource_group_name = "rg-healthcheck-bootstrap"
     container_name      = "tfstate"
     key                 = "pro.terraform.tfstate"
+    use_azuread_auth    = true
   }
 }
 

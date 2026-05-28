@@ -17,6 +17,8 @@ Before the first deployment, you must build the "Foundation" where your State an
    - The **Storage Account** for your `.tfstate` files.
    - The **Container Registry (ACR)** for your Docker images.
    - The **Managed Identity** with OIDC trust for GitHub Actions.
+   > [!NOTE]
+   > The Storage Account has shared key access disabled (`shared_access_key_enabled = false`) for security. The Terraform provider and backend are configured to use Azure AD authentication (`storage_use_azuread = true` and `use_azuread_auth = true`). Ensure that the identity running Terraform (local user or pipeline Service Principal) is assigned the **Storage Blob Data Owner** or **Storage Blob Data Contributor** role to read/write state files.
 2. **Configure GitHub**: Add the outputted `client_id`, `tenant_id`, and `subscription_id` to your GitHub Repository Secrets.
 
 ---
