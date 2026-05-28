@@ -1,13 +1,9 @@
 name: "🏗️ Infrastructure: Core Setup & Maintenance"
 
 on:
-  # Manual full apply (requires explicit confirmation)
+  # Manual full apply
   workflow_dispatch:
     inputs:
-      confirm_apply:
-        description: 'Type "yes" to apply infrastructure changes'
-        required: true
-        default: 'no'
       environment:
         description: 'Environment to deploy'
         type: choice
@@ -60,18 +56,17 @@ jobs:
           output_format: cli
 
   # ==========================================
-  # STAGE 2: TERRAFORM PLAN (PR only)
-  # Runs a speculative plan and posts the diff
+  # STAGE 2: TERRAFORM PLAN
+  # Runs a speculative plan and posts the diff on PRs
   # ==========================================
   terraform_plan:
-    name: "📋 Terraform: Plan & Comment (${{ matrix.environment }})"
+    name: "📋 Terraform: Plan (${{ matrix.environment }})"
     needs: security_scan
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        environment: [dev, pro]
+        environment: ${{ github.event_name == 'pull_request' && fromJSON('["dev", "pro"]') || fromJSON(format('["{0}"]', github.event.inputs.environment)) }}
     defaults:
       run:
         working-directory: ./infra/terraform/environments/${{ matrix.environment }}
@@ -99,8 +94,8 @@ jobs:
 
       - name: "📋 Terraform Plan"
         id: plan
-        # continue-on-error so the comment step always runs, even on plan failure
-        continue-on-error: true
+        # continue-on-error on PR to post comments, fail on manual deploy to block execution
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
         run: |
           terraform plan -no-color \
             -var="acr_name=${{ secrets.AZURE_ACR_NAME }}" \
@@ -108,6 +103,7 @@ jobs:
             2>&1 | tee /tmp/plan_output.txt
 
       - name: "💬 Post Plan as PR Comment"
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         env:
           PLAN_OUTCOME: ${{ steps.plan.outcome }}
@@ -172,8 +168,8 @@ jobs:
   # ==========================================
   terraform:
     name: "🏗️ Terraform Apply (${{ github.event.inputs.environment }})"
-    needs: security_scan # <--- ONLY RUN IF SECURITY SCAN PASSES!
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.confirm_apply == 'yes'
+    needs: [security_scan, terraform_plan] # <--- ONLY RUN IF PLAN AND SECURITY SCAN PASS!
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -205,5 +201,11 @@ jobs:
           terraform version
           terraform providers
 
+      - name: "📋 Terraform Plan"
+        run: |
+          terraform plan -out=tfplan \
+            -var="acr_name=${{ secrets.AZURE_ACR_NAME }}" \
+            -var="entra_client_id=${{ secrets.ENTRA_CLIENT_ID }}"
+
       - name: "🏗️ Apply Infrastructure Changes"
-        run: terraform apply -auto-approve -var="acr_name=${{ secrets.AZURE_ACR_NAME }}" -var="entra_client_id=${{ secrets.ENTRA_CLIENT_ID }}"
+        run: terraform apply -auto-approve tfplan
