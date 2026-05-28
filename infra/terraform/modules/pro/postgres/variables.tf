@@ -5,3 +5,8 @@ variable "vnet_id" { type = string }
 variable "subnet_id" { type = string }
 variable "aad_admin_object_id" { type = string }
 variable "aad_admin_name" { type = string }
+variable "tags" {
+  type        = map(string)
+  description = "A map of tags to apply to all resources"
+  default     = {}
+}

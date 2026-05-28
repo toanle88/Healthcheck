@@ -4,6 +4,7 @@
 resource "azurerm_private_dns_zone" "postgres" {
   name                = "healthcheck.postgres.database.azure.com"
   resource_group_name = var.resource_group_name
+  tags                = var.tags
 }
 
 # 2. VNET LINK
@@ -13,6 +14,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "main" {
   private_dns_zone_name = azurerm_private_dns_zone.postgres.name
   virtual_network_id    = var.vnet_id
   resource_group_name   = var.resource_group_name
+  tags                  = var.tags
 }
 
 # 3. POSTGRES FLEXIBLE SERVER
@@ -24,6 +26,7 @@ resource "azurerm_postgresql_flexible_server" "main" {
   version             = "16"
   delegated_subnet_id = var.subnet_id
   private_dns_zone_id = azurerm_private_dns_zone.postgres.id
+  tags                = var.tags
 
   # SECURITY: This ensures the database is NOT reachable from the internet.
   public_network_access_enabled = false

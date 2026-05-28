@@ -14,6 +14,7 @@ resource "azurerm_log_analytics_workspace" "main" {
   resource_group_name = var.resource_group_name
   sku                 = "PerGB2018"
   retention_in_days   = 30
+  tags                = var.tags
 }
 
 # 2. CONTAINER APPS ENVIRONMENT (The Cluster)
@@ -22,6 +23,7 @@ resource "azurerm_container_app_environment" "main" {
   location                   = var.location
   resource_group_name        = var.resource_group_name
   log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
+  tags                       = var.tags
 
   # Link to our VNet Subnet from Day 6
   infrastructure_subnet_id = var.subnet_id
@@ -56,6 +58,7 @@ resource "azurerm_container_app" "api" {
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = var.resource_group_name
   revision_mode                = "Multiple"
+  tags                         = var.tags
 
   identity {
     type         = "UserAssigned"
@@ -154,6 +157,7 @@ resource "azurerm_container_app_job" "worker" {
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = var.resource_group_name
   location                     = var.location
+  tags                         = var.tags
 
   identity {
     type         = "UserAssigned"
@@ -248,6 +252,7 @@ resource "azurerm_container_app" "web" {
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = var.resource_group_name
   revision_mode                = "Multiple"
+  tags                         = var.tags
 
   identity {
     type         = "UserAssigned"
@@ -321,6 +326,7 @@ resource "azurerm_container_app_job" "migrate" {
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = var.resource_group_name
   location                     = var.location
+  tags                         = var.tags
 
   identity {
     type         = "UserAssigned"

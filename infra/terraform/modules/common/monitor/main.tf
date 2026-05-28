@@ -5,6 +5,7 @@ resource "azurerm_application_insights" "main" {
   resource_group_name = var.resource_group_name
   application_type    = "web"
   sampling_percentage = 100
+  tags                = var.tags
 }
 
 # 2. ACTION GROUP (The Notification Hub)
@@ -12,6 +13,7 @@ resource "azurerm_monitor_action_group" "main" {
   name                = "ag-healthcheck-${var.environment}"
   resource_group_name = var.resource_group_name
   short_name          = "hc-alerts"
+  tags                = var.tags
 
   email_receiver {
     name                    = "admin"
@@ -27,6 +29,7 @@ resource "azurerm_monitor_metric_alert" "latency" {
   scopes              = [var.api_container_app_id]
   description         = "Fires when API P95 latency is > 500ms for 5 minutes"
   severity            = 2 # Warning
+  tags                = var.tags
 
   criteria {
     metric_namespace = "Microsoft.App/containerApps"
@@ -48,6 +51,7 @@ resource "azurerm_monitor_metric_alert" "errors" {
   scopes              = [var.api_container_app_id]
   description         = "Fires when HTTP 5xx errors exceed 1%"
   severity            = 1 # Critical
+  tags                = var.tags
 
   # Note: Container Apps exposes 'Requests' with a status filter in some scenarios,
   # but here we use a simple count of non-success codes if available, 

@@ -28,12 +28,6 @@ provider "azurerm" {
     }
   }
   use_oidc = true
-  default_tags {
-    tags = {
-      environment = var.environment
-      project     = "healthcheck"
-    }
-  }
 }
 
 # REFACTORING: Move the identity state from containerapp to identity module
@@ -54,10 +48,18 @@ variable "worker_image" { default = "mcr.microsoft.com/azuredocs/containerapps-h
 variable "web_image" { default = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" }
 variable "migrate_image" { default = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" }
 
+locals {
+  tags = {
+    environment = var.environment
+    project     = "healthcheck"
+  }
+}
+
 # 2. Resource Group
 resource "azurerm_resource_group" "dev" {
   name     = "rg-healthcheck-${var.environment}"
   location = var.location
+  tags     = local.tags
 }
 
 # 3. IDENTITY MODULE (The "Security Passports")
@@ -69,6 +71,7 @@ module "identity" {
   environment         = var.environment
   github_org_or_user  = var.github_org_or_user
   github_repo_name    = var.github_repo_name
+  tags                = local.tags
 }
 
 # 4. NETWORK MODULE (Day 6)
@@ -77,6 +80,7 @@ module "network" {
   location            = azurerm_resource_group.dev.location
   resource_group_name = azurerm_resource_group.dev.name
   environment         = var.environment
+  tags                = local.tags
 }
 
 variable "acr_name" { type = string }
@@ -97,6 +101,7 @@ module "postgres" {
   subnet_id           = module.network.db_subnet_id
   aad_admin_object_id = module.identity.app_identity_principal_id
   aad_admin_name      = module.identity.app_identity_name
+  tags                = local.tags
 }
 
 # 7. KEY VAULT MODULE (Day 7)
@@ -105,6 +110,7 @@ module "keyvault" {
   location            = azurerm_resource_group.dev.location
   resource_group_name = azurerm_resource_group.dev.name
   environment         = var.environment
+  tags                = local.tags
 }
 
 # 9. ENTRA ID CONFIG (Clean Split Pattern)
@@ -163,6 +169,7 @@ module "containerapp" {
 
   # Ensure the secret is created in Key Vault BEFORE the apps try to mount it
   depends_on = [azurerm_key_vault_secret.alert_webhook]
+  tags       = local.tags
 }
 
 # Store the alert webhook in Key Vault for later use by the App
@@ -188,6 +195,7 @@ module "monitor" {
   api_container_app_id         = module.containerapp.api_app_id
   worker_job_id                = module.containerapp.worker_job_id
   alert_email                  = "toanle88@outlook.com"
+  tags                         = local.tags
 }
 
 # 10. POLICY MODULE — enforce required tags on all resources in this resource group

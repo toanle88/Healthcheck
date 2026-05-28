@@ -14,6 +14,7 @@ resource "azurerm_key_vault" "main" {
   resource_group_name         = var.resource_group_name
   enabled_for_disk_encryption = true
   tenant_id                   = data.azurerm_client_config.current.tenant_id
+  tags                        = var.tags
 
   # Soft delete allows you to recover a deleted vault. 7 days is a safe minimum.
   soft_delete_retention_days = 7
@@ -48,6 +49,7 @@ resource "azurerm_private_endpoint" "kv" {
   location            = var.location
   resource_group_name = var.resource_group_name
   subnet_id           = var.subnet_id
+  tags                = var.tags
 
   private_service_connection {
     name                           = "psc-kv-${var.environment}"

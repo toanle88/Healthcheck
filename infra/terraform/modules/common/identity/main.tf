@@ -2,6 +2,7 @@ resource "azurerm_user_assigned_identity" "github_actions" {
   name                = "id-github-actions-${var.environment}"
   location            = var.location
   resource_group_name = var.resource_group_name
+  tags                = var.tags
 }
 
 resource "azurerm_role_assignment" "allow_github" {
@@ -14,6 +15,7 @@ resource "azurerm_user_assigned_identity" "apps" {
   name                = "id-healthcheck-apps-${var.environment}"
   location            = var.location
   resource_group_name = var.resource_group_name
+  tags                = var.tags
 }
 
 output "client_id" {

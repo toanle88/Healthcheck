@@ -38,3 +38,9 @@ variable "worker_job_id" {
   type        = string
   description = "The ID of the Worker Container App Job"
 }
+
+variable "tags" {
+  type        = map(string)
+  description = "A map of tags to apply to all resources"
+  default     = {}
+}

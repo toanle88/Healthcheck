@@ -38,3 +38,9 @@ variable "alert_webhook_secret_id" {
   default     = ""
   description = "The Key Vault Secret ID of the alert webhook URL"
 }
+
+variable "tags" {
+  type        = map(string)
+  description = "A map of tags to apply to all resources"
+  default     = {}
+}

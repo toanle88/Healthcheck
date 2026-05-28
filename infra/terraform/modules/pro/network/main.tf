@@ -3,6 +3,7 @@ resource "azurerm_virtual_network" "main" {
   location            = var.location
   resource_group_name = var.resource_group_name
   address_space       = ["10.0.0.0/16"]
+  tags                = var.tags
 }
 
 # Subnet for Azure Container Apps (requires delegation)
@@ -51,6 +52,7 @@ resource "azurerm_network_security_group" "db" {
   name                = "nsg-db-${var.environment}"
   location            = var.location
   resource_group_name = var.resource_group_name
+  tags                = var.tags
 
   # RULE: Only allow the Apps Subnet to talk to the DB on port 5432
   security_rule {
@@ -84,6 +86,7 @@ resource "azurerm_network_security_group" "apps" {
   name                = "nsg-apps-${var.environment}"
   location            = var.location
   resource_group_name = var.resource_group_name
+  tags                = var.tags
 
   # Deny HTTP (Port 80) in Production (complying with Checkov CKV_AZURE_160)
   security_rule {
@@ -141,6 +144,7 @@ resource "azurerm_network_security_group" "endpoints" {
   name                = "nsg-endpoints-${var.environment}"
   location            = var.location
   resource_group_name = var.resource_group_name
+  tags                = var.tags
 
   # Allow inbound from container apps subnet (for Key Vault access, etc.)
   security_rule {
