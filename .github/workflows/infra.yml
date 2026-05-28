@@ -56,17 +56,17 @@ jobs:
           output_format: cli
 
   # ==========================================
-  # STAGE 2: TERRAFORM PLAN
-  # Runs a speculative plan and posts the diff on PRs
+  # STAGE 2A: TERRAFORM PLAN (PR only)
   # ==========================================
-  terraform_plan:
+  terraform_plan_pr:
     name: "📋 Terraform: Plan (${{ matrix.environment }})"
     needs: security_scan
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        environment: ${{ github.event_name == 'pull_request' && fromJSON('["dev", "pro"]') || fromJSON(format('["{0}"]', github.event.inputs.environment)) }}
+        environment: [dev, pro]
     defaults:
       run:
         working-directory: ./infra/terraform/environments/${{ matrix.environment }}
@@ -94,8 +94,7 @@ jobs:
 
       - name: "📋 Terraform Plan"
         id: plan
-        # continue-on-error on PR to post comments, fail on manual deploy to block execution
-        continue-on-error: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
         run: |
           terraform plan -no-color \
             -var="acr_name=${{ secrets.AZURE_ACR_NAME }}" \
@@ -103,7 +102,6 @@ jobs:
             2>&1 | tee /tmp/plan_output.txt
 
       - name: "💬 Post Plan as PR Comment"
-        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         env:
           PLAN_OUTCOME: ${{ steps.plan.outcome }}
@@ -164,11 +162,50 @@ jobs:
             }
 
   # ==========================================
+  # STAGE 2B: TERRAFORM PLAN (Manual deploy only)
+  # ==========================================
+  terraform_plan_manual:
+    name: "📋 Terraform: Plan (${{ github.event.inputs.environment }})"
+    needs: security_scan
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./infra/terraform/environments/${{ github.event.inputs.environment }}
+    steps:
+      - name: "📂 Checkout Code"
+        uses: actions/checkout@v4
+
+      - name: "🔑 Login to Azure (OIDC)"
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: "🛠️ Setup Terraform"
+        uses: hashicorp/setup-terraform@v3
+
+      - name: "📦 Terraform Init"
+        run: |
+          terraform init -upgrade \
+            -backend-config="resource_group_name=rg-healthcheck-bootstrap" \
+            -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.AZURE_STORAGE_CONTAINER }}" \
+            -backend-config="key=${{ github.event.inputs.environment }}.terraform.tfstate"
+
+      - name: "📋 Terraform Plan"
+        run: |
+          terraform plan -no-color \
+            -var="acr_name=${{ secrets.AZURE_ACR_NAME }}" \
+            -var="entra_client_id=${{ secrets.ENTRA_CLIENT_ID }}"
+
+  # ==========================================
   # STAGE 3: THE DEPLOYER (manual apply only)
   # ==========================================
   terraform:
     name: "🏗️ Terraform Apply (${{ github.event.inputs.environment }})"
-    needs: [security_scan, terraform_plan] # <--- ONLY RUN IF PLAN AND SECURITY SCAN PASS!
+    needs: [security_scan, terraform_plan_manual] # <--- ONLY RUN IF PLAN AND SECURITY SCAN PASS!
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     defaults:
