@@ -59,7 +59,7 @@ jobs:
   # STAGE 2A: TERRAFORM PLAN (PR only)
   # ==========================================
   terraform_plan_pr:
-    name: "📋 Terraform: Plan (${{ matrix.environment }})"
+    name: "📋 Terraform: Plan"
     needs: security_scan
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

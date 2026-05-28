@@ -19,7 +19,7 @@ env:
 
 jobs:
   drift_detection:
-    name: "🔍 Drift Detection (${{ matrix.environment }})"
+    name: "🔍 Drift Detection"
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
