@@ -57,8 +57,8 @@ stages:
     displayName: '📋 Terraform: Plan'
     dependsOn: SecurityScan
     jobs:
-      - job: PlanPR
-        displayName: 'Run Speculative Plan (PR)'
+      - job: terraform_plan_pr
+        displayName: '📋 Terraform: Plan (PR only)'
         condition: eq(variables['Build.Reason'], 'PullRequest')
         pool:
           vmImage: 'ubuntu-latest'
@@ -97,8 +97,8 @@ stages:
                   -var="acr_name=$(acrName)" \
                   -var="entra_client_id=$(entraClientId)"
 
-      - job: PlanManual
-        displayName: 'Run Plan (${{ parameters.environment }})'
+      - job: terraform_plan_manual
+        displayName: '📋 Terraform: Plan (${{ parameters.environment }})'
         condition: ne(variables['Build.Reason'], 'PullRequest')
         pool:
           vmImage: 'ubuntu-latest'
@@ -127,9 +127,16 @@ stages:
                   -backend-config="container_name=$(storageContainerName)" \
                   -backend-config="key=${{ parameters.environment }}.terraform.tfstate"
 
-                terraform plan -no-color \
+                terraform plan -no-color -out=tfplan \
                   -var="acr_name=$(acrName)" \
                   -var="entra_client_id=$(entraClientId)"
+
+          - task: PublishPipelineArtifact@1
+            displayName: '📤 Publish Terraform Plan'
+            inputs:
+              targetPath: 'infra/terraform/environments/${{ parameters.environment }}/tfplan'
+              artifact: 'tfplan-${{ parameters.environment }}'
+              publishLocation: 'pipeline'
 
   # ==========================================
   # STAGE 3: THE DEPLOYER (manual apply only)
@@ -145,6 +152,13 @@ stages:
           vmImage: 'ubuntu-latest'
         steps:
           - checkout: self
+
+          - task: DownloadPipelineArtifact@2
+            displayName: '📥 Download Terraform Plan'
+            inputs:
+              buildType: 'current'
+              artifactName: 'tfplan-${{ parameters.environment }}'
+              targetPath: 'infra/terraform/environments/${{ parameters.environment }}'
           
           - task: AzureCLI@2
             displayName: '🏗️ Apply Infrastructure Changes (${{ parameters.environment }})'
@@ -170,9 +184,5 @@ stages:
 
                 terraform version
                 terraform providers
-
-                terraform plan -out=tfplan \
-                  -var="acr_name=$(acrName)" \
-                  -var="entra_client_id=$(entraClientId)"
 
                 terraform apply -auto-approve tfplan

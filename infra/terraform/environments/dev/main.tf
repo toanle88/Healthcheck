@@ -28,6 +28,12 @@ provider "azurerm" {
     }
   }
   use_oidc = true
+  default_tags {
+    tags = {
+      environment = var.environment
+      project     = "healthcheck"
+    }
+  }
 }
 
 # REFACTORING: Move the identity state from containerapp to identity module

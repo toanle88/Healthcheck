@@ -28,6 +28,12 @@ provider "azurerm" {
     }
   }
   use_oidc = true
+  default_tags {
+    tags = {
+      environment = var.environment
+      project     = "healthcheck"
+    }
+  }
 }
 
 # 1. Variables

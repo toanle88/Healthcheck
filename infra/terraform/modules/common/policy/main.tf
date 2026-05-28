@@ -58,12 +58,6 @@ resource "azurerm_resource_group_policy_assignment" "require_environment_tag" {
   policy_definition_id = azurerm_policy_definition.require_environment_tag.id
   display_name         = "[${upper(var.environment)}] Require 'environment' tag"
   description          = "Assigned to ${var.resource_group_name} — denies resources missing the 'environment' tag."
-
-  # Provide the default tag value so Azure Policy can optionally use it in
-  # modify-effect extensions in the future without changing the assignment.
-  parameters = jsonencode({
-    tagName = { value = "environment" }
-  })
 }
 
 resource "azurerm_resource_group_policy_assignment" "require_project_tag" {
@@ -72,8 +66,4 @@ resource "azurerm_resource_group_policy_assignment" "require_project_tag" {
   policy_definition_id = azurerm_policy_definition.require_project_tag.id
   display_name         = "[${upper(var.environment)}] Require 'project' tag"
   description          = "Assigned to ${var.resource_group_name} — denies resources missing the 'project' tag."
-
-  parameters = jsonencode({
-    tagName = { value = "project" }
-  })
 }

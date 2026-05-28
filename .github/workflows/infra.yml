@@ -59,7 +59,7 @@ jobs:
   # STAGE 2A: TERRAFORM PLAN (PR only)
   # ==========================================
   terraform_plan_pr:
-    name: "📋 Terraform: Plan"
+    name: "📋 Terraform: Plan (PR only)"
     needs: security_scan
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -196,9 +196,15 @@ jobs:
 
       - name: "📋 Terraform Plan"
         run: |
-          terraform plan -no-color \
+          terraform plan -no-color -out=tfplan \
             -var="acr_name=${{ secrets.AZURE_ACR_NAME }}" \
             -var="entra_client_id=${{ secrets.ENTRA_CLIENT_ID }}"
+
+      - name: "📤 Upload Terraform Plan"
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ github.event.inputs.environment }}
+          path: ./infra/terraform/environments/${{ github.event.inputs.environment }}/tfplan
 
   # ==========================================
   # STAGE 3: THE DEPLOYER (manual apply only)
@@ -222,6 +228,12 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: "📥 Download Terraform Plan"
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ github.event.inputs.environment }}
+          path: ./infra/terraform/environments/${{ github.event.inputs.environment }}
+
       - name: "🛠️ Setup Terraform"
         uses: hashicorp/setup-terraform@v3
 
@@ -237,12 +249,6 @@ jobs:
         run: |
           terraform version
           terraform providers
-
-      - name: "📋 Terraform Plan"
-        run: |
-          terraform plan -out=tfplan \
-            -var="acr_name=${{ secrets.AZURE_ACR_NAME }}" \
-            -var="entra_client_id=${{ secrets.ENTRA_CLIENT_ID }}"
 
       - name: "🏗️ Apply Infrastructure Changes"
         run: terraform apply -auto-approve tfplan

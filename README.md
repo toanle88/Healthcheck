@@ -48,7 +48,7 @@ The pipelines are defined for both GitHub Actions (under `.github/workflows/`) a
 | Pipeline File | Platform | Trigger | Purpose |
 | :--- | :--- | :--- | :--- |
 | `cicd.yml` | GitHub Actions | PR / push to `main` | **Audit** (lint, test, Trivy), **Build** (Docker images → ACR), **Deploy** (Dev deployment & smoke test, Pro deployment with manual approval & smoke test) |
-| `infra.yml` | GitHub Actions | Push to `main` (infra paths) | Terraform plan & apply |
+| `infra.yml` | GitHub Actions | PR / manual dispatch (infra paths) | Terraform plan & apply |
 | `destroy.yml` | GitHub Actions | Manual dispatch | `terraform destroy` for teardown |
 | `drift.yml` | GitHub Actions | Daily schedule / manual dispatch | Terraform speculative plan & drift detection alerts |
 | [.azure-pipelines/cicd.yml](file:///mnt/d/Dev/Projects/Healthcheck/.azure-pipelines/cicd.yml) | Azure DevOps | PR / push to `main` | Mirror of `cicd.yml` (Audit, Build, Dev deployment & smoke test, Pro deployment with manual approval & smoke test) |
